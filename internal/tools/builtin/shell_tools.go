@@ -68,15 +68,15 @@ func (t *BashTool) Validate(args map[string]interface{}) error {
 		AddOptionalIntField("timeout", "Timeout in seconds", 1, 300).
 		AddBoolField("capture_output", "Whether to capture command output", false).
 		AddBoolField("allow_interactive", "Allow interactive commands", false)
-	
+
 	// First run standard validation
 	if err := validator.Validate(args); err != nil {
 		return err
 	}
-	
+
 	// Get validated command
 	command := args["command"].(string)
-	
+
 	// Enhanced security validation
 	if err := t.validateSecurity(command); err != nil {
 		return err
@@ -214,7 +214,7 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 // validateSecurity performs comprehensive security validation on commands
 func (t *BashTool) validateSecurity(command string) error {
 	lowerCommand := strings.ToLower(strings.TrimSpace(command))
-	
+
 	// Dangerous commands that could harm the system
 	dangerousCommands := []string{
 		"rm -rf /", "rm -rf .", "rm -rf *", "rm -rf ~",
@@ -227,13 +227,13 @@ func (t *BashTool) validateSecurity(command string) error {
 		"cat /dev/urandom", "> /dev/sda", "> /dev/null",
 		":(){ :|:& };:", // fork bomb
 	}
-	
+
 	for _, dangerous := range dangerousCommands {
 		if strings.Contains(lowerCommand, dangerous) {
 			return fmt.Errorf("dangerous command detected: %s", dangerous)
 		}
 	}
-	
+
 	// Suspicious patterns that warrant extra scrutiny
 	suspiciousPatterns := []string{
 		"/etc/passwd", "/etc/shadow", "/etc/sudoers",
@@ -246,44 +246,44 @@ func (t *BashTool) validateSecurity(command string) error {
 		"&& rm", "|| rm", "; rm",
 		"chmod +x", "chmod 755", "chmod 777",
 	}
-	
+
 	for _, pattern := range suspiciousPatterns {
 		if strings.Contains(lowerCommand, pattern) {
 			return fmt.Errorf("potentially dangerous pattern detected: %s", pattern)
 		}
 	}
-	
+
 	// Check for attempts to access sensitive directories
 	restrictedPaths := []string{
 		"/etc/", "/root/", "/boot/", "/sys/", "/proc/",
 		"/var/log/", "/usr/bin/", "/usr/sbin/", "/sbin/",
 		"c:\\windows\\", "c:\\program files\\", "c:\\system32\\",
 	}
-	
+
 	for _, path := range restrictedPaths {
 		if strings.Contains(lowerCommand, path) {
 			return fmt.Errorf("access to restricted path detected: %s", path)
 		}
 	}
-	
+
 	// Check for networking commands that could be used maliciously
 	networkCommands := []string{
 		"ssh", "scp", "rsync", "ftp", "sftp",
 		"telnet", "nmap", "ping -f", "ping -c 1000",
 		"iptables", "ufw", "firewall-cmd",
 	}
-	
+
 	for _, netCmd := range networkCommands {
 		if strings.Contains(lowerCommand, netCmd) {
 			return fmt.Errorf("network command requires explicit permission: %s", netCmd)
 		}
 	}
-	
+
 	// Check command length to prevent buffer overflow attempts
 	if len(command) > 1000 {
 		return fmt.Errorf("command too long (max 1000 characters)")
 	}
-	
+
 	return nil
 }
 
@@ -360,12 +360,12 @@ func (t *ScriptRunnerTool) Validate(args map[string]interface{}) error {
 		}).
 		AddOptionalStringField("working_dir", "Working directory for script execution").
 		AddOptionalIntField("timeout", "Timeout in seconds", 1, 600)
-	
+
 	// First run standard validation
 	if err := validator.Validate(args); err != nil {
 		return err
 	}
-	
+
 	// Additional validation: check if script file exists
 	scriptPath := args["script_path"].(string)
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
@@ -488,15 +488,15 @@ func (t *ScriptRunnerTool) Execute(ctx context.Context, args map[string]interfac
 	return &ToolResult{
 		Content: resultContent,
 		Data: map[string]interface{}{
-			"script_path":  scriptPath,
-			"interpreter":  interpreter,
-			"exit_code":    exitCode,
-			"success":      err == nil,
-			"duration_ms":  duration.Milliseconds(),
-			"working_dir":  workingDir,
-			"stdout":       stdoutStr,
-			"stderr":       stderrStr,
-			"args":         scriptArgs,
+			"script_path": scriptPath,
+			"interpreter": interpreter,
+			"exit_code":   exitCode,
+			"success":     err == nil,
+			"duration_ms": duration.Milliseconds(),
+			"working_dir": workingDir,
+			"stdout":      stdoutStr,
+			"stderr":      stderrStr,
+			"args":        scriptArgs,
 		},
 	}, nil
 }
@@ -580,7 +580,7 @@ func (t *ProcessMonitorTool) Validate(args map[string]interface{}) error {
 		}).
 		AddOptionalStringField("filter", "Filter processes by name pattern").
 		AddOptionalIntField("max_results", "Maximum number of processes to return", 1, 500)
-	
+
 	return validator.Validate(args)
 }
 

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 )
@@ -32,7 +31,6 @@ func NewHTTPClient() (*HTTPLLMClient, error) {
 // getModelConfig returns the model configuration for the request
 func (c *HTTPLLMClient) getModelConfig(req *ChatRequest) (string, string, string) {
 	config := req.Config
-	log.Printf("[DEBUG] HTTPLLMClient: getModelConfig - Config: %v", config)
 	if config == nil {
 		// Fallback to some defaults if config fails
 		return "https://openrouter.ai/api/v1", "sk-default", "deepseek/deepseek-chat-v3-0324:free"
@@ -52,7 +50,6 @@ func (c *HTTPLLMClient) getModelConfig(req *ChatRequest) (string, string, string
 			return modelConfig.BaseURL, modelConfig.APIKey, modelConfig.Model
 		}
 	}
-	log.Printf("[DEBUG] HTTPLLMClient: getModelConfig - Fallback to single model config: %v", config)
 	// Fallback to single model config
 	return config.BaseURL, config.APIKey, config.Model
 }
@@ -65,7 +62,6 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 
 	// Get model configuration for this request
 	baseURL, apiKey, model := c.getModelConfig(req)
-	log.Printf("[DEBUG] HTTPLLMClient: Chat request - BaseURL: %s, APIKey: %s, Model: %s", baseURL, apiKey, model)
 	// Ensure streaming is disabled for HTTP mode
 	req.Stream = false
 
@@ -138,4 +134,3 @@ func (c *HTTPLLMClient) Close() error {
 	// HTTP client doesn't need explicit cleanup
 	return nil
 }
-

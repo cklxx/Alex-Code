@@ -16,11 +16,11 @@ type Session struct {
 	Updated  time.Time  `json:"updated"`
 	Messages []*Message `json:"messages"`
 	Context  string     `json:"context,omitempty"`
-	
+
 	// Session metadata
-	WorkingDir string            `json:"working_dir,omitempty"`
+	WorkingDir string                 `json:"working_dir,omitempty"`
 	Config     map[string]interface{} `json:"config,omitempty"`
-	
+
 	mutex sync.RWMutex
 }
 
@@ -28,7 +28,7 @@ type Session struct {
 type Message struct {
 	Role      string                 `json:"role"`
 	Content   string                 `json:"content"`
-	ToolCalls []ToolCall            `json:"tool_calls,omitempty"`
+	ToolCalls []ToolCall             `json:"tool_calls,omitempty"`
 	ToolID    string                 `json:"tool_id,omitempty"`
 	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 	Timestamp time.Time              `json:"timestamp"`
@@ -312,12 +312,12 @@ func (s *Session) GetMessages() []*Message {
 func (s *Session) GetContext() string {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	
+
 	context := s.Context
 	if context == "" && s.WorkingDir != "" {
 		context = fmt.Sprintf("Working directory: %s", s.WorkingDir)
 	}
-	
+
 	return context
 }
 
@@ -325,7 +325,7 @@ func (s *Session) GetContext() string {
 func (s *Session) SetContext(context string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	s.Context = context
 	s.Updated = time.Now()
 }
@@ -334,7 +334,7 @@ func (s *Session) SetContext(context string) {
 func (s *Session) GetConfig(key string) (interface{}, bool) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	
+
 	value, exists := s.Config[key]
 	return value, exists
 }
@@ -343,7 +343,7 @@ func (s *Session) GetConfig(key string) (interface{}, bool) {
 func (s *Session) SetConfig(key string, value interface{}) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	s.Config[key] = value
 	s.Updated = time.Now()
 }
@@ -352,7 +352,7 @@ func (s *Session) SetConfig(key string, value interface{}) {
 func (s *Session) GetMessageCount() int {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	
+
 	return len(s.Messages)
 }
 
@@ -360,7 +360,7 @@ func (s *Session) GetMessageCount() int {
 func (s *Session) ClearMessages() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	s.Messages = make([]*Message, 0)
 	s.Updated = time.Now()
 }

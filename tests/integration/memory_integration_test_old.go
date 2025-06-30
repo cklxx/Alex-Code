@@ -12,6 +12,8 @@ import (
 	"deep-coding-agent/internal/memory"
 	"deep-coding-agent/pkg/types"
 	"deep-coding-agent/tests/testutils"
+
+	"github.com/stretchr/testify/suite"
 )
 
 // MemoryIntegrationTestSuite tests memory system integration
@@ -29,7 +31,7 @@ func (suite *MemoryIntegrationTestSuite) SetupSuite() {
 
 func (suite *MemoryIntegrationTestSuite) SetupTest() {
 	suite.testCtx = testutils.NewTestContext(suite.T())
-	
+
 	config := &types.MemoryManagerConfig{
 		KnowledgeBase: &types.KnowledgeBaseConfig{
 			MaxKnowledgeItems:    1000,
@@ -42,14 +44,14 @@ func (suite *MemoryIntegrationTestSuite) SetupTest() {
 			ConsolidationEnabled: true,
 		},
 		PatternLearner: &types.PatternLearnerConfig{
-			AutoLearning:           true,
-			MinExamples:            3,
-			MinQualityThreshold:    0.6,
-			MaxVariations:          10,
-			LearningRate:           0.1,
-			FeedbackWeight:         0.3,
-			ContextualLearning:     true,
-			CrossLanguageLearning:  false,
+			AutoLearning:          true,
+			MinExamples:           3,
+			MinQualityThreshold:   0.6,
+			MaxVariations:         10,
+			LearningRate:          0.1,
+			FeedbackWeight:        0.3,
+			ContextualLearning:    true,
+			CrossLanguageLearning: false,
 		},
 		ProjectMemory: &types.ProjectMemoryConfig{
 			AutoSnapshot:          true,
@@ -62,10 +64,10 @@ func (suite *MemoryIntegrationTestSuite) SetupTest() {
 			ConfigurationTracking: true,
 		},
 		StorageConfig: &types.StorageConfig{
-			Type:            "file",
+			Type:             "file",
 			ConnectionString: suite.testCtx.TempDir,
-			MaxSize:         1024 * 1024 * 100, // 100MB
-			RetentionPeriod: "30d",
+			MaxSize:          1024 * 1024 * 100, // 100MB
+			RetentionPeriod:  "30d",
 			BackupConfig: &types.BackupConfig{
 				Enabled:     true,
 				Interval:    "1h",
@@ -78,7 +80,7 @@ func (suite *MemoryIntegrationTestSuite) SetupTest() {
 		BackupEnabled:      true,
 		CompressionEnabled: false,
 	}
-	
+
 	suite.manager = memory.NewUnifiedMemoryManager(config)
 }
 
@@ -96,7 +98,7 @@ func (suite *MemoryIntegrationTestSuite) TestMemorySystem_FullWorkflow() {
 
 	// 1. Store various types of knowledge
 	knowledgeItems := testutils.GenerateTestKnowledge(20, "integration_test")
-	
+
 	for _, k := range knowledgeItems {
 		err := suite.manager.Store(ctx, k)
 		suite.Require().NoError(err)
@@ -104,7 +106,7 @@ func (suite *MemoryIntegrationTestSuite) TestMemorySystem_FullWorkflow() {
 
 	// 2. Store code patterns
 	patterns := testutils.GenerateTestPatterns(10, "integration_test")
-	
+
 	for _, p := range patterns {
 		err := suite.manager.StorePattern(ctx, p)
 		suite.Require().NoError(err)
@@ -155,10 +157,10 @@ func (suite *MemoryIntegrationTestSuite) TestMemorySystem_ConcurrentOperations()
 	for i := 0; i < numGoroutines; i++ {
 		go func(workerID int) {
 			defer func() { done <- true }()
-			
-			knowledge := testutils.GenerateTestKnowledge(itemsPerGoroutine, 
+
+			knowledge := testutils.GenerateTestKnowledge(itemsPerGoroutine,
 				fmt.Sprintf("concurrent_worker_%d", workerID))
-			
+
 			for _, k := range knowledge {
 				if err := suite.manager.Store(ctx, k); err != nil {
 					errChan <- err
@@ -172,10 +174,10 @@ func (suite *MemoryIntegrationTestSuite) TestMemorySystem_ConcurrentOperations()
 	for i := 0; i < numGoroutines; i++ {
 		go func(workerID int) {
 			defer func() { done <- true }()
-			
-			patterns := testutils.GenerateTestPatterns(itemsPerGoroutine/5, 
+
+			patterns := testutils.GenerateTestPatterns(itemsPerGoroutine/5,
 				fmt.Sprintf("concurrent_pattern_worker_%d", workerID))
-			
+
 			for _, p := range patterns {
 				if err := suite.manager.StorePattern(ctx, p); err != nil {
 					errChan <- err
@@ -200,10 +202,10 @@ func (suite *MemoryIntegrationTestSuite) TestMemorySystem_ConcurrentOperations()
 	// Verify final state
 	stats, err := suite.manager.GetMemoryStats(ctx)
 	suite.Require().NoError(err)
-	
+
 	expectedKnowledge := numGoroutines * itemsPerGoroutine
 	expectedPatterns := numGoroutines * (itemsPerGoroutine / 5)
-	
+
 	suite.Assert().Equal(expectedKnowledge, stats["knowledge_items"])
 	suite.Assert().Equal(expectedPatterns, stats["patterns"])
 }
@@ -217,40 +219,40 @@ func (suite *MemoryIntegrationTestSuite) TestMemorySystem_LargeDataset() {
 	// Store large dataset
 	suite.T().Log("Storing large dataset...")
 	start := time.Now()
-	
+
 	knowledge := testutils.GenerateTestKnowledge(largeDatasetSize, "large_dataset")
 	for i, k := range knowledge {
 		err := suite.manager.Store(ctx, k)
 		suite.Require().NoError(err)
-		
+
 		if i%100 == 0 {
 			suite.T().Logf("Stored %d/%d items", i+1, largeDatasetSize)
 		}
 	}
-	
+
 	storeTime := time.Since(start)
-	suite.T().Logf("Stored %d items in %v (avg: %v per item)", 
+	suite.T().Logf("Stored %d items in %v (avg: %v per item)",
 		largeDatasetSize, storeTime, storeTime/time.Duration(largeDatasetSize))
 
 	// Perform searches on large dataset
 	suite.T().Log("Performing searches on large dataset...")
 	start = time.Now()
-	
+
 	searchQueries := []string{
 		"test knowledge",
 		"content",
 		"large_dataset",
 		"experience",
 	}
-	
+
 	for _, query := range searchQueries {
 		results, err := suite.manager.SearchKnowledge(ctx, query, nil)
 		suite.Require().NoError(err)
 		suite.Assert().Greater(len(results), 0)
 	}
-	
+
 	searchTime := time.Since(start)
-	suite.T().Logf("Completed %d searches in %v (avg: %v per search)", 
+	suite.T().Logf("Completed %d searches in %v (avg: %v per search)",
 		len(searchQueries), searchTime, searchTime/time.Duration(len(searchQueries)))
 
 	// Test memory usage
@@ -261,10 +263,10 @@ func (suite *MemoryIntegrationTestSuite) TestMemorySystem_LargeDataset() {
 	// Performance assertions
 	avgStoreTime := storeTime / time.Duration(largeDatasetSize)
 	avgSearchTime := searchTime / time.Duration(len(searchQueries))
-	
-	suite.Assert().Less(avgStoreTime, 50*time.Millisecond, 
+
+	suite.Assert().Less(avgStoreTime, 50*time.Millisecond,
 		"Average store time should be less than 50ms")
-	suite.Assert().Less(avgSearchTime, 100*time.Millisecond, 
+	suite.Assert().Less(avgSearchTime, 100*time.Millisecond,
 		"Average search time should be less than 100ms")
 }
 
@@ -299,7 +301,7 @@ func (suite *MemoryIntegrationTestSuite) TestMemorySystem_PersistenceAndRecovery
 
 	// For in-memory implementation, this might be 0
 	// For persistent implementation, should match original
-	suite.T().Logf("Original count: %d, Recovered count: %d", 
+	suite.T().Logf("Original count: %d, Recovered count: %d",
 		originalCount, recoveredStats["knowledge_items"])
 
 	// Clean up new manager
@@ -318,22 +320,22 @@ func (suite *MemoryIntegrationTestSuite) TestMemorySystem_MemoryLeaks() {
 	// Perform memory-intensive operations
 	for round := 0; round < 10; round++ {
 		suite.T().Logf("Memory test round %d/10", round+1)
-		
+
 		// Store and delete data repeatedly
 		knowledge := testutils.GenerateTestKnowledge(100, fmt.Sprintf("leak_test_round_%d", round))
-		
+
 		// Store
 		for _, k := range knowledge {
 			err := suite.manager.Store(ctx, k)
 			suite.Require().NoError(err)
 		}
-		
+
 		// Delete
 		for _, k := range knowledge {
 			err := suite.manager.Delete(ctx, k.ID)
 			suite.Require().NoError(err)
 		}
-		
+
 		// Trigger cleanup
 		err = suite.manager.CleanupMemory(ctx)
 		suite.Require().NoError(err)

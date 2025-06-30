@@ -52,7 +52,7 @@ func (t *FileReadTool) Validate(args map[string]interface{}) error {
 		AddStringField("file_path", "Path to the file to read").
 		AddOptionalIntField("start_line", "Starting line number (1-based)", 1, 0).
 		AddOptionalIntField("end_line", "Ending line number (1-based)", 1, 0)
-	
+
 	return validator.Validate(args)
 }
 
@@ -109,14 +109,14 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 
 	// Get file info
 	fileInfo, _ := os.Stat(filePath)
-	
+
 	return &ToolResult{
 		Content: contentStr,
 		Data: map[string]interface{}{
-			"file_path":  filePath,
-			"file_size":  len(content),
-			"lines":      len(strings.Split(string(content), "\n")),
-			"modified":   fileInfo.ModTime().Unix(),
+			"file_path": filePath,
+			"file_size": len(content),
+			"lines":     len(strings.Split(string(content), "\n")),
+			"modified":  fileInfo.ModTime().Unix(),
 		},
 	}, nil
 }
@@ -196,26 +196,26 @@ func (t *FileUpdateTool) Validate(args map[string]interface{}) error {
 		}).
 		AddBoolField("create_dirs", "Create parent directories if they don't exist", false).
 		AddOptionalIntField("line_number", "Line number for insert mode", 1, 0)
-	
+
 	// First run standard validation
 	if err := validator.Validate(args); err != nil {
 		return err
 	}
-	
+
 	// Additional validation for insert mode
 	if mode, ok := args["mode"]; ok && mode == "insert" {
 		if _, ok := args["line_number"]; !ok {
 			return fmt.Errorf("line_number is required for insert mode")
 		}
 	}
-	
+
 	return nil
 }
 
 func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	filePath := args["file_path"].(string)
 	content := args["content"].(string)
-	
+
 	mode := "append"
 	if modeArg, ok := args["mode"]; ok {
 		mode, _ = modeArg.(string)
@@ -287,7 +287,7 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{
 
 		// Split content into lines for insertion
 		newLines := strings.Split(content, "\n")
-		
+
 		// Build final content
 		result := make([]string, 0, len(lines)+len(newLines))
 		result = append(result, lines[:insertPos]...)
@@ -428,7 +428,7 @@ func (t *FileReplaceTool) Validate(args map[string]interface{}) error {
 		AddBoolField("case_sensitive", "Case sensitive search", false).
 		AddBoolField("backup", "Create backup before replacing", false).
 		AddBoolField("dry_run", "Show what would be replaced without making changes", false)
-	
+
 	return validator.Validate(args)
 }
 
@@ -486,7 +486,7 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 			// For case insensitive, we need to find and replace manually
 			lower := strings.ToLower(originalContent)
 			lowerSearch := strings.ToLower(search)
-			
+
 			if allOccurrences {
 				pos := 0
 				for {
@@ -496,7 +496,7 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 					}
 					actualPos := pos + idx
 					finalContent = finalContent[:actualPos] + replaceText + finalContent[actualPos+len(search):]
-					
+
 					// Adjust positions for the next search
 					lower = lower[:actualPos] + strings.ToLower(replaceText) + lower[actualPos+len(search):]
 					pos = actualPos + len(replaceText)
@@ -532,7 +532,7 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 			} else {
 				matches = strings.Contains(strings.ToLower(line), strings.ToLower(search))
 			}
-			
+
 			if matches {
 				lines[i] = replace
 				replacementCount++
@@ -664,7 +664,7 @@ func (t *FileListTool) Validate(args map[string]interface{}) error {
 		AddBoolField("recursive", "List files recursively", false).
 		AddOptionalIntField("depth", "Maximum depth to traverse", 1, 10).
 		AddBoolField("show_hidden", "Include hidden files", false)
-	
+
 	return validator.Validate(args)
 }
 
@@ -730,7 +730,7 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 			if err != nil {
 				return err
 			}
-			
+
 			currentDepth := 1
 			if relPath != "." && relPath != "" && relPath != string(filepath.Separator) {
 				// Count path separators to determine depth
@@ -866,7 +866,7 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 
 	// Build detailed content with file listing
 	var contentBuilder strings.Builder
-	
+
 	// Header with summary
 	summary := fmt.Sprintf("Found %d files and %d directories", fileCount, dirCount)
 	if totalSize > 0 {
@@ -876,15 +876,15 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 		summary += fmt.Sprintf(" (depth: %d)", depth)
 	}
 	contentBuilder.WriteString(summary + "\n\n")
-	
+
 	// Detailed file listing
 	if len(files) > 0 {
 		contentBuilder.WriteString("Detailed listing:\n")
-		
+
 		// Sort files: directories first, then files, both alphabetically
 		var directories []map[string]interface{}
 		var regularFiles []map[string]interface{}
-		
+
 		for _, file := range files {
 			if file["is_dir"].(bool) {
 				directories = append(directories, file)
@@ -892,7 +892,7 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 				regularFiles = append(regularFiles, file)
 			}
 		}
-		
+
 		// List directories first
 		if len(directories) > 0 {
 			contentBuilder.WriteString("\nDirectories:\n")
@@ -905,7 +905,7 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 				contentBuilder.WriteString(fmt.Sprintf("  📁 %s/ [%s]\n", relPath, mode))
 			}
 		}
-		
+
 		// List files
 		if len(regularFiles) > 0 {
 			contentBuilder.WriteString("\nFiles:\n")
@@ -917,11 +917,11 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 				size := file["size"].(int64)
 				mode := file["mode"].(string)
 				sizeStr := formatFileSize(size)
-				
+
 				// Get file extension for type indication
 				ext := strings.ToLower(filepath.Ext(file["name"].(string)))
 				icon := getFileIcon(ext)
-				
+
 				contentBuilder.WriteString(fmt.Sprintf("  %s %s (%s) [%s]\n", icon, relPath, sizeStr, mode))
 			}
 		}
@@ -980,7 +980,7 @@ func (t *DirectoryCreateTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
 		AddStringField("path", "Path for the new directory").
 		AddOptionalStringField("permissions", "Directory permissions in octal (e.g., '755')")
-	
+
 	return validator.Validate(args)
 }
 

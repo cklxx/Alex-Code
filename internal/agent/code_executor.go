@@ -130,7 +130,7 @@ func (ce *CodeActExecutor) ExecuteCode(ctx context.Context, language, code strin
 func (ce *CodeActExecutor) GetSupportedLanguages() []string {
 	ce.mu.RLock()
 	defer ce.mu.RUnlock()
-	
+
 	languages := make([]string, 0, len(ce.supportedLanguages))
 	for lang := range ce.supportedLanguages {
 		languages = append(languages, lang)

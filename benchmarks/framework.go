@@ -24,15 +24,15 @@ type HumanEvalProblem struct {
 
 // BenchmarkResult represents the result of running our agent on a problem
 type BenchmarkResult struct {
-	TaskID       string        `json:"task_id"`
-	Prompt       string        `json:"prompt"`
-	Response     string        `json:"response"`
-	Success      bool          `json:"success"`
-	Executed     bool          `json:"executed"`
-	Error        string        `json:"error,omitempty"`
-	Duration     time.Duration `json:"duration"`
-	PassedTests  bool          `json:"passed_tests"`
-	TestResults  string        `json:"test_results,omitempty"`
+	TaskID      string        `json:"task_id"`
+	Prompt      string        `json:"prompt"`
+	Response    string        `json:"response"`
+	Success     bool          `json:"success"`
+	Executed    bool          `json:"executed"`
+	Error       string        `json:"error,omitempty"`
+	Duration    time.Duration `json:"duration"`
+	PassedTests bool          `json:"passed_tests"`
+	TestResults string        `json:"test_results,omitempty"`
 }
 
 // BenchmarkConfig holds configuration for the benchmark run
@@ -78,11 +78,11 @@ func NewCodeAgentBenchmark(configPath string) (*CodeAgentBenchmark, error) {
 // loadConfig loads benchmark configuration from JSON file
 func loadConfig(path string) (BenchmarkConfig, error) {
 	var config BenchmarkConfig
-	
+
 	// Default configuration
 	config = BenchmarkConfig{
 		AgentPath:     "../deep-coding-agent",
-		MaxProblems:   3, 
+		MaxProblems:   3,
 		OutputDir:     "results",
 		Timeout:       60,
 		UseReactAgent: false,
@@ -129,7 +129,7 @@ func loadHumanEvalProblems(path string) ([]HumanEvalProblem, error) {
 
 	var problems []HumanEvalProblem
 	scanner := bufio.NewScanner(file)
-	
+
 	for scanner.Scan() {
 		var problem HumanEvalProblem
 		if err := json.Unmarshal(scanner.Bytes(), &problem); err != nil {
@@ -150,7 +150,7 @@ func loadHumanEvalProblems(path string) ([]HumanEvalProblem, error) {
 // Run executes the benchmark
 func (b *CodeAgentBenchmark) Run() error {
 	log.Printf("Starting benchmark with %d problems", len(b.problems))
-	
+
 	// Create output directory
 	if err := os.MkdirAll(b.config.OutputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output dir: %w", err)
@@ -158,10 +158,10 @@ func (b *CodeAgentBenchmark) Run() error {
 
 	for i, problem := range b.problems {
 		log.Printf("Running problem %d/%d: %s", i+1, len(b.problems), problem.TaskID)
-		
+
 		result := b.runSingleProblem(problem)
 		b.results = append(b.results, result)
-		
+
 		// Save intermediate results
 		if err := b.saveResults(); err != nil {
 			log.Printf("Failed to save intermediate results: %v", err)
@@ -174,7 +174,7 @@ func (b *CodeAgentBenchmark) Run() error {
 // runSingleProblem runs our agent on a single problem
 func (b *CodeAgentBenchmark) runSingleProblem(problem HumanEvalProblem) BenchmarkResult {
 	start := time.Now()
-	
+
 	result := BenchmarkResult{
 		TaskID:   problem.TaskID,
 		Prompt:   problem.Prompt,
@@ -184,7 +184,7 @@ func (b *CodeAgentBenchmark) runSingleProblem(problem HumanEvalProblem) Benchmar
 	}
 
 	var solution string
-	
+
 	if b.config.UseCanonical {
 		// Use canonical solution for testing the framework
 		solution = problem.CanonicalSolution
@@ -215,11 +215,11 @@ func (b *CodeAgentBenchmark) runSingleProblem(problem HumanEvalProblem) Benchmar
 // extractFunctionFromPrompt creates a simple implementation based on the function signature
 func (b *CodeAgentBenchmark) extractFunctionFromPrompt(prompt string) string {
 	lines := strings.Split(prompt, "\n")
-	
+
 	// Find the function signature
 	var funcName string
 	var params []string
-	
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "def ") && strings.Contains(trimmed, "(") && strings.Contains(trimmed, ":") {
@@ -252,11 +252,11 @@ func (b *CodeAgentBenchmark) extractFunctionFromPrompt(prompt string) string {
 			break
 		}
 	}
-	
+
 	if funcName == "" {
 		return ""
 	}
-	
+
 	// Generate simple implementations for known functions
 	switch funcName {
 	case "has_close_elements":
@@ -265,7 +265,7 @@ func (b *CodeAgentBenchmark) extractFunctionFromPrompt(prompt string) string {
             if abs(numbers[i] - numbers[j]) < threshold:
                 return True
     return False`
-	
+
 	case "separate_paren_groups":
 		return `    result = []
     current_string = []
@@ -283,10 +283,10 @@ func (b *CodeAgentBenchmark) extractFunctionFromPrompt(prompt string) string {
                 current_string.clear()
 
     return result`
-	
+
 	case "truncate_number":
 		return `    return number % 1.0`
-	
+
 	default:
 		// Generate a basic pass implementation
 		return `    pass  # TODO: implement this function`
@@ -312,7 +312,7 @@ func (b *CodeAgentBenchmark) validateSolution(problem HumanEvalProblem, solution
 			break
 		}
 	}
-	
+
 	if functionStart == "" {
 		log.Printf("Could not find function definition in prompt")
 		return false
@@ -340,7 +340,7 @@ if __name__ == "__main__":
 	// Run the test
 	cmd := exec.Command("python3", testFile)
 	output, err := cmd.Output()
-	
+
 	if err != nil {
 		log.Printf("Test execution failed for %s: %v", problem.TaskID, err)
 		return false
@@ -400,7 +400,7 @@ Total Duration: %v
 Pass@1 Rate: %.3f
 
 Detailed Results saved to: %s/results.json
-`, 
+`,
 		totalProblems,
 		mode,
 		b.config.AgentPath,

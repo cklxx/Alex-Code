@@ -21,13 +21,13 @@ type Config struct {
 	Model       string  `json:"model"`
 	MaxTokens   int     `json:"max_tokens"`
 	Temperature float64 `json:"temperature"`
-	
+
 	// ReAct agent configuration
-	MaxTurns    int     `json:"max_turns"`
-	
+	MaxTurns int `json:"max_turns"`
+
 	// Multi-model configurations
 	Models map[llm.ModelType]*llm.ModelConfig `json:"models,omitempty"`
-	
+
 	// Default model type to use when none specified
 	DefaultModelType llm.ModelType `json:"default_model_type,omitempty"`
 }
@@ -208,7 +208,7 @@ func (m *Manager) GetLLMConfig() *llm.Config {
 		Temperature: m.config.Temperature,
 		MaxTokens:   m.config.MaxTokens,
 		Timeout:     5 * time.Minute,
-		
+
 		// Multi-model configurations
 		Models:           m.config.Models,
 		DefaultModelType: m.config.DefaultModelType,
@@ -292,10 +292,10 @@ func getDefaultConfig() *Config {
 		Model:       "deepseek/deepseek-chat-v3-0324:free",
 		MaxTokens:   2048,
 		Temperature: 0.7,
-		
+
 		// ReAct agent configuration
-		MaxTurns:    25,  // 统一设置为25次迭代限制
-		
+		MaxTurns: 25, // 统一设置为25次迭代限制
+
 		// Multi-model configurations - 统一使用相同的配置避免配置不一致
 		DefaultModelType: llm.BasicModel,
 		Models: map[llm.ModelType]*llm.ModelConfig{
@@ -304,14 +304,14 @@ func getDefaultConfig() *Config {
 				Model:       "deepseek/deepseek-chat-v3-0324:free",
 				APIKey:      "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",
 				Temperature: 0.7,
-				MaxTokens:   4000,  // 增加token限制以支持复杂任务
+				MaxTokens:   4000, // 增加token限制以支持复杂任务
 			},
 			llm.ReasoningModel: {
 				BaseURL:     "https://openrouter.ai/api/v1",
 				Model:       "deepseek/deepseek-chat-v3-0324:free",
 				APIKey:      "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",
 				Temperature: 0.3,
-				MaxTokens:   4000,  // 统一token限制
+				MaxTokens:   4000, // 统一token限制
 			},
 		},
 	}

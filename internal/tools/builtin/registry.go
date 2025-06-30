@@ -9,17 +9,17 @@ func GetAllBuiltinTools() []Tool {
 		CreateFileReplaceTool(),
 		CreateFileListTool(),
 		CreateDirectoryCreateTool(),
-		
+
 		// Search tools
 		CreateGrepTool(),
 		CreateRipgrepTool(),
 		CreateFindTool(),
-		
+
 		// Web search tools
 		CreateWebSearchTool(),
 		CreateNewsSearchTool(),
 		CreateAcademicSearchTool(),
-		
+
 		// Shell tools
 		CreateBashTool(),
 		CreateScriptRunnerTool(),

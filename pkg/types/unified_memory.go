@@ -29,45 +29,45 @@ type UnifiedMemory struct {
 type MemoryType string
 
 const (
-	MemoryTypeCode        MemoryType = "code"
-	MemoryTypePattern     MemoryType = "pattern"
-	MemoryTypeDecision    MemoryType = "decision"
-	MemoryTypeExperience  MemoryType = "experience"
-	MemoryTypeError       MemoryType = "error"
-	MemoryTypeSolution    MemoryType = "solution"
-	MemoryTypeLesson      MemoryType = "lesson"
-	MemoryTypeInsight     MemoryType = "insight"
-	MemoryTypeContext     MemoryType = "context"
+	MemoryTypeCode       MemoryType = "code"
+	MemoryTypePattern    MemoryType = "pattern"
+	MemoryTypeDecision   MemoryType = "decision"
+	MemoryTypeExperience MemoryType = "experience"
+	MemoryTypeError      MemoryType = "error"
+	MemoryTypeSolution   MemoryType = "solution"
+	MemoryTypeLesson     MemoryType = "lesson"
+	MemoryTypeInsight    MemoryType = "insight"
+	MemoryTypeContext    MemoryType = "context"
 )
 
 // SimplifiedMemoryConfig consolidates all memory configuration into one structure
 type SimplifiedMemoryConfig struct {
-	MaxItems        int                    `json:"maxItems"`
-	RetentionDays   int                    `json:"retentionDays"`
-	StorageType     string                 `json:"storageType"`     // file, memory, database
-	StoragePath     string                 `json:"storagePath"`
-	CompressionEnabled bool                `json:"compressionEnabled"`
-	BackupEnabled   bool                   `json:"backupEnabled"`
-	Metadata        map[string]interface{} `json:"metadata,omitempty"`
+	MaxItems           int                    `json:"maxItems"`
+	RetentionDays      int                    `json:"retentionDays"`
+	StorageType        string                 `json:"storageType"` // file, memory, database
+	StoragePath        string                 `json:"storagePath"`
+	CompressionEnabled bool                   `json:"compressionEnabled"`
+	BackupEnabled      bool                   `json:"backupEnabled"`
+	Metadata           map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // MemoryQuery represents a simplified query for memory retrieval
 type MemoryQuery struct {
-	Text        string            `json:"text"`
-	Type        MemoryType        `json:"type,omitempty"`
-	ProjectID   string            `json:"projectId,omitempty"`
-	Tags        []string          `json:"tags,omitempty"`
-	MaxResults  int               `json:"maxResults"`
-	MinRelevance float64          `json:"minRelevance"`
-	Filters     map[string]string `json:"filters,omitempty"`
+	Text         string            `json:"text"`
+	Type         MemoryType        `json:"type,omitempty"`
+	ProjectID    string            `json:"projectId,omitempty"`
+	Tags         []string          `json:"tags,omitempty"`
+	MaxResults   int               `json:"maxResults"`
+	MinRelevance float64           `json:"minRelevance"`
+	Filters      map[string]string `json:"filters,omitempty"`
 }
 
 // MemorySearchResult represents search results
 type MemorySearchResult struct {
-	Memories    []UnifiedMemory `json:"memories"`
-	TotalCount  int             `json:"totalCount"`
-	SearchTime  time.Duration   `json:"searchTime"`
-	Query       MemoryQuery     `json:"query"`
+	Memories   []UnifiedMemory `json:"memories"`
+	TotalCount int             `json:"totalCount"`
+	SearchTime time.Duration   `json:"searchTime"`
+	Query      MemoryQuery     `json:"query"`
 }
 
 // UnifiedMemoryMetrics represents simplified memory metrics

@@ -32,7 +32,7 @@ func (tc *ToolConfigurator) ConfigureWebSearchTools(registry *Registry) error {
 
 	// Configure web search tools if they are registered
 	webSearchToolNames := []string{"web_search", "news_search", "academic_search"}
-	
+
 	for _, toolName := range webSearchToolNames {
 		tool := registry.GetTool(toolName)
 		if tool != nil {

@@ -7,7 +7,7 @@ import (
 
 // ValidationRule defines a single validation rule for a parameter
 type ValidationRule struct {
-	FieldName    string
+	FieldName   string
 	Type        reflect.Type
 	Required    bool
 	Validator   func(interface{}) error
@@ -36,8 +36,8 @@ func (vf *ValidationFramework) AddRule(rule ValidationRule) *ValidationFramework
 func (vf *ValidationFramework) AddStringField(fieldName, description string) *ValidationFramework {
 	return vf.AddRule(ValidationRule{
 		FieldName:   fieldName,
-		Type:       reflect.TypeOf(""),
-		Required:   true,
+		Type:        reflect.TypeOf(""),
+		Required:    true,
 		Description: description,
 		Validator: func(value interface{}) error {
 			if str, ok := value.(string); ok {
@@ -55,8 +55,8 @@ func (vf *ValidationFramework) AddStringField(fieldName, description string) *Va
 func (vf *ValidationFramework) AddOptionalStringField(fieldName, description string) *ValidationFramework {
 	return vf.AddRule(ValidationRule{
 		FieldName:   fieldName,
-		Type:       reflect.TypeOf(""),
-		Required:   false,
+		Type:        reflect.TypeOf(""),
+		Required:    false,
 		Description: description,
 		Validator: func(value interface{}) error {
 			if value == nil {
@@ -77,8 +77,8 @@ func (vf *ValidationFramework) AddOptionalStringField(fieldName, description str
 func (vf *ValidationFramework) AddIntField(fieldName, description string, min, max int) *ValidationFramework {
 	return vf.AddRule(ValidationRule{
 		FieldName:   fieldName,
-		Type:       reflect.TypeOf(0),
-		Required:   true,
+		Type:        reflect.TypeOf(0),
+		Required:    true,
 		Description: description,
 		Validator: func(value interface{}) error {
 			var intVal int
@@ -90,7 +90,7 @@ func (vf *ValidationFramework) AddIntField(fieldName, description string, min, m
 			default:
 				return fmt.Errorf("%s must be an integer", fieldName)
 			}
-			
+
 			if intVal < min {
 				return fmt.Errorf("%s must be at least %d", fieldName, min)
 			}
@@ -106,14 +106,14 @@ func (vf *ValidationFramework) AddIntField(fieldName, description string, min, m
 func (vf *ValidationFramework) AddOptionalIntField(fieldName, description string, min, max int) *ValidationFramework {
 	return vf.AddRule(ValidationRule{
 		FieldName:   fieldName,
-		Type:       reflect.TypeOf(0),
-		Required:   false,
+		Type:        reflect.TypeOf(0),
+		Required:    false,
 		Description: description,
 		Validator: func(value interface{}) error {
 			if value == nil {
 				return nil // Optional field
 			}
-			
+
 			var intVal int
 			switch v := value.(type) {
 			case int:
@@ -123,7 +123,7 @@ func (vf *ValidationFramework) AddOptionalIntField(fieldName, description string
 			default:
 				return fmt.Errorf("%s must be an integer", fieldName)
 			}
-			
+
 			if intVal < min {
 				return fmt.Errorf("%s must be at least %d", fieldName, min)
 			}
@@ -139,8 +139,8 @@ func (vf *ValidationFramework) AddOptionalIntField(fieldName, description string
 func (vf *ValidationFramework) AddBoolField(fieldName, description string, required bool) *ValidationFramework {
 	return vf.AddRule(ValidationRule{
 		FieldName:   fieldName,
-		Type:       reflect.TypeOf(true),
-		Required:   required,
+		Type:        reflect.TypeOf(true),
+		Required:    required,
 		Description: description,
 		Validator: func(value interface{}) error {
 			if value == nil && !required {
@@ -158,7 +158,7 @@ func (vf *ValidationFramework) AddBoolField(fieldName, description string, requi
 func (vf *ValidationFramework) AddCustomValidator(fieldName, description string, required bool, validator func(interface{}) error) *ValidationFramework {
 	return vf.AddRule(ValidationRule{
 		FieldName:   fieldName,
-		Required:   required,
+		Required:    required,
 		Description: description,
 		Validator:   validator,
 	})
@@ -169,20 +169,20 @@ func (vf *ValidationFramework) Validate(args map[string]interface{}) error {
 	if args == nil {
 		return fmt.Errorf("arguments cannot be nil")
 	}
-	
+
 	for _, rule := range vf.rules {
 		value, exists := args[rule.FieldName]
-		
+
 		// Check required fields
 		if rule.Required && !exists {
 			return fmt.Errorf("%s is required", rule.FieldName)
 		}
-		
+
 		// Skip validation for optional fields that are not present
 		if !exists && !rule.Required {
 			continue
 		}
-		
+
 		// Run custom validator if provided
 		if rule.Validator != nil {
 			if err := rule.Validator(value); err != nil {
@@ -190,7 +190,7 @@ func (vf *ValidationFramework) Validate(args map[string]interface{}) error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -205,7 +205,7 @@ func (vf *ValidationFramework) GetRequiredFields() []string {
 	return required
 }
 
-// GetOptionalFields returns a list of optional field names  
+// GetOptionalFields returns a list of optional field names
 func (vf *ValidationFramework) GetOptionalFields() []string {
 	var optional []string
 	for _, rule := range vf.rules {
@@ -233,16 +233,16 @@ func ValidateFilePath(value interface{}) error {
 	if value == nil {
 		return fmt.Errorf("file_path is required")
 	}
-	
+
 	filePath, ok := value.(string)
 	if !ok {
 		return fmt.Errorf("file_path must be a string")
 	}
-	
+
 	if filePath == "" {
 		return fmt.Errorf("file_path cannot be empty")
 	}
-	
+
 	return nil
 }
 
@@ -251,16 +251,16 @@ func ValidateCommand(value interface{}) error {
 	if value == nil {
 		return fmt.Errorf("command is required")
 	}
-	
+
 	command, ok := value.(string)
 	if !ok {
 		return fmt.Errorf("command must be a string")
 	}
-	
+
 	if command == "" {
 		return fmt.Errorf("command cannot be empty")
 	}
-	
+
 	return nil
 }
 
@@ -269,16 +269,16 @@ func ValidatePattern(value interface{}) error {
 	if value == nil {
 		return fmt.Errorf("pattern is required")
 	}
-	
+
 	pattern, ok := value.(string)
 	if !ok {
 		return fmt.Errorf("pattern must be a string")
 	}
-	
+
 	if pattern == "" {
 		return fmt.Errorf("pattern cannot be empty")
 	}
-	
+
 	return nil
 }
 
@@ -288,16 +288,16 @@ func ValidateOptionalString(fieldName string) func(interface{}) error {
 		if value == nil {
 			return nil // Optional field
 		}
-		
+
 		str, ok := value.(string)
 		if !ok {
 			return fmt.Errorf("%s must be a string", fieldName)
 		}
-		
+
 		if str == "" {
 			return fmt.Errorf("%s cannot be empty when provided", fieldName)
 		}
-		
+
 		return nil
 	}
 }
@@ -308,7 +308,7 @@ func ValidatePositiveInt(fieldName string) func(interface{}) error {
 		if value == nil {
 			return nil // Optional field
 		}
-		
+
 		var intVal int
 		switch v := value.(type) {
 		case int:
@@ -318,11 +318,11 @@ func ValidatePositiveInt(fieldName string) func(interface{}) error {
 		default:
 			return fmt.Errorf("%s must be an integer", fieldName)
 		}
-		
+
 		if intVal <= 0 {
 			return fmt.Errorf("%s must be a positive integer", fieldName)
 		}
-		
+
 		return nil
 	}
 }
