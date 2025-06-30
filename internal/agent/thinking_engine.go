@@ -175,62 +175,6 @@ Execute the next required action immediately:`,
 	return plan, tokensUsed, nil
 }
 
-// thinkWithResponse - 思考阶段实现（支持工具调用，返回完整响应）
-func (te *ThinkingEngine) thinkWithResponse(ctx context.Context, prompt string, taskCtx *types.LightTaskContext) (*llm.ChatResponse, string, float64, int, error) {
-	// 构建可用工具列表
-	tools := te.buildToolDefinitions()
-
-	request := &llm.ChatRequest{
-		Messages: []llm.Message{
-			{Role: "user", Content: prompt},
-		},
-		ModelType:  llm.BasicModel,
-		Tools:      tools,
-		ToolChoice: "auto", // 让模型自动决定是否调用工具
-		Config:     te.agent.llmConfig,
-	}
-
-	// 获取LLM实例
-	client, err := llm.GetLLMInstance(llm.BasicModel)
-	if err != nil {
-		return nil, "", 0.0, 0, fmt.Errorf("failed to get LLM instance: %w", err)
-	}
-	// 重试机制：最多尝试3次
-	var response *llm.ChatResponse
-	maxRetries := 3
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		response, err = client.Chat(ctx, request)
-		if err == nil {
-			break
-		}
-
-		// 如果不是最后一次尝试，等待一段时间后重试
-		if attempt < maxRetries {
-			waitTime := time.Duration(attempt) * time.Second
-			time.Sleep(waitTime)
-			continue
-		}
-
-		return nil, "", 0.0, 0, fmt.Errorf("LLM call failed after %d attempts: %w", maxRetries, err)
-	}
-
-	if len(response.Choices) == 0 {
-		return nil, "", 0.0, 0, fmt.Errorf("no response choices received")
-	}
-
-	choice := response.Choices[0]
-	thought := strings.TrimSpace(choice.Message.Content)
-	confidence := te.calculateConfidence(thought, taskCtx)
-
-	// 计算token使用量
-	tokensUsed := response.Usage.TotalTokens
-	if tokensUsed == 0 {
-		tokensUsed = len(strings.Fields(thought)) + len(strings.Fields(prompt)) // 简化计算
-	}
-
-	return response, thought, confidence, tokensUsed, nil
-}
-
 // thinkWithConversation - 基于对话历史的思考阶段实现（支持工具调用，返回完整响应）
 func (te *ThinkingEngine) thinkWithConversation(ctx context.Context, messages []llm.Message, taskCtx *types.LightTaskContext) (*llm.ChatResponse, string, float64, int, error) {
 	// 构建可用工具列表

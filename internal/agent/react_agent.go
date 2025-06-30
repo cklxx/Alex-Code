@@ -257,11 +257,6 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 	return nil
 }
 
-// 代理方法 - 委托给 ThinkingEngine
-func (r *ReactAgent) thinkWithResponse(ctx context.Context, prompt string, taskCtx *types.LightTaskContext) (*llm.ChatResponse, string, float64, int, error) {
-	return r.thinkingEngine.thinkWithResponse(ctx, prompt, taskCtx)
-}
-
 func (r *ReactAgent) thinkWithConversation(ctx context.Context, messages []llm.Message, taskCtx *types.LightTaskContext) (*llm.ChatResponse, string, float64, int, error) {
 	return r.thinkingEngine.thinkWithConversation(ctx, messages, taskCtx)
 }
@@ -450,13 +445,6 @@ func generateCallID() string {
 
 func max(a, b int) int {
 	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int) int {
-	if a < b {
 		return a
 	}
 	return b

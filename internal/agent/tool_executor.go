@@ -310,23 +310,3 @@ func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args m
 		ToolArgs: args,
 	}, nil
 }
-
-// buildToolDefinitions - 构建工具定义列表
-func (te *ToolExecutor) buildToolDefinitions() []llm.Tool {
-	var tools []llm.Tool
-
-	for _, tool := range te.agent.tools {
-		toolDef := llm.Tool{
-			Type: "function",
-			Function: llm.Function{
-				Name:        tool.Name(),
-				Description: tool.Description(),
-				Parameters:  tool.Parameters(),
-			},
-		}
-
-		tools = append(tools, toolDef)
-	}
-
-	return tools
-}
