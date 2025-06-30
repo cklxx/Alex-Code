@@ -1,0 +1,276 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  GO_VERSION: '1.21'
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+          
+    - name: Download dependencies
+      run: go mod download
+      
+    - name: Run tests
+      run: go test -v -race -coverprofile=coverage.out ./...
+      
+    - name: Generate coverage report
+      run: go tool cover -html=coverage.out -o coverage.html
+      
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: coverage.html
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        
+    - name: Run golangci-lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: latest
+        args: --timeout=5m
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          # Windows on arm64 is not commonly used
+          - goos: windows
+            goarch: arm64
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        mkdir -p build
+        binary_name="deep-coding-agent-${{ matrix.goos }}-${{ matrix.goarch }}"
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          binary_name="${binary_name}.exe"
+        fi
+        go build -ldflags="-w -s" -o "build/${binary_name}" cmd/simple-main.go
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: deep-coding-agent-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: build/
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ${{ matrix.os }}
+    needs: [build]
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        
+    - name: Build binary
+      run: go build -o deep-coding-agent cmd/simple-main.go
+      
+    - name: Make binary executable (Unix)
+      if: runner.os != 'Windows'
+      run: chmod +x deep-coding-agent
+      
+    - name: Test CLI commands (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        ./deep-coding-agent version
+        ./deep-coding-agent config --list
+        ./deep-coding-agent analyze cmd/simple-main.go
+        ./deep-coding-agent generate "test function" go
+        ./deep-coding-agent ai-status
+        
+    - name: Test CLI commands (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        .\deep-coding-agent.exe version
+        .\deep-coding-agent.exe config --list
+        .\deep-coding-agent.exe analyze cmd\simple-main.go
+        .\deep-coding-agent.exe generate "test function" go
+        .\deep-coding-agent.exe ai-status
+
+  performance-test:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [build]
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        
+    - name: Build binary
+      run: go build -o deep-coding-agent cmd/simple-main.go
+      
+    - name: Create test files
+      run: |
+        mkdir -p perf_test
+        for i in {1..20}; do
+          cat > perf_test/test$i.go << 'EOF'
+        package main
+        import "fmt"
+        func main() { fmt.Println("Hello") }
+        func test() int { return 42 }
+        EOF
+        done
+        
+    - name: Run performance tests
+      run: |
+        # Test analysis performance
+        start_time=$(date +%s%N)
+        ./deep-coding-agent analyze perf_test/ --concurrent
+        end_time=$(date +%s%N)
+        duration=$(( (end_time - start_time) / 1000000 ))
+        echo "Analysis took ${duration}ms"
+        
+        if [ $duration -gt 1000 ]; then
+          echo "Performance test failed: Analysis too slow (${duration}ms > 1000ms)"
+          exit 1
+        fi
+        
+        # Test generation performance
+        start_time=$(date +%s%N)
+        ./deep-coding-agent generate "calculator" go
+        end_time=$(date +%s%N)
+        duration=$(( (end_time - start_time) / 1000000 ))
+        echo "Generation took ${duration}ms"
+        
+        if [ $duration -gt 500 ]; then
+          echo "Performance test failed: Generation too slow (${duration}ms > 500ms)"
+          exit 1
+        fi
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      
+    - name: Run Gosec Security Scanner
+      uses: securecodewarrior/github-action-gosec@master
+      with:
+        args: '-fmt sarif -out gosec.sarif ./...'
+        
+    - name: Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: gosec.sarif
+
+  dependency-check:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        
+    - name: Check for vulnerabilities
+      run: |
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        govulncheck ./...
+        
+    - name: Check module tidiness
+      run: |
+        go mod tidy
+        git diff --exit-code go.mod go.sum
+
+  documentation:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      
+    - name: Check README exists
+      run: test -f README.md
+      
+    - name: Check for godoc comments
+      run: |
+        go install golang.org/x/tools/cmd/godoc@latest
+        # Check that main packages have proper documentation
+        missing_docs=$(find . -name "*.go" -not -path "./vendor/*" -exec grep -L "// Package\|// Command" {} \; | grep -v "_test.go" | wc -l)
+        if [ "$missing_docs" -gt 10 ]; then
+          echo "Warning: Many files missing documentation comments"
+        fi
