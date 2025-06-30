@@ -123,7 +123,7 @@ func TestLegacyConfigCompatibility(t *testing.T) {
 
 	// Test that single model config is used as fallback
 	manager.config.Models = nil // Clear multi-model configs
-	
+
 	fallbackConfig := manager.GetModelConfig(llm.BasicModel)
 	if fallbackConfig.BaseURL != manager.config.BaseURL {
 		t.Errorf("expected fallback to single config base URL %s, got %s", manager.config.BaseURL, fallbackConfig.BaseURL)

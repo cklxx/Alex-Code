@@ -49,7 +49,6 @@ type LightContextManager struct {
 	keyStepThreshold float64
 }
 
-
 // Response - 响应格式
 type Response struct {
 	Message     *session.Message        `json:"message"`
@@ -60,9 +59,9 @@ type Response struct {
 
 // StreamChunk - 兼容原有的流式响应
 type StreamChunk struct {
-	Type     string `json:"type"`
-	Content  string `json:"content"`
-	Complete bool   `json:"complete,omitempty"`
+	Type     string                 `json:"type"`
+	Content  string                 `json:"content"`
+	Complete bool                   `json:"complete,omitempty"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -71,7 +70,6 @@ type StreamCallback func(StreamChunk)
 
 // NewReactAgent - 创建新的轻量化ReactAgent
 func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
-	log.Printf("[DEBUG] ReactAgent: Initializing new ReactAgent")
 
 	// 设置LLM配置提供函数
 	llm.SetConfigProvider(func() (*llm.Config, error) {
@@ -80,44 +78,33 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 
 	// 获取LLM配置和客户端
 	llmConfig := configManager.GetLLMConfig()
-	log.Printf("[DEBUG] ReactAgent: LLM config - BaseURL: %s, Model: %s", llmConfig.BaseURL, llmConfig.Model)
 	llmClient, err := llm.GetLLMInstance(llm.BasicModel)
 	if err != nil {
 		log.Printf("[ERROR] ReactAgent: Failed to get LLM instance: %v", err)
 		return nil, fmt.Errorf("failed to get LLM instance: %w", err)
 	}
-	log.Printf("[DEBUG] ReactAgent: LLM client created successfully")
 
 	// 创建session manager
-	log.Printf("[DEBUG] ReactAgent: Creating session manager")
 	sessionManager, err := session.NewManager()
 	if err != nil {
 		log.Printf("[ERROR] ReactAgent: Failed to create session manager: %v", err)
 		return nil, fmt.Errorf("failed to create session manager: %w", err)
 	}
-	log.Printf("[DEBUG] ReactAgent: Session manager created successfully")
 
 	// 初始化工具
-	log.Printf("[DEBUG] ReactAgent: Initializing builtin tools")
 	tools := make(map[string]builtin.Tool)
 	builtinTools := builtin.GetAllBuiltinTools()
-	log.Printf("[DEBUG] ReactAgent: Found %d builtin tools", len(builtinTools))
 	for _, tool := range builtinTools {
 		tools[tool.Name()] = tool
 	}
 
 	// 创建轻量化配置
-	log.Printf("[DEBUG] ReactAgent: Creating light configuration")
 	lightConfig := types.NewLightConfig()
-	log.Printf("[DEBUG] ReactAgent: Light config - MaxTokens: %d, Temperature: %.2f, MaxIterations: %d",
-		lightConfig.MaxTokens, lightConfig.Temperature, lightConfig.MaxIterations)
 
 	// 创建组件
-	log.Printf("[DEBUG] ReactAgent: Creating component instances")
 	promptBuilder := NewLightPromptBuilder()
 	contextMgr := NewLightContextManager()
 	codeExecutor := NewCodeActExecutor()
-	log.Printf("[DEBUG] ReactAgent: All components created successfully")
 
 	agent := &ReactAgent{
 		llm:            llmClient,
@@ -136,28 +123,23 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	agent.thinkingEngine = NewThinkingEngine(agent)
 	agent.toolExecutor = NewToolExecutor(agent)
 
-	log.Printf("[DEBUG] ReactAgent: ReactAgent initialized successfully with %d tools", len(tools))
 	return agent, nil
 }
 
 // StartSession - 开始会话
 func (r *ReactAgent) StartSession(sessionID string) (*session.Session, error) {
-	log.Printf("[DEBUG] ReactAgent: Starting session with ID: %s", sessionID)
 	session, err := r.sessionManager.StartSession(sessionID)
 	if err != nil {
-		log.Printf("[ERROR] ReactAgent: Failed to start session %s: %v", sessionID, err)
 		return nil, err
 	}
 	r.mu.Lock()
 	r.currentSession = session
 	r.mu.Unlock()
-	log.Printf("[DEBUG] ReactAgent: Session %s started successfully", sessionID)
 	return session, nil
 }
 
 // RestoreSession - 恢复会话
 func (r *ReactAgent) RestoreSession(sessionID string) (*session.Session, error) {
-	log.Printf("[DEBUG] ReactAgent: Restoring session with ID: %s", sessionID)
 	session, err := r.sessionManager.RestoreSession(sessionID)
 	if err != nil {
 		log.Printf("[ERROR] ReactAgent: Failed to restore session %s: %v", sessionID, err)
@@ -166,7 +148,6 @@ func (r *ReactAgent) RestoreSession(sessionID string) (*session.Session, error) 
 	r.mu.Lock()
 	r.currentSession = session
 	r.mu.Unlock()
-	log.Printf("[DEBUG] ReactAgent: Session %s restored successfully with %d messages", sessionID, len(session.Messages))
 	return session, nil
 }
 
@@ -457,8 +438,6 @@ func (cm *LightContextManager) formatFullContext(context *types.LightTaskContext
 
 	return strings.Join(parts, "\n")
 }
-
-
 
 // 辅助函数
 func generateTaskID() string {

@@ -11,8 +11,8 @@ var promptFS embed.FS
 
 // PromptTemplate represents a prompt template with metadata
 type PromptTemplate struct {
-	Name     string
-	Content  string
+	Name      string
+	Content   string
 	Variables map[string]string
 }
 
@@ -26,12 +26,12 @@ func NewPromptLoader() (*PromptLoader, error) {
 	loader := &PromptLoader{
 		templates: make(map[string]*PromptTemplate),
 	}
-	
+
 	// Load all prompt templates
 	if err := loader.loadTemplates(); err != nil {
 		return nil, fmt.Errorf("failed to load prompt templates: %w", err)
 	}
-	
+
 	return loader, nil
 }
 
@@ -41,14 +41,14 @@ func (p *PromptLoader) loadTemplates() error {
 	if err != nil {
 		return fmt.Errorf("failed to read prompts directory: %w", err)
 	}
-	
+
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
 			content, err := promptFS.ReadFile(entry.Name())
 			if err != nil {
 				return fmt.Errorf("failed to read prompt file %s: %w", entry.Name(), err)
 			}
-			
+
 			templateName := strings.TrimSuffix(entry.Name(), ".md")
 			p.templates[templateName] = &PromptTemplate{
 				Name:      templateName,
@@ -57,7 +57,7 @@ func (p *PromptLoader) loadTemplates() error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -67,7 +67,7 @@ func (p *PromptLoader) GetPrompt(name string) (*PromptTemplate, error) {
 	if !exists {
 		return nil, fmt.Errorf("prompt template '%s' not found", name)
 	}
-	
+
 	return template, nil
 }
 
@@ -77,15 +77,15 @@ func (p *PromptLoader) RenderPrompt(name string, variables map[string]string) (s
 	if err != nil {
 		return "", err
 	}
-	
+
 	content := template.Content
-	
+
 	// Simple variable substitution
 	for key, value := range variables {
 		placeholder := fmt.Sprintf("{{%s}}", key)
 		content = strings.ReplaceAll(content, placeholder, value)
 	}
-	
+
 	return content, nil
 }
 

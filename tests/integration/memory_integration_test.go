@@ -4,7 +4,6 @@
 package integration
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -20,7 +19,7 @@ func setupMemoryManager(t *testing.T) (*memory.UnifiedMemoryManager, *testutils.
 	}
 
 	testCtx := testutils.NewTestContext(t)
-	
+
 	config := &types.MemoryManagerConfig{
 		KnowledgeBase: &types.KnowledgeBaseConfig{
 			MaxKnowledgeItems:    1000,
@@ -33,14 +32,14 @@ func setupMemoryManager(t *testing.T) (*memory.UnifiedMemoryManager, *testutils.
 			ConsolidationEnabled: true,
 		},
 		PatternLearner: &types.PatternLearnerConfig{
-			AutoLearning:           true,
-			MinExamples:            3,
-			MinQualityThreshold:    0.6,
-			MaxVariations:          10,
-			LearningRate:           0.1,
-			FeedbackWeight:         0.3,
-			ContextualLearning:     true,
-			CrossLanguageLearning:  false,
+			AutoLearning:          true,
+			MinExamples:           3,
+			MinQualityThreshold:   0.6,
+			MaxVariations:         10,
+			LearningRate:          0.1,
+			FeedbackWeight:        0.3,
+			ContextualLearning:    true,
+			CrossLanguageLearning: false,
 		},
 		ProjectMemory: &types.ProjectMemoryConfig{
 			AutoSnapshot:          true,
@@ -53,10 +52,10 @@ func setupMemoryManager(t *testing.T) (*memory.UnifiedMemoryManager, *testutils.
 			ConfigurationTracking: true,
 		},
 		StorageConfig: &types.StorageConfig{
-			Type:            "file",
+			Type:             "file",
 			ConnectionString: testCtx.TempDir,
-			MaxSize:         1024 * 1024 * 100, // 100MB
-			RetentionPeriod: "30d",
+			MaxSize:          1024 * 1024 * 100, // 100MB
+			RetentionPeriod:  "30d",
 			BackupConfig: &types.BackupConfig{
 				Enabled:     true,
 				Interval:    "1h",
@@ -69,7 +68,7 @@ func setupMemoryManager(t *testing.T) (*memory.UnifiedMemoryManager, *testutils.
 		BackupEnabled:      true,
 		CompressionEnabled: false,
 	}
-	
+
 	manager := memory.NewUnifiedMemoryManager(config)
 	return manager, testCtx
 }
@@ -77,13 +76,13 @@ func setupMemoryManager(t *testing.T) (*memory.UnifiedMemoryManager, *testutils.
 func TestMemorySystem_FullWorkflow(t *testing.T) {
 	manager, testCtx := setupMemoryManager(t)
 	defer testCtx.Cleanup()
-	
+
 	ctx, cancel := testutils.CreateContextWithTimeout(30 * time.Second)
 	defer cancel()
 
 	// 1. Store various types of knowledge
 	knowledgeItems := testutils.GenerateTestKnowledge(20, "integration_test")
-	
+
 	for _, k := range knowledgeItems {
 		err := manager.Store(ctx, k)
 		if err != nil {
@@ -93,7 +92,7 @@ func TestMemorySystem_FullWorkflow(t *testing.T) {
 
 	// 2. Store code patterns
 	patterns := testutils.GenerateTestPatterns(10, "integration_test")
-	
+
 	for _, p := range patterns {
 		err := manager.StorePattern(ctx, p)
 		if err != nil {
@@ -133,7 +132,7 @@ func TestMemorySystem_FullWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get memory stats: %v", err)
 	}
-	
+
 	knowledgeCount, ok := stats["knowledge_items"].(int)
 	if !ok {
 		t.Error("Failed to get knowledge_items from stats")
@@ -168,7 +167,7 @@ func TestMemorySystem_FullWorkflow(t *testing.T) {
 func TestMemorySystem_ConcurrentOperations(t *testing.T) {
 	manager, testCtx := setupMemoryManager(t)
 	defer testCtx.Cleanup()
-	
+
 	ctx, cancel := testutils.CreateContextWithTimeout(60 * time.Second)
 	defer cancel()
 
@@ -183,10 +182,10 @@ func TestMemorySystem_ConcurrentOperations(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(workerID int) {
 			defer func() { done <- true }()
-			
-			knowledge := testutils.GenerateTestKnowledge(itemsPerGoroutine, 
+
+			knowledge := testutils.GenerateTestKnowledge(itemsPerGoroutine,
 				fmt.Sprintf("concurrent_worker_%d", workerID))
-			
+
 			for _, k := range knowledge {
 				if err := manager.Store(ctx, k); err != nil {
 					errChan <- err
@@ -200,10 +199,10 @@ func TestMemorySystem_ConcurrentOperations(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(workerID int) {
 			defer func() { done <- true }()
-			
-			patterns := testutils.GenerateTestPatterns(itemsPerGoroutine/4, 
+
+			patterns := testutils.GenerateTestPatterns(itemsPerGoroutine/4,
 				fmt.Sprintf("concurrent_pattern_worker_%d", workerID))
-			
+
 			for _, p := range patterns {
 				if err := manager.StorePattern(ctx, p); err != nil {
 					errChan <- err
@@ -230,10 +229,10 @@ func TestMemorySystem_ConcurrentOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get final stats: %v", err)
 	}
-	
+
 	expectedKnowledge := numGoroutines * itemsPerGoroutine
 	expectedPatterns := numGoroutines * (itemsPerGoroutine / 4)
-	
+
 	knowledgeCount, ok := stats["knowledge_items"].(int)
 	if !ok {
 		t.Error("Failed to get knowledge_items from final stats")
@@ -252,7 +251,7 @@ func TestMemorySystem_ConcurrentOperations(t *testing.T) {
 func TestMemorySystem_LargeDataset(t *testing.T) {
 	manager, testCtx := setupMemoryManager(t)
 	defer testCtx.Cleanup()
-	
+
 	ctx, cancel := testutils.CreateContextWithTimeout(120 * time.Second)
 	defer cancel()
 
@@ -261,34 +260,34 @@ func TestMemorySystem_LargeDataset(t *testing.T) {
 	// Store large dataset
 	t.Log("Storing large dataset...")
 	start := time.Now()
-	
+
 	knowledge := testutils.GenerateTestKnowledge(largeDatasetSize, "large_dataset")
 	for i, k := range knowledge {
 		err := manager.Store(ctx, k)
 		if err != nil {
 			t.Fatalf("Failed to store knowledge item %d: %v", i, err)
 		}
-		
+
 		if i%100 == 0 {
 			t.Logf("Stored %d/%d items", i+1, largeDatasetSize)
 		}
 	}
-	
+
 	storeTime := time.Since(start)
-	t.Logf("Stored %d items in %v (avg: %v per item)", 
+	t.Logf("Stored %d items in %v (avg: %v per item)",
 		largeDatasetSize, storeTime, storeTime/time.Duration(largeDatasetSize))
 
 	// Perform searches on large dataset
 	t.Log("Performing searches on large dataset...")
 	start = time.Now()
-	
+
 	searchQueries := []string{
 		"test knowledge",
 		"content",
 		"large_dataset",
 		"experience",
 	}
-	
+
 	for _, query := range searchQueries {
 		results, err := manager.SearchKnowledge(ctx, query, nil)
 		if err != nil {
@@ -298,9 +297,9 @@ func TestMemorySystem_LargeDataset(t *testing.T) {
 			t.Errorf("Search for '%s' returned no results", query)
 		}
 	}
-	
+
 	searchTime := time.Since(start)
-	t.Logf("Completed %d searches in %v (avg: %v per search)", 
+	t.Logf("Completed %d searches in %v (avg: %v per search)",
 		len(searchQueries), searchTime, searchTime/time.Duration(len(searchQueries)))
 
 	// Test memory usage
@@ -308,7 +307,7 @@ func TestMemorySystem_LargeDataset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get stats: %v", err)
 	}
-	
+
 	knowledgeCount, ok := stats["knowledge_items"].(int)
 	if !ok {
 		t.Error("Failed to get knowledge_items from stats")
@@ -319,7 +318,7 @@ func TestMemorySystem_LargeDataset(t *testing.T) {
 	// Performance assertions
 	avgStoreTime := storeTime / time.Duration(largeDatasetSize)
 	avgSearchTime := searchTime / time.Duration(len(searchQueries))
-	
+
 	if avgStoreTime > 50*time.Millisecond {
 		t.Logf("Warning: Average store time (%v) is high", avgStoreTime)
 	}
@@ -331,7 +330,7 @@ func TestMemorySystem_LargeDataset(t *testing.T) {
 func TestMemorySystem_MemoryCleanup(t *testing.T) {
 	manager, testCtx := setupMemoryManager(t)
 	defer testCtx.Cleanup()
-	
+
 	ctx, cancel := testutils.CreateContextWithTimeout(60 * time.Second)
 	defer cancel()
 
@@ -344,10 +343,10 @@ func TestMemorySystem_MemoryCleanup(t *testing.T) {
 	// Perform memory-intensive operations
 	for round := 0; round < 5; round++ {
 		t.Logf("Memory test round %d/5", round+1)
-		
+
 		// Store and delete data repeatedly
 		knowledge := testutils.GenerateTestKnowledge(50, fmt.Sprintf("leak_test_round_%d", round))
-		
+
 		// Store
 		for _, k := range knowledge {
 			err := manager.Store(ctx, k)
@@ -355,7 +354,7 @@ func TestMemorySystem_MemoryCleanup(t *testing.T) {
 				t.Fatalf("Failed to store knowledge in round %d: %v", round, err)
 			}
 		}
-		
+
 		// Delete
 		for _, k := range knowledge {
 			err := manager.Delete(ctx, k.ID)
@@ -363,7 +362,7 @@ func TestMemorySystem_MemoryCleanup(t *testing.T) {
 				t.Fatalf("Failed to delete knowledge in round %d: %v", round, err)
 			}
 		}
-		
+
 		// Trigger cleanup
 		err = manager.CleanupMemory(ctx)
 		if err != nil {
@@ -380,12 +379,12 @@ func TestMemorySystem_MemoryCleanup(t *testing.T) {
 	// Should be back to initial state
 	initialCount, ok1 := initialStats["knowledge_items"].(int)
 	finalCount, ok2 := finalStats["knowledge_items"].(int)
-	
+
 	if !ok1 || !ok2 {
 		t.Error("Failed to get knowledge_items from stats")
 	} else if initialCount != finalCount {
 		t.Errorf("Memory leak detected: initial=%d, final=%d", initialCount, finalCount)
 	}
-	
+
 	t.Log("Memory cleanup test completed successfully")
 }

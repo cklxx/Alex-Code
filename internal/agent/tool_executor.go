@@ -69,8 +69,6 @@ func (te *ToolExecutor) executeParallelTools(ctx context.Context, toolCalls []*t
 		}
 	}
 
-	log.Printf("[DEBUG] ToolExecutor: Executing %d tool(s) in parallel", len(toolCalls))
-
 	// 并行执行工具调用（统一处理一个或多个）
 	type toolResult struct {
 		name   string
@@ -155,8 +153,6 @@ func (te *ToolExecutor) executeParallelToolsStream(ctx context.Context, toolCall
 			Error:   "no tool calls provided",
 		}
 	}
-
-	log.Printf("[DEBUG] ToolExecutor: Executing %d tool(s) in parallel with streaming", len(toolCalls))
 
 	// 并行执行工具调用（统一处理一个或多个）
 	type toolResult struct {
@@ -294,8 +290,6 @@ func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args m
 	result, err := tool.Execute(ctx, args)
 	duration := time.Since(start)
 
-	log.Printf("[DEBUG] ToolExecutor: Tool %s execution completed in %v", toolName, duration)
-
 	if err != nil {
 		log.Printf("[ERROR] ToolExecutor: Tool %s execution failed: %v", toolName, err)
 		return &types.LightToolResult{
@@ -307,7 +301,6 @@ func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args m
 		}, nil
 	}
 
-	log.Printf("[DEBUG] ToolExecutor: Tool %s execution successful, content length: %d", toolName, len(result.Content))
 	return &types.LightToolResult{
 		Success:  true,
 		Content:  result.Content,

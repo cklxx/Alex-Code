@@ -19,27 +19,27 @@ type MemoryUsageAnalysis struct {
 
 // AccessPattern represents a pattern in memory access
 type AccessPattern struct {
-	Type        string    `json:"type"`
-	Frequency   int       `json:"frequency"`
-	Times       []string  `json:"times"`       // time patterns
-	UserGroups  []string  `json:"userGroups"`
-	Resources   []string  `json:"resources"`
-	Description string    `json:"description"`
+	Type        string   `json:"type"`
+	Frequency   int      `json:"frequency"`
+	Times       []string `json:"times"` // time patterns
+	UserGroups  []string `json:"userGroups"`
+	Resources   []string `json:"resources"`
+	Description string   `json:"description"`
 }
 
 // MemoryPattern represents a pattern found in memory
 type MemoryPattern struct {
-	ID          string                 `json:"id"`
-	Type        string                 `json:"type"`
-	Description string                 `json:"description"`
-	Pattern     string                 `json:"pattern"`
-	Occurrences int                    `json:"occurrences"`
-	Confidence  float64                `json:"confidence"`
-	Significance float64               `json:"significance"`
-	Context     []string               `json:"context"`
-	Examples    []string               `json:"examples"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-	DiscoveredAt time.Time             `json:"discoveredAt"`
+	ID           string                 `json:"id"`
+	Type         string                 `json:"type"`
+	Description  string                 `json:"description"`
+	Pattern      string                 `json:"pattern"`
+	Occurrences  int                    `json:"occurrences"`
+	Confidence   float64                `json:"confidence"`
+	Significance float64                `json:"significance"`
+	Context      []string               `json:"context"`
+	Examples     []string               `json:"examples"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+	DiscoveredAt time.Time              `json:"discoveredAt"`
 }
 
 // DecisionPatternAnalysis represents analysis of decision patterns
@@ -65,38 +65,38 @@ type DecisionPattern struct {
 
 // AnalysisScope represents scope for analysis
 type AnalysisScope struct {
-	Type        string     `json:"type"`        // project, global, domain
-	ProjectIDs  []string   `json:"projectIds,omitempty"`
-	Domains     []string   `json:"domains,omitempty"`
-	TimeRange   *TimeRange `json:"timeRange,omitempty"`
-	Categories  []string   `json:"categories,omitempty"`
-	UserGroups  []string   `json:"userGroups,omitempty"`
+	Type       string     `json:"type"` // project, global, domain
+	ProjectIDs []string   `json:"projectIds,omitempty"`
+	Domains    []string   `json:"domains,omitempty"`
+	TimeRange  *TimeRange `json:"timeRange,omitempty"`
+	Categories []string   `json:"categories,omitempty"`
+	UserGroups []string   `json:"userGroups,omitempty"`
 }
 
 // MemoryQualityAssessment represents assessment of memory quality
 type MemoryQualityAssessment struct {
-	OverallScore    float64                `json:"overallScore"`
-	AccuracyScore   float64                `json:"accuracyScore"`
-	CompletenessScore float64              `json:"completenessScore"`
-	ConsistencyScore float64               `json:"consistencyScore"`
-	FreshnessScore  float64                `json:"freshnessScore"`
-	UsabilityScore  float64                `json:"usabilityScore"`
-	IssuesByCategory map[string][]string   `json:"issuesByCategory"`
-	Recommendations []string               `json:"recommendations"`
-	Metadata        map[string]interface{} `json:"metadata,omitempty"`
-	Timestamp       time.Time              `json:"timestamp"`
+	OverallScore      float64                `json:"overallScore"`
+	AccuracyScore     float64                `json:"accuracyScore"`
+	CompletenessScore float64                `json:"completenessScore"`
+	ConsistencyScore  float64                `json:"consistencyScore"`
+	FreshnessScore    float64                `json:"freshnessScore"`
+	UsabilityScore    float64                `json:"usabilityScore"`
+	IssuesByCategory  map[string][]string    `json:"issuesByCategory"`
+	Recommendations   []string               `json:"recommendations"`
+	Metadata          map[string]interface{} `json:"metadata,omitempty"`
+	Timestamp         time.Time              `json:"timestamp"`
 }
 
 // DuplicateGroup represents a group of duplicate items
 type DuplicateGroup struct {
-	ID          string    `json:"id"`
-	Type        string    `json:"type"`
-	Items       []string  `json:"items"`        // IDs of duplicate items
-	Similarity  float64   `json:"similarity"`   // similarity score
-	Primary     string    `json:"primary"`      // suggested primary item
-	Action      string    `json:"action"`       // merge, remove, keep
-	Confidence  float64   `json:"confidence"`
-	DetectedAt  time.Time `json:"detectedAt"`
+	ID         string    `json:"id"`
+	Type       string    `json:"type"`
+	Items      []string  `json:"items"`      // IDs of duplicate items
+	Similarity float64   `json:"similarity"` // similarity score
+	Primary    string    `json:"primary"`    // suggested primary item
+	Action     string    `json:"action"`     // merge, remove, keep
+	Confidence float64   `json:"confidence"`
+	DetectedAt time.Time `json:"detectedAt"`
 }
 
 // ConsistencyAnalysis represents analysis of consistency
@@ -104,7 +104,7 @@ type ConsistencyAnalysis struct {
 	Domain           string                 `json:"domain"`
 	ConsistencyScore float64                `json:"consistencyScore"`
 	Inconsistencies  []Inconsistency        `json:"inconsistencies"`
-	Categories       map[string]float64     `json:"categories"`    // category -> consistency score
+	Categories       map[string]float64     `json:"categories"` // category -> consistency score
 	Recommendations  []string               `json:"recommendations"`
 	Metadata         map[string]interface{} `json:"metadata,omitempty"`
 	Timestamp        time.Time              `json:"timestamp"`
@@ -114,8 +114,8 @@ type ConsistencyAnalysis struct {
 type Inconsistency struct {
 	Type        string   `json:"type"`
 	Description string   `json:"description"`
-	Items       []string `json:"items"`       // conflicting items
-	Severity    string   `json:"severity"`    // low, medium, high
+	Items       []string `json:"items"`    // conflicting items
+	Severity    string   `json:"severity"` // low, medium, high
 	Category    string   `json:"category"`
 	Suggestion  string   `json:"suggestion"`
 }
@@ -127,7 +127,7 @@ type MemoryInsight struct {
 	Title       string                 `json:"title"`
 	Description string                 `json:"description"`
 	Confidence  float64                `json:"confidence"`
-	Impact      string                 `json:"impact"`      // low, medium, high
+	Impact      string                 `json:"impact"` // low, medium, high
 	Category    string                 `json:"category"`
 	Evidence    []string               `json:"evidence"`
 	Actions     []string               `json:"actions"`
@@ -168,34 +168,34 @@ type NeedsPrediction struct {
 
 // OptimizationResult represents the result of memory optimization
 type OptimizationResult struct {
-	Success          bool          `json:"success"`
-	OptimizationTime time.Duration `json:"optimizationTime"`
-	SizeBefore       int64         `json:"sizeBefore"`
-	SizeAfter        int64         `json:"sizeAfter"`
-	SpaceSaved       int64         `json:"spaceSaved"`
-	ItemsRemoved     int           `json:"itemsRemoved"`
-	ItemsConsolidated int          `json:"itemsConsolidated"`
-	PerformanceGain   float64      `json:"performanceGain"`
-	Message          string        `json:"message"`
+	Success           bool          `json:"success"`
+	OptimizationTime  time.Duration `json:"optimizationTime"`
+	SizeBefore        int64         `json:"sizeBefore"`
+	SizeAfter         int64         `json:"sizeAfter"`
+	SpaceSaved        int64         `json:"spaceSaved"`
+	ItemsRemoved      int           `json:"itemsRemoved"`
+	ItemsConsolidated int           `json:"itemsConsolidated"`
+	PerformanceGain   float64       `json:"performanceGain"`
+	Message           string        `json:"message"`
 }
 
 // ConsolidationRules represents rules for memory consolidation
 type ConsolidationRules struct {
-	SimilarityThreshold   float64              `json:"similarityThreshold"`
+	SimilarityThreshold   float64               `json:"similarityThreshold"`
 	ConsolidationStrategy ConsolidationStrategy `json:"consolidationStrategy"`
-	PreserveMetadata      bool                 `json:"preserveMetadata"`
-	MergeConflicts        bool                 `json:"mergeConflicts"`
-	QualityPreference     QualityPreference    `json:"qualityPreference"`
+	PreserveMetadata      bool                  `json:"preserveMetadata"`
+	MergeConflicts        bool                  `json:"mergeConflicts"`
+	QualityPreference     QualityPreference     `json:"qualityPreference"`
 }
 
 // ConsolidationStrategy represents strategies for memory consolidation
 type ConsolidationStrategy string
 
 const (
-	ConsolidationStrategyMerge      ConsolidationStrategy = "merge"
-	ConsolidationStrategyReplace    ConsolidationStrategy = "replace"
-	ConsolidationStrategyAggregate  ConsolidationStrategy = "aggregate"
-	ConsolidationStrategyReference  ConsolidationStrategy = "reference"
+	ConsolidationStrategyMerge     ConsolidationStrategy = "merge"
+	ConsolidationStrategyReplace   ConsolidationStrategy = "replace"
+	ConsolidationStrategyAggregate ConsolidationStrategy = "aggregate"
+	ConsolidationStrategyReference ConsolidationStrategy = "reference"
 )
 
 // QualityPreference represents preference for quality during consolidation
@@ -210,12 +210,12 @@ const (
 
 // ForgetCriteria represents criteria for forgetting memory
 type ForgetCriteria struct {
-	Age           *TimeRange         `json:"age,omitempty"`
-	Usage         *UsageCriteria     `json:"usage,omitempty"`
-	Quality       *QualityCriteria   `json:"quality,omitempty"`
-	Relevance     *RelevanceCriteria `json:"relevance,omitempty"`
-	Categories    []string           `json:"categories,omitempty"`
-	ForceForget   bool               `json:"forceForget"`
+	Age         *TimeRange         `json:"age,omitempty"`
+	Usage       *UsageCriteria     `json:"usage,omitempty"`
+	Quality     *QualityCriteria   `json:"quality,omitempty"`
+	Relevance   *RelevanceCriteria `json:"relevance,omitempty"`
+	Categories  []string           `json:"categories,omitempty"`
+	ForceForget bool               `json:"forceForget"`
 }
 
 // UsageCriteria represents usage-based criteria

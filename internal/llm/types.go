@@ -23,28 +23,28 @@ type ChatRequest struct {
 	Temperature float64   `json:"temperature,omitempty"`
 	MaxTokens   int       `json:"max_tokens,omitempty"`
 	Stream      bool      `json:"stream,omitempty"`
-	
+
 	// Tool calling support
-	Tools       []Tool     `json:"tools,omitempty"`
-	ToolChoice  string     `json:"tool_choice,omitempty"`
-	Functions   []Function `json:"functions,omitempty"`
-	FunctionCall string    `json:"function_call,omitempty"`
-	
+	Tools        []Tool     `json:"tools,omitempty"`
+	ToolChoice   string     `json:"tool_choice,omitempty"`
+	Functions    []Function `json:"functions,omitempty"`
+	FunctionCall string     `json:"function_call,omitempty"`
+
 	// Model type selection for multi-model configurations
 	ModelType ModelType `json:"model_type,omitempty"`
-	
+
 	// Config for dynamic configuration resolution - not serialized to JSON
 	Config *Config `json:"-"`
 }
 
 // ChatResponse represents a response from the LLM
 type ChatResponse struct {
-	ID      string    `json:"id"`
-	Object  string    `json:"object"`
-	Created int64     `json:"created"`
-	Model   string    `json:"model"`
-	Choices []Choice  `json:"choices"`
-	Usage   Usage     `json:"usage,omitempty"`
+	ID      string   `json:"id"`
+	Object  string   `json:"object"`
+	Created int64    `json:"created"`
+	Model   string   `json:"model"`
+	Choices []Choice `json:"choices"`
+	Usage   Usage    `json:"usage,omitempty"`
 }
 
 // Choice represents a choice in the response
@@ -64,11 +64,11 @@ type Usage struct {
 
 // StreamDelta represents a streaming response chunk
 type StreamDelta struct {
-	ID      string    `json:"id"`
-	Object  string    `json:"object"`
-	Created int64     `json:"created"`
-	Model   string    `json:"model"`
-	Choices []Choice  `json:"choices"`
+	ID      string   `json:"id"`
+	Object  string   `json:"object"`
+	Created int64    `json:"created"`
+	Model   string   `json:"model"`
+	Choices []Choice `json:"choices"`
 }
 
 // ModelType represents different model usage types
@@ -97,10 +97,10 @@ type Config struct {
 	Temperature float64       `json:"temperature,omitempty"`
 	MaxTokens   int           `json:"max_tokens,omitempty"`
 	Timeout     time.Duration `json:"timeout,omitempty"`
-	
+
 	// Multi-model configurations
 	Models map[ModelType]*ModelConfig `json:"models,omitempty"`
-	
+
 	// Default model type to use when none specified
 	DefaultModelType ModelType `json:"default_model_type,omitempty"`
 }
@@ -109,10 +109,10 @@ type Config struct {
 type Client interface {
 	// Chat sends a chat request and returns the response
 	Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error)
-	
+
 	// ChatStream sends a chat request and returns a streaming response
 	ChatStream(ctx context.Context, req *ChatRequest) (<-chan StreamDelta, error)
-	
+
 	// Close closes the client and cleans up resources
 	Close() error
 }

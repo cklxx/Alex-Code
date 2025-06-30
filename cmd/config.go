@@ -165,7 +165,7 @@ func handleConfigSet(manager *config.Manager, args []string) error {
 func handleConfigList(manager *config.Manager) error {
 	fmt.Println("Available configuration keys:")
 	fmt.Println()
-	
+
 	keys := []struct {
 		key         string
 		description string
@@ -197,7 +197,7 @@ func handleConfigValidate(manager *config.Manager) error {
 		fmt.Printf("❌ Configuration validation failed: %v\n", err)
 		return err
 	}
-	
+
 	fmt.Println("✅ Configuration is valid")
 	return nil
 }
@@ -205,10 +205,10 @@ func handleConfigValidate(manager *config.Manager) error {
 // handleConfigReset resets configuration to defaults
 func handleConfigReset(manager *config.Manager) error {
 	fmt.Print("⚠️  This will reset all configuration to defaults. Continue? (y/N): ")
-	
+
 	var response string
 	fmt.Scanln(&response)
-	
+
 	if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {
 		fmt.Println("Configuration reset cancelled")
 		return nil

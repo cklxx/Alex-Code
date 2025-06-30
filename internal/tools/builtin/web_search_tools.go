@@ -18,26 +18,26 @@ type WebSearchTool struct {
 
 // TavilyRequest represents a request to Tavily API
 type TavilyRequest struct {
-	APIKey             string   `json:"api_key"`
-	Query              string   `json:"query"`
-	SearchDepth        string   `json:"search_depth,omitempty"`        // basic or advanced
-	IncludeAnswer      bool     `json:"include_answer,omitempty"`       // Include a short answer to the query
-	IncludeImages      bool     `json:"include_images,omitempty"`       // Include a list of query related images
-	IncludeRawContent  bool     `json:"include_raw_content,omitempty"`  // Include raw content of search results
-	MaxResults         int      `json:"max_results,omitempty"`          // Maximum number of search results
-	IncludeDomains     []string `json:"include_domains,omitempty"`      // List of domains to include
-	ExcludeDomains     []string `json:"exclude_domains,omitempty"`      // List of domains to exclude
+	APIKey            string   `json:"api_key"`
+	Query             string   `json:"query"`
+	SearchDepth       string   `json:"search_depth,omitempty"`        // basic or advanced
+	IncludeAnswer     bool     `json:"include_answer,omitempty"`      // Include a short answer to the query
+	IncludeImages     bool     `json:"include_images,omitempty"`      // Include a list of query related images
+	IncludeRawContent bool     `json:"include_raw_content,omitempty"` // Include raw content of search results
+	MaxResults        int      `json:"max_results,omitempty"`         // Maximum number of search results
+	IncludeDomains    []string `json:"include_domains,omitempty"`     // List of domains to include
+	ExcludeDomains    []string `json:"exclude_domains,omitempty"`     // List of domains to exclude
 	UseGPT4o          bool     `json:"use_gpt4o,omitempty"`           // Use GPT-4o for answer generation
 }
 
 // TavilyResponse represents the response from Tavily API
 type TavilyResponse struct {
-	Answer      string          `json:"answer,omitempty"`
-	Query       string          `json:"query"`
-	ResponseTime float64        `json:"response_time"`
-	Images      []TavilyImage   `json:"images,omitempty"`
-	Results     []TavilyResult  `json:"results"`
-	FollowUpQuestions []string  `json:"follow_up_questions,omitempty"`
+	Answer            string         `json:"answer,omitempty"`
+	Query             string         `json:"query"`
+	ResponseTime      float64        `json:"response_time"`
+	Images            []TavilyImage  `json:"images,omitempty"`
+	Results           []TavilyResult `json:"results"`
+	FollowUpQuestions []string       `json:"follow_up_questions,omitempty"`
 }
 
 // TavilyResult represents a single search result
@@ -52,7 +52,7 @@ type TavilyResult struct {
 
 // TavilyImage represents an image result
 type TavilyImage struct {
-	URL string `json:"url"`
+	URL         string `json:"url"`
 	Description string `json:"description,omitempty"`
 }
 
@@ -148,7 +148,7 @@ func (t *WebSearchTool) Validate(args map[string]interface{}) error {
 		AddBoolField("include_answer", "Include a short answer to the query", false).
 		AddBoolField("include_images", "Include related images in the search results", false).
 		AddBoolField("include_raw_content", "Include full raw content of search results", false)
-	
+
 	return validator.Validate(args)
 }
 
@@ -162,7 +162,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 				"Get your API key from: https://app.tavily.com/",
 			Data: map[string]interface{}{
 				"configured": false,
-				"message": "API key required",
+				"message":    "API key required",
 			},
 		}, nil
 	}
@@ -244,12 +244,12 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 	return &ToolResult{
 		Content: content,
 		Data: map[string]interface{}{
-			"query":         response.Query,
-			"answer":        response.Answer,
-			"results_count": len(response.Results),
-			"results":       response.Results,
-			"images":        response.Images,
-			"response_time": response.ResponseTime,
+			"query":               response.Query,
+			"answer":              response.Answer,
+			"results_count":       len(response.Results),
+			"results":             response.Results,
+			"images":              response.Images,
+			"response_time":       response.ResponseTime,
 			"follow_up_questions": response.FollowUpQuestions,
 		},
 	}, nil
@@ -304,7 +304,7 @@ func (t *WebSearchTool) makeRequest(ctx context.Context, request TavilyRequest) 
 
 func (t *WebSearchTool) formatResults(response *TavilyResponse) string {
 	var content bytes.Buffer
-	
+
 	content.WriteString(fmt.Sprintf("# Web Search Results for: %s\n\n", response.Query))
 
 	// Add answer if available
@@ -322,12 +322,12 @@ func (t *WebSearchTool) formatResults(response *TavilyResponse) string {
 		}
 		content.WriteString(fmt.Sprintf("**Score:** %.2f\n\n", result.Score))
 		content.WriteString(fmt.Sprintf("%s\n\n", result.Content))
-		
+
 		if result.RawContent != "" && len(result.RawContent) > len(result.Content) {
 			content.WriteString("**Full Content:**\n")
 			content.WriteString(fmt.Sprintf("%s\n\n", result.RawContent))
 		}
-		
+
 		content.WriteString("---\n\n")
 	}
 
@@ -432,7 +432,7 @@ func (t *AcademicSearchTool) Execute(ctx context.Context, args map[string]interf
 
 	// Use advanced search for academic content
 	args["search_depth"] = "advanced"
-	
+
 	// Include raw content for academic papers
 	if _, ok := args["include_raw_content"]; !ok {
 		args["include_raw_content"] = true

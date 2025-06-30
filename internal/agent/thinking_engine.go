@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -18,10 +17,10 @@ type ThinkingEngine struct {
 
 // ActionPlan - 行动规划结果
 type ActionPlan struct {
-	ToolCalls []*types.LightToolCall `json:"tool_calls,omitempty"`
-	CodeBlock *CodeBlock             `json:"code_block,omitempty"`
-	Reasoning string                 `json:"reasoning"`
-	HasActions bool                  `json:"has_actions"`
+	ToolCalls  []*types.LightToolCall `json:"tool_calls,omitempty"`
+	CodeBlock  *CodeBlock             `json:"code_block,omitempty"`
+	Reasoning  string                 `json:"reasoning"`
+	HasActions bool                   `json:"has_actions"`
 }
 
 // NewThinkingEngine - 创建思考引擎
@@ -45,7 +44,7 @@ Current situation analysis:`, prompt)
 			{Role: "user", Content: thinkingPrompt},
 		},
 		ModelType:  llm.BasicModel,
-		Tools:      nil, // 明确不提供工具
+		Tools:      nil,    // 明确不提供工具
 		ToolChoice: "none", // 禁用工具调用
 		Config:     te.agent.llmConfig,
 	}
@@ -109,7 +108,7 @@ Goal: %s
 Steps completed: %d
 Available tools: file_read, file_list, file_update, bash, grep, directory_create, etc.
 
-Execute the next required action immediately:`, 
+Execute the next required action immediately:`,
 		thought, taskCtx.Goal, len(taskCtx.History))
 
 	// 构建可用工具列表
@@ -161,9 +160,9 @@ Execute the next required action immediately:`,
 	codeBlock := te.agent.parseCodeBlock(reasoning)
 
 	plan := &ActionPlan{
-		ToolCalls: toolCalls,
-		CodeBlock: codeBlock,
-		Reasoning: reasoning,
+		ToolCalls:  toolCalls,
+		CodeBlock:  codeBlock,
+		Reasoning:  reasoning,
 		HasActions: len(toolCalls) > 0 || codeBlock != nil,
 	}
 
@@ -190,7 +189,6 @@ func (te *ThinkingEngine) thinkWithResponse(ctx context.Context, prompt string, 
 		ToolChoice: "auto", // 让模型自动决定是否调用工具
 		Config:     te.agent.llmConfig,
 	}
-	log.Printf("[DEBUG] ThinkingEngine: Building tool definitions: %v", te.agent.llmConfig)
 
 	// 获取LLM实例
 	client, err := llm.GetLLMInstance(llm.BasicModel)
@@ -245,7 +243,6 @@ func (te *ThinkingEngine) thinkWithConversation(ctx context.Context, messages []
 		ToolChoice: "auto", // 让模型自动决定是否调用工具
 		Config:     te.agent.llmConfig,
 	}
-	log.Printf("[DEBUG] ThinkingEngine: Building tool definitions: %v", te.agent.llmConfig)
 	// 获取LLM实例
 	client, err := llm.GetLLMInstance(llm.BasicModel)
 	if err != nil {
@@ -314,9 +311,9 @@ func (te *ThinkingEngine) canProvideDirectAnswer(thought string, confidence floa
 	if strings.TrimSpace(thought) == "" {
 		return false
 	}
-	
+
 	thoughtLower := strings.ToLower(thought)
-	
+
 	// 如果包含这些分析词汇，说明还在思考过程中，不是最终答案
 	analysisIndicators := []string{
 		"need to", "should", "let me", "first", "then", "next",
@@ -324,36 +321,36 @@ func (te *ThinkingEngine) canProvideDirectAnswer(thought string, confidence floa
 		"break down", "can be", "operations", "process",
 		"multi-step", "broken down", "analysis", "plan",
 	}
-	
+
 	for _, indicator := range analysisIndicators {
 		if strings.Contains(thoughtLower, indicator) {
 			return false // 还在分析阶段，不是答案
 		}
 	}
-	
+
 	// 检查是否包含明确的最终答案标识
 	answerIndicators := []string{
 		"the answer is", "the result is", "the solution is",
 		"current directory is", "directory is", "path is",
 		"final answer:", "conclusion:", "answer:",
 	}
-	
+
 	for _, indicator := range answerIndicators {
 		if strings.Contains(thoughtLower, indicator) {
 			return true
 		}
 	}
-	
+
 	// 检查是否包含具体的路径或数值结果（对简单查询有效）
-	if strings.Contains(thought, "/Users/") || 
-	   strings.Contains(thought, "/home/") ||
-	   strings.Contains(thought, "C:\\") {
+	if strings.Contains(thought, "/Users/") ||
+		strings.Contains(thought, "/home/") ||
+		strings.Contains(thought, "C:\\") {
 		// 确实包含路径信息，可能是答案
-		return !strings.Contains(thoughtLower, "find") && 
-		       !strings.Contains(thoughtLower, "search") &&
-		       !strings.Contains(thoughtLower, "locate")
+		return !strings.Contains(thoughtLower, "find") &&
+			!strings.Contains(thoughtLower, "search") &&
+			!strings.Contains(thoughtLower, "locate")
 	}
-	
+
 	return false
 }
 
@@ -362,9 +359,9 @@ func (te *ThinkingEngine) isTaskComplete(observation string, confidence float64)
 	if strings.TrimSpace(observation) == "" {
 		return false
 	}
-	
+
 	obsLower := strings.ToLower(observation)
-	
+
 	// 明确的完成标识
 	completionIndicators := []string{
 		"completed", "finished", "done", "solved", "successful",
@@ -372,31 +369,31 @@ func (te *ThinkingEngine) isTaskComplete(observation string, confidence float64)
 		"current directory", "the answer", "here is",
 		"task completed", "execution completed", "successfully executed",
 	}
-	
+
 	for _, indicator := range completionIndicators {
 		if strings.Contains(obsLower, indicator) {
 			return true
 		}
 	}
-	
+
 	// 检查是否包含具体的有效结果（路径、文件内容等）
 	if len(strings.TrimSpace(observation)) > 15 {
 		// 路径结果
 		if strings.Contains(observation, "/Users/") ||
-		   strings.Contains(observation, "/home/") ||
-		   strings.Contains(observation, "C:\\") ||
-		   (strings.Contains(observation, "/") && strings.Contains(observation, "code")) {
+			strings.Contains(observation, "/home/") ||
+			strings.Contains(observation, "C:\\") ||
+			(strings.Contains(observation, "/") && strings.Contains(observation, "code")) {
 			return true
 		}
-		
+
 		// 命令执行成功结果
 		if strings.Contains(obsLower, "execution completed") ||
-		   strings.Contains(obsLower, "executed successfully") ||
-		   strings.Contains(obsLower, "tool execution successful") {
+			strings.Contains(obsLower, "executed successfully") ||
+			strings.Contains(obsLower, "tool execution successful") {
 			return true
 		}
 	}
-	
+
 	return false
 }
 

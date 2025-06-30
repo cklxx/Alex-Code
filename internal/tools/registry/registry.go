@@ -15,25 +15,25 @@ import (
 type Tool interface {
 	// Name returns the unique name of the tool
 	Name() string
-	
+
 	// Description returns a human-readable description of what the tool does
 	Description() string
-	
+
 	// Parameters returns the JSON schema for the tool's parameters
 	Parameters() map[string]interface{}
-	
+
 	// Execute runs the tool with the given arguments
 	Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error)
-	
+
 	// Validate checks if the provided arguments are valid for this tool
 	Validate(args map[string]interface{}) error
 }
 
 // ToolResult represents the result of a tool execution
 type ToolResult struct {
-	Content string                 `json:"content"`
-	Data    interface{}           `json:"data,omitempty"`
-	Files   []string              `json:"files,omitempty"`    // Files that were modified/created
+	Content  string                 `json:"content"`
+	Data     interface{}            `json:"data,omitempty"`
+	Files    []string               `json:"files,omitempty"` // Files that were modified/created
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -45,11 +45,11 @@ type ToolMetadata struct {
 	Category    string                 `json:"category"`
 	Version     string                 `json:"version"`
 	Author      string                 `json:"author,omitempty"`
-	
+
 	// Execution settings
-	Timeout     int  `json:"timeout,omitempty"`      // seconds
+	Timeout      int  `json:"timeout,omitempty"` // seconds
 	RequiresSudo bool `json:"requires_sudo,omitempty"`
-	IsDangerous bool `json:"is_dangerous,omitempty"`  // Requires explicit confirmation
+	IsDangerous  bool `json:"is_dangerous,omitempty"` // Requires explicit confirmation
 }
 
 // Registry manages available tools and their execution
@@ -65,17 +65,17 @@ func NewRegistry() *Registry {
 		tools:    make(map[string]Tool),
 		metadata: make(map[string]*ToolMetadata),
 	}
-	
+
 	// Register core tools by default
 	registry.registerCoreTools()
-	
+
 	return registry
 }
 
 // NewRegistryWithConfig creates a new tool registry with configuration support
 func NewRegistryWithConfig(configManager interface{}) *Registry {
 	registry := NewRegistry()
-	
+
 	// Configure tools if config manager is provided
 	if configManager != nil {
 		// Try to cast to the expected config manager type
@@ -84,7 +84,7 @@ func NewRegistryWithConfig(configManager interface{}) *Registry {
 			configurator.ConfigureAllTools(registry)
 		}
 	}
-	
+
 	return registry
 }
 
@@ -103,7 +103,7 @@ func (r *Registry) RegisterTool(tool Tool) error {
 	}
 
 	r.tools[name] = tool
-	
+
 	// Create metadata
 	r.metadata[name] = &ToolMetadata{
 		Name:        name,
@@ -134,7 +134,7 @@ func (r *Registry) UnregisterTool(name string) error {
 func (r *Registry) GetTool(name string) Tool {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
-	
+
 	return r.tools[name]
 }
 
@@ -142,7 +142,7 @@ func (r *Registry) GetTool(name string) Tool {
 func (r *Registry) GetToolMetadata(name string) *ToolMetadata {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
-	
+
 	if metadata, exists := r.metadata[name]; exists {
 		// Return a copy to prevent external modification
 		metadataCopy := *metadata
@@ -290,7 +290,7 @@ func (w *BuiltinToolWrapper) Execute(ctx context.Context, args map[string]interf
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert builtin.ToolResult to tools.ToolResult
 	return &ToolResult{
 		Content:  builtinResult.Content,
@@ -340,4 +340,3 @@ func contains(s string, substrings []string) bool {
 	}
 	return false
 }
-

@@ -82,12 +82,12 @@ func (t *GrepTool) Validate(args map[string]interface{}) error {
 		AddBoolField("line_numbers", "Show line numbers", false).
 		AddOptionalIntField("context_lines", "Lines of context around matches", 0, 10).
 		AddOptionalIntField("max_matches", "Maximum number of matches", 1, 1000)
-	
+
 	// First run standard validation
 	if err := validator.Validate(args); err != nil {
 		return err
 	}
-	
+
 	// Validate regex pattern
 	pattern := args["pattern"].(string)
 	if _, err := regexp.Compile(pattern); err != nil {
@@ -99,7 +99,7 @@ func (t *GrepTool) Validate(args map[string]interface{}) error {
 
 func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	pattern := args["pattern"].(string)
-	
+
 	// Get search path
 	searchPath := "."
 	if pathArg, ok := args["path"]; ok {
@@ -158,7 +158,7 @@ func (t *GrepTool) hasSystemGrep() bool {
 
 func (t *GrepTool) useSystemGrep(pattern, searchPath string, recursive, ignoreCase, lineNumbers bool, maxMatches int) (*ToolResult, error) {
 	args := []string{}
-	
+
 	if recursive {
 		args = append(args, "-r")
 	}
@@ -170,10 +170,10 @@ func (t *GrepTool) useSystemGrep(pattern, searchPath string, recursive, ignoreCa
 	}
 
 	args = append(args, pattern, searchPath)
-	
+
 	cmd := exec.Command("grep", args...)
 	output, err := cmd.Output()
-	
+
 	// grep returns exit code 1 when no matches found, which is not an error for us
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 1 {
@@ -193,12 +193,12 @@ func (t *GrepTool) useSystemGrep(pattern, searchPath string, recursive, ignoreCa
 
 	outputStr := strings.TrimSpace(string(output))
 	lines := strings.Split(outputStr, "\n")
-	
+
 	// Limit results if needed
 	if len(lines) > maxMatches {
 		lines = lines[:maxMatches]
 	}
-	
+
 	return &ToolResult{
 		Content: fmt.Sprintf("Found %d matches:\n%s", len(lines), strings.Join(lines, "\n")),
 		Data: map[string]interface{}{
@@ -312,7 +312,7 @@ func (t *GrepTool) nativeGrep(pattern, searchPath string, recursive, ignoreCase,
 		contentBuilder.WriteString("No matches found")
 	} else {
 		contentBuilder.WriteString(fmt.Sprintf("Found %d matches for pattern '%s'\n\n", len(matches), pattern))
-		
+
 		for i, match := range matches {
 			if i > 0 {
 				contentBuilder.WriteString("\n")
@@ -321,7 +321,7 @@ func (t *GrepTool) nativeGrep(pattern, searchPath string, recursive, ignoreCase,
 			file := match["file"].(string)
 			lineNum := match["line_number"].(int)
 			line := match["line"].(string)
-			
+
 			if lineNumbers {
 				contentBuilder.WriteString(fmt.Sprintf("%s:%d:%s\n", file, lineNum, line))
 			} else {
@@ -431,7 +431,7 @@ func (t *RipgrepTool) Validate(args map[string]interface{}) error {
 		AddOptionalIntField("context", "Lines of context around matches", 0, 10).
 		AddOptionalIntField("max_count", "Maximum number of matches per file", 0, 0).
 		AddBoolField("hidden", "Search hidden files and directories", false)
-	
+
 	return validator.Validate(args)
 }
 
@@ -444,7 +444,7 @@ func (t *RipgrepTool) Execute(ctx context.Context, args map[string]interface{}) 
 			"pattern":   args["pattern"],
 			"recursive": true,
 		}
-		
+
 		// Map some common parameters
 		if path, ok := args["path"]; ok {
 			grepArgs["path"] = path
@@ -455,19 +455,19 @@ func (t *RipgrepTool) Execute(ctx context.Context, args map[string]interface{}) 
 		if context, ok := args["context"]; ok {
 			grepArgs["context_lines"] = context
 		}
-		
+
 		result, err := grepTool.Execute(ctx, grepArgs)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Update metadata to indicate fallback
 		if result.Data == nil {
 			result.Data = make(map[string]interface{})
 		}
 		result.Data["method"] = "fallback_grep"
 		result.Data["note"] = "ripgrep not available, used grep fallback"
-		
+
 		return result, nil
 	}
 
@@ -482,7 +482,7 @@ func (t *RipgrepTool) hasRipgrep() bool {
 
 func (t *RipgrepTool) useRipgrep(args map[string]interface{}) (*ToolResult, error) {
 	pattern := args["pattern"].(string)
-	
+
 	rgArgs := []string{
 		"--line-number",
 		"--heading",
@@ -492,34 +492,34 @@ func (t *RipgrepTool) useRipgrep(args map[string]interface{}) (*ToolResult, erro
 	if ignoreCase, ok := args["ignore_case"]; ok && ignoreCase.(bool) {
 		rgArgs = append(rgArgs, "--ignore-case")
 	}
-	
+
 	if typeFilter, ok := args["type_filter"]; ok {
 		rgArgs = append(rgArgs, "--type", typeFilter.(string))
 	}
-	
+
 	if glob, ok := args["glob"]; ok {
 		rgArgs = append(rgArgs, "--glob", glob.(string))
 	}
-	
+
 	if context, ok := args["context"]; ok {
 		if c, ok := context.(float64); ok && c > 0 {
 			rgArgs = append(rgArgs, "--context", fmt.Sprintf("%.0f", c))
 		}
 	}
-	
+
 	if maxCount, ok := args["max_count"]; ok {
 		if mc, ok := maxCount.(float64); ok && mc > 0 {
 			rgArgs = append(rgArgs, "--max-count", fmt.Sprintf("%.0f", mc))
 		}
 	}
-	
+
 	if hidden, ok := args["hidden"]; ok && hidden.(bool) {
 		rgArgs = append(rgArgs, "--hidden")
 	}
 
 	// Add pattern and path
 	rgArgs = append(rgArgs, pattern)
-	
+
 	if path, ok := args["path"]; ok {
 		rgArgs = append(rgArgs, path.(string))
 	} else {
@@ -528,7 +528,7 @@ func (t *RipgrepTool) useRipgrep(args map[string]interface{}) (*ToolResult, erro
 
 	cmd := exec.Command("rg", rgArgs...)
 	output, err := cmd.Output()
-	
+
 	// ripgrep returns exit code 1 when no matches found
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 1 {
@@ -547,7 +547,7 @@ func (t *RipgrepTool) useRipgrep(args map[string]interface{}) (*ToolResult, erro
 
 	outputStr := strings.TrimSpace(string(output))
 	lines := strings.Split(outputStr, "\n")
-	
+
 	return &ToolResult{
 		Content: fmt.Sprintf("Found %d matches:\n%s", len(lines), outputStr),
 		Data: map[string]interface{}{
@@ -635,7 +635,7 @@ func (t *FindTool) Validate(args map[string]interface{}) error {
 		AddOptionalStringField("extension", "File extension to search for").
 		AddOptionalIntField("max_depth", "Maximum depth to search", 1, 20).
 		AddBoolField("case_insensitive", "Case insensitive name matching", false)
-	
+
 	return validator.Validate(args)
 }
 
@@ -673,7 +673,7 @@ func (t *FindTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 	}
 
 	var results []map[string]interface{}
-	
+
 	err := filepath.Walk(searchPath, func(currentPath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -684,7 +684,7 @@ func (t *FindTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 		if err != nil {
 			return err
 		}
-		
+
 		depth := 1
 		if relPath != "." {
 			depth = len(strings.Split(relPath, string(filepath.Separator))) + 1
@@ -723,7 +723,7 @@ func (t *FindTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 				fileName = strings.ToLower(fileName)
 				namePattern = strings.ToLower(namePattern)
 			}
-			
+
 			if matched, _ := filepath.Match(namePattern, fileName); !matched {
 				return nil
 			}
@@ -758,12 +758,12 @@ func (t *FindTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 	// Generate content
 	var contentBuilder strings.Builder
 	contentBuilder.WriteString(fmt.Sprintf("Found %d items\n\n", len(results)))
-	
+
 	for _, result := range results {
 		path := result["path"].(string)
 		fileType := result["type"].(string)
 		size := result["size"].(int64)
-		
+
 		if fileType == "directory" {
 			contentBuilder.WriteString(fmt.Sprintf("📁 %s/\n", path))
 		} else {
@@ -778,10 +778,10 @@ func (t *FindTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 			"results":     results,
 			"count":       len(results),
 			"filters": map[string]interface{}{
-				"name":       namePattern,
-				"type":       fileType,
-				"extension":  extension,
-				"max_depth":  maxDepth,
+				"name":      namePattern,
+				"type":      fileType,
+				"extension": extension,
+				"max_depth": maxDepth,
 			},
 		},
 	}, nil

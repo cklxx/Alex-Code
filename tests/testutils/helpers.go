@@ -74,23 +74,23 @@ func SetupTestMemoryConfig() *types.MemoryManagerConfig {
 // GenerateTestKnowledge creates test knowledge data
 func GenerateTestKnowledge(count int, prefix string) []*types.Knowledge {
 	var knowledge []*types.Knowledge
-	
+
 	for i := 0; i < count; i++ {
 		k := &types.Knowledge{
-			ID:          fmt.Sprintf("%s_knowledge_%d", prefix, i),
-			Type:        types.KnowledgeTypeExperience,
-			Title:       fmt.Sprintf("Test Knowledge %d", i),
-			Content:     fmt.Sprintf("This is test knowledge content %d", i),
-			Summary:     fmt.Sprintf("Summary for knowledge %d", i),
-			Keywords:    []string{fmt.Sprintf("keyword%d", i), "test", "knowledge"},
-			Tags:        []string{fmt.Sprintf("tag%d", i), "test"},
-			Category:    "test_category",
-			Source:      "test_source",
-			Confidence:  0.8 + float64(i%3)*0.1,
-			Relevance:   0.7 + float64(i%4)*0.05,
-			Quality:     0.9 - float64(i%5)*0.02,
-			ProjectID:   "test_project",
-			Verified:    i%2 == 0,
+			ID:         fmt.Sprintf("%s_knowledge_%d", prefix, i),
+			Type:       types.KnowledgeTypeExperience,
+			Title:      fmt.Sprintf("Test Knowledge %d", i),
+			Content:    fmt.Sprintf("This is test knowledge content %d", i),
+			Summary:    fmt.Sprintf("Summary for knowledge %d", i),
+			Keywords:   []string{fmt.Sprintf("keyword%d", i), "test", "knowledge"},
+			Tags:       []string{fmt.Sprintf("tag%d", i), "test"},
+			Category:   "test_category",
+			Source:     "test_source",
+			Confidence: 0.8 + float64(i%3)*0.1,
+			Relevance:  0.7 + float64(i%4)*0.05,
+			Quality:    0.9 - float64(i%5)*0.02,
+			ProjectID:  "test_project",
+			Verified:   i%2 == 0,
 			Metadata: map[string]interface{}{
 				"test_id": i,
 				"batch":   prefix,
@@ -103,41 +103,41 @@ func GenerateTestKnowledge(count int, prefix string) []*types.Knowledge {
 		}
 		knowledge = append(knowledge, k)
 	}
-	
+
 	return knowledge
 }
 
 // GenerateTestPatterns creates test pattern data
 func GenerateTestPatterns(count int, prefix string) []*types.CodePattern {
 	var patterns []*types.CodePattern
-	
+
 	patternTypes := []types.CodePatternType{
 		types.CodePatternTypeStructural,
 		types.CodePatternTypeBehavioral,
 		types.CodePatternTypeCreational,
 	}
-	
+
 	for i := 0; i < count; i++ {
 		p := &types.CodePattern{
-			ID:           fmt.Sprintf("%s_pattern_%d", prefix, i),
-			Name:         fmt.Sprintf("Test Pattern %d", i),
-			Description:  fmt.Sprintf("This is test pattern %d", i),
-			Type:         patternTypes[i%len(patternTypes)],
-			Language:     "go",
-			Template:     fmt.Sprintf("func TestPattern%d() {\n\t// pattern code\n}", i),
-			Category:     "test_patterns",
-			Tags:         []string{fmt.Sprintf("pattern%d", i), "test"},
-			Context:      fmt.Sprintf("Test context for pattern %d", i),
-			Intent:       fmt.Sprintf("Intent for pattern %d", i),
-			Structure:    fmt.Sprintf("Structure: pattern %d", i),
+			ID:          fmt.Sprintf("%s_pattern_%d", prefix, i),
+			Name:        fmt.Sprintf("Test Pattern %d", i),
+			Description: fmt.Sprintf("This is test pattern %d", i),
+			Type:        patternTypes[i%len(patternTypes)],
+			Language:    "go",
+			Template:    fmt.Sprintf("func TestPattern%d() {\n\t// pattern code\n}", i),
+			Category:    "test_patterns",
+			Tags:        []string{fmt.Sprintf("pattern%d", i), "test"},
+			Context:     fmt.Sprintf("Test context for pattern %d", i),
+			Intent:      fmt.Sprintf("Intent for pattern %d", i),
+			Structure:   fmt.Sprintf("Structure: pattern %d", i),
 			Usage: &types.PatternUsage{
-				Occurrences:     i + 1,
-				Projects:        []string{"test_project"},
-				Languages:       map[string]int{"go": i + 1},
-				LastUsed:        time.Now(),
-				Popularity:      0.5 + float64(i%5)*0.1,
-				SuccessRate:     0.8 + float64(i%3)*0.05,
-				AdoptionRate:    0.6 + float64(i%4)*0.1,
+				Occurrences:  i + 1,
+				Projects:     []string{"test_project"},
+				Languages:    map[string]int{"go": i + 1},
+				LastUsed:     time.Now(),
+				Popularity:   0.5 + float64(i%5)*0.1,
+				SuccessRate:  0.8 + float64(i%3)*0.05,
+				AdoptionRate: 0.6 + float64(i%4)*0.1,
 			},
 			Quality: &types.PatternQuality{
 				Overall:         0.8 + float64(i%5)*0.04,
@@ -157,7 +157,7 @@ func GenerateTestPatterns(count int, prefix string) []*types.CodePattern {
 		}
 		patterns = append(patterns, p)
 	}
-	
+
 	return patterns
 }
 
@@ -214,20 +214,20 @@ func CreateTestProjectMemory(projectID string) *types.ProjectMemory {
 		ProjectID:   projectID,
 		ProjectPath: fmt.Sprintf("/test/projects/%s", projectID),
 		Architecture: &types.ProjectArchitecture{
-			ID:        fmt.Sprintf("arch_%s", projectID),
-			ProjectID: projectID,
-			Name:      fmt.Sprintf("%s Architecture", projectID),
+			ID:          fmt.Sprintf("arch_%s", projectID),
+			ProjectID:   projectID,
+			Name:        fmt.Sprintf("%s Architecture", projectID),
 			Description: "Test project architecture",
-			Version:   "1.0.0",
+			Version:     "1.0.0",
 			Components: []types.ArchitecturalComponent{
 				{
-					ID:          "comp1",
-					Name:        "Main Component",
-					Type:        "service",
-					Description: "Main service component",
+					ID:               "comp1",
+					Name:             "Main Component",
+					Type:             "service",
+					Description:      "Main service component",
 					Responsibilities: []string{"main logic", "api handling"},
-					Location:    "/main",
-					Status:      "active",
+					Location:         "/main",
+					Status:           "active",
 				},
 			},
 			Technologies: []string{"Go", "Docker"},

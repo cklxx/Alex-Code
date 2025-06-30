@@ -243,4 +243,3 @@ func (c *StreamingLLMClient) setHeaders(req *http.Request, apiKey string) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 }
-

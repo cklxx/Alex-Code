@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-	
+
 	registryPkg "deep-coding-agent/internal/tools/registry"
 	"deep-coding-agent/pkg/types"
 )
@@ -14,15 +14,15 @@ import (
 // ToolSystemAdapter adapts tools.Registry to interfaces.ToolOrchestrator
 type ToolSystemAdapter struct {
 	registry *registryPkg.Registry
-	
+
 	// Enhanced metrics and tracking
-	metrics *types.ToolSystemMetrics
+	metrics     *types.ToolSystemMetrics
 	execHistory []types.ToolExecutionRecord
-	mutex sync.RWMutex
-	
+	mutex       sync.RWMutex
+
 	// Configuration
 	config *types.ToolSystemConfig
-	
+
 	// Tool recommendation engine
 	recommender *ToolRecommendationEngine
 }
@@ -31,7 +31,7 @@ type ToolSystemAdapter struct {
 type ToolRecommendationEngine struct {
 	toolUsagePatterns map[string]*types.ToolUsageStats
 	taskToolMapping   map[types.TaskType][]string
-	mutex            sync.RWMutex
+	mutex             sync.RWMutex
 }
 
 // NewToolRecommendationEngine creates a new recommendation engine
@@ -39,12 +39,12 @@ func NewToolRecommendationEngine() *ToolRecommendationEngine {
 	return &ToolRecommendationEngine{
 		toolUsagePatterns: make(map[string]*types.ToolUsageStats),
 		taskToolMapping: map[types.TaskType][]string{
-			types.TaskTypeAnalysis:      {"file_read", "file_list", "grep", "bash"},
-			types.TaskTypeGeneration:    {"file_update", "file_replace", "directory_create"},
-			types.TaskTypeRefactor:      {"file_read", "file_replace", "bash"},
-			types.TaskTypeTest:          {"bash", "file_read", "file_list"},
-			types.TaskTypeExplain:       {"file_read", "file_list", "grep"},
-			types.TaskTypeCustom:        {"file_read", "file_list", "bash"},
+			types.TaskTypeAnalysis:   {"file_read", "file_list", "grep", "bash"},
+			types.TaskTypeGeneration: {"file_update", "file_replace", "directory_create"},
+			types.TaskTypeRefactor:   {"file_read", "file_replace", "bash"},
+			types.TaskTypeTest:       {"bash", "file_read", "file_list"},
+			types.TaskTypeExplain:    {"file_read", "file_list", "grep"},
+			types.TaskTypeCustom:     {"file_read", "file_list", "bash"},
 		},
 	}
 }
@@ -58,7 +58,7 @@ func NewToolSystemAdapter(registry *registryPkg.Registry) *ToolSystemAdapter {
 		config:      getDefaultConfig(),
 		recommender: NewToolRecommendationEngine(),
 	}
-	
+
 	return adapter
 }
 
@@ -82,11 +82,11 @@ func getDefaultConfig() *types.ToolSystemConfig {
 		MaxConcurrentExecutions: 5,
 		DefaultTimeout:          30000, // 30 seconds in milliseconds
 		SecurityConfig: &types.SecurityConfig{
-			EnableSandbox:       true,
-			MaxMemoryUsage:      1024 * 1024 * 1024, // 1GB
-			MaxExecutionTime:    30000,               // 30 seconds
-			AllowedTools:        []string{"file_read", "file_update", "file_replace", "file_list", "grep", "bash"},
-			RestrictedTools:     []string{},
+			EnableSandbox:    true,
+			MaxMemoryUsage:   1024 * 1024 * 1024, // 1GB
+			MaxExecutionTime: 30000,              // 30 seconds
+			AllowedTools:     []string{"file_read", "file_update", "file_replace", "file_list", "grep", "bash"},
+			RestrictedTools:  []string{},
 		},
 		MonitoringConfig: &types.MonitoringConfig{
 			Enabled:         true,
@@ -109,7 +109,7 @@ func (tsa *ToolSystemAdapter) GetToolSchema(toolName string) (*types.ToolSchema,
 	}
 
 	metadata := tsa.registry.GetToolMetadata(toolName)
-	
+
 	schema := &types.ToolSchema{
 		Name:        toolName,
 		Description: tool.Description(),
@@ -117,12 +117,12 @@ func (tsa *ToolSystemAdapter) GetToolSchema(toolName string) (*types.ToolSchema,
 		Version:     "1.0.0",
 		Category:    types.ToolCategoryCustom,
 	}
-	
+
 	if metadata != nil {
 		schema.Category = types.ToolCategory(metadata.Category)
 		schema.Version = metadata.Version
 	}
-	
+
 	return schema, nil
 }
 
@@ -130,7 +130,7 @@ func (tsa *ToolSystemAdapter) GetToolSchema(toolName string) (*types.ToolSchema,
 func (tsa *ToolSystemAdapter) ExecuteTool(ctx context.Context, toolCall *types.ToolCall, execContext *types.ToolExecutionContext) (*types.ToolResult, error) {
 	startTime := time.Now()
 	toolName := toolCall.Function.Name
-	
+
 	// Update metrics - total executions
 	tsa.mutex.Lock()
 	tsa.metrics.TotalExecutions++
@@ -143,7 +143,7 @@ func (tsa *ToolSystemAdapter) ExecuteTool(ctx context.Context, toolCall *types.T
 	}
 	tsa.metrics.ToolUsageStats[toolName].TotalCalls++
 	tsa.mutex.Unlock()
-	
+
 	// Validate tool call
 	validation, err := tsa.ValidateToolCall(toolCall)
 	if err != nil {
@@ -154,24 +154,24 @@ func (tsa *ToolSystemAdapter) ExecuteTool(ctx context.Context, toolCall *types.T
 		tsa.recordFailure(toolName, "validation_failed", time.Since(startTime))
 		return nil, fmt.Errorf("tool validation failed: invalid parameters")
 	}
-	
+
 	// Apply timeout from context or config
 	timeout := time.Duration(tsa.config.DefaultTimeout) * time.Millisecond
 	if execContext != nil && execContext.Timeout > 0 {
 		timeout = execContext.Timeout
 	}
-	
+
 	execCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	
+
 	// Convert types.ToolCall to tools registry compatible format
 	args := toolCall.Function.Arguments
-	
+
 	// Execute the tool using the registry
 	result, err := tsa.registry.ExecuteTool(execCtx, toolName, args)
-	
+
 	duration := time.Since(startTime)
-	
+
 	if err != nil {
 		tsa.recordFailure(toolName, err.Error(), duration)
 		return &types.ToolResult{
@@ -180,10 +180,10 @@ func (tsa *ToolSystemAdapter) ExecuteTool(ctx context.Context, toolCall *types.T
 			Error:   err.Error(),
 		}, nil // Return nil error but failed result
 	}
-	
+
 	// Record successful execution
 	tsa.recordSuccess(toolName, duration)
-	
+
 	// Convert tools.ToolResult to types.ToolResult
 	execResult := &types.ToolResult{
 		ID:      fmt.Sprintf("exec_%d", time.Now().UnixNano()),
@@ -191,10 +191,10 @@ func (tsa *ToolSystemAdapter) ExecuteTool(ctx context.Context, toolCall *types.T
 		Data:    result.Data,
 		Success: true,
 	}
-	
+
 	// Record execution history
 	tsa.recordExecution(toolCall, execResult, duration)
-	
+
 	return execResult, nil
 }
 
@@ -202,16 +202,16 @@ func (tsa *ToolSystemAdapter) ExecuteTool(ctx context.Context, toolCall *types.T
 func (tsa *ToolSystemAdapter) recordSuccess(toolName string, duration time.Duration) {
 	tsa.mutex.Lock()
 	defer tsa.mutex.Unlock()
-	
+
 	tsa.metrics.SuccessfulExecutions++
-	
+
 	// Update tool-specific metrics
 	stats := tsa.metrics.ToolUsageStats[toolName]
 	if stats != nil {
 		// Update average time with running average
 		stats.AverageTime = time.Duration((int64(stats.AverageTime)*int64(stats.TotalCalls-1) + int64(duration)) / int64(stats.TotalCalls))
 	}
-	
+
 	// Update performance stats
 	if tsa.metrics.PerformanceStats[toolName] == nil {
 		tsa.metrics.PerformanceStats[toolName] = &types.ToolPerformance{
@@ -223,12 +223,12 @@ func (tsa *ToolSystemAdapter) recordSuccess(toolName string, duration time.Durat
 		perf.AvgExecutionTime = time.Duration((int64(perf.AvgExecutionTime) + int64(duration)) / 2)
 		perf.LastBenchmark = time.Now()
 	}
-	
+
 	// Update system average
 	tsa.metrics.AverageExecutionTime = time.Duration(
-		(int64(tsa.metrics.AverageExecutionTime)*int64(tsa.metrics.SuccessfulExecutions-1) + int64(duration)) / 
-		int64(tsa.metrics.SuccessfulExecutions))
-	
+		(int64(tsa.metrics.AverageExecutionTime)*int64(tsa.metrics.SuccessfulExecutions-1) + int64(duration)) /
+			int64(tsa.metrics.SuccessfulExecutions))
+
 	tsa.metrics.LastUpdated = time.Now()
 }
 
@@ -236,7 +236,7 @@ func (tsa *ToolSystemAdapter) recordSuccess(toolName string, duration time.Durat
 func (tsa *ToolSystemAdapter) recordFailure(toolName, errorMsg string, duration time.Duration) {
 	tsa.mutex.Lock()
 	defer tsa.mutex.Unlock()
-	
+
 	tsa.metrics.FailedExecutions++
 	tsa.metrics.ErrorStats[errorMsg]++
 	tsa.metrics.LastUpdated = time.Now()
@@ -246,7 +246,7 @@ func (tsa *ToolSystemAdapter) recordFailure(toolName, errorMsg string, duration 
 func (tsa *ToolSystemAdapter) recordExecution(toolCall *types.ToolCall, result *types.ToolResult, duration time.Duration) {
 	tsa.mutex.Lock()
 	defer tsa.mutex.Unlock()
-	
+
 	record := types.ToolExecutionRecord{
 		ID:            result.ID,
 		ToolName:      toolCall.Function.Name,
@@ -256,12 +256,12 @@ func (tsa *ToolSystemAdapter) recordExecution(toolCall *types.ToolCall, result *
 		Timestamp:     time.Now(),
 		Error:         result.Error,
 	}
-	
+
 	// Keep only last 1000 records
 	if len(tsa.execHistory) >= 1000 {
 		tsa.execHistory = tsa.execHistory[1:]
 	}
-	
+
 	tsa.execHistory = append(tsa.execHistory, record)
 }
 
@@ -343,17 +343,17 @@ func (tsa *ToolSystemAdapter) GetTool(name string) (*types.RegisteredTool, error
 	if tool == nil {
 		return nil, fmt.Errorf("tool not found: %s", name)
 	}
-	
+
 	metadata := tsa.registry.GetToolMetadata(name)
-	
+
 	// Convert tools.ToolMetadata to types.ToolMetadata if available
 	var convertedMetadata *types.ToolMetadata
 	if metadata != nil {
 		convertedMetadata = &types.ToolMetadata{
 			Usage: &types.ToolUsageStats{
-				TotalCalls:     0,
-				AverageTime:    0,
-				LastReset:      time.Now(),
+				TotalCalls:  0,
+				AverageTime: 0,
+				LastReset:   time.Now(),
 			},
 			Performance: &types.ToolPerformance{
 				AvgExecutionTime: 0,
@@ -361,7 +361,7 @@ func (tsa *ToolSystemAdapter) GetTool(name string) (*types.RegisteredTool, error
 			},
 		}
 	}
-	
+
 	return &types.RegisteredTool{
 		Schema: &types.ToolSchema{
 			Name:        name,
@@ -399,7 +399,7 @@ func (tsa *ToolSystemAdapter) ValidateToolCall(toolCall *types.ToolCall) (*types
 			Risk: types.ToolRiskLevelMedium,
 		}, nil
 	}
-	
+
 	return &types.ToolCallValidation{
 		Valid: true,
 		Risk:  types.ToolRiskLevelLow,
@@ -426,33 +426,33 @@ func (tsa *ToolSystemAdapter) RecommendTools(ctx context.Context, task *types.Ta
 	// if !tsa.config.EnableRecommendations {
 	//     return []types.ToolRecommendation{}, nil
 	// }
-	
+
 	tsa.recommender.mutex.RLock()
 	defer tsa.recommender.mutex.RUnlock()
-	
+
 	// Get base recommendations for task type
 	baseTools := tsa.recommender.taskToolMapping[task.Type]
 	var recommendations []types.ToolRecommendation
-	
+
 	for _, toolName := range baseTools {
 		// Check if tool is available
 		if !tsa.IsToolAvailable(toolName) {
 			continue
 		}
-		
+
 		// Calculate confidence based on usage patterns and task context
 		confidence := tsa.calculateToolConfidence(toolName, task)
-		
+
 		recommendation := types.ToolRecommendation{
-			ToolName:    toolName,
-			Confidence:  confidence,
-			Rationale:   tsa.generateRecommendationReason(toolName, task),
-			Risk:        types.ToolRiskLevelLow,
+			ToolName:   toolName,
+			Confidence: confidence,
+			Rationale:  tsa.generateRecommendationReason(toolName, task),
+			Risk:       types.ToolRiskLevelLow,
 		}
-		
+
 		recommendations = append(recommendations, recommendation)
 	}
-	
+
 	// Sort by confidence (highest first)
 	for i := 0; i < len(recommendations)-1; i++ {
 		for j := i + 1; j < len(recommendations); j++ {
@@ -461,19 +461,19 @@ func (tsa *ToolSystemAdapter) RecommendTools(ctx context.Context, task *types.Ta
 			}
 		}
 	}
-	
+
 	// Return top 5 recommendations
 	if len(recommendations) > 5 {
 		recommendations = recommendations[:5]
 	}
-	
+
 	return recommendations, nil
 }
 
 // calculateToolConfidence calculates confidence score for tool recommendation
 func (tsa *ToolSystemAdapter) calculateToolConfidence(toolName string, task *types.Task) float64 {
 	baseConfidence := 0.5 // Default confidence
-	
+
 	// Factor in usage statistics
 	tsa.mutex.RLock()
 	if stats, exists := tsa.metrics.ToolUsageStats[toolName]; exists {
@@ -483,7 +483,7 @@ func (tsa *ToolSystemAdapter) calculateToolConfidence(toolName string, task *typ
 		}
 		baseConfidence += usageBoost
 	}
-	
+
 	// Factor in performance (faster tools get higher confidence)
 	if perf, exists := tsa.metrics.PerformanceStats[toolName]; exists {
 		if perf.AvgExecutionTime < 1*time.Second {
@@ -493,7 +493,7 @@ func (tsa *ToolSystemAdapter) calculateToolConfidence(toolName string, task *typ
 		}
 	}
 	tsa.mutex.RUnlock()
-	
+
 	// Factor in task context keywords
 	taskDescription := strings.ToLower(task.Description)
 	switch toolName {
@@ -514,12 +514,12 @@ func (tsa *ToolSystemAdapter) calculateToolConfidence(toolName string, task *typ
 			baseConfidence += 0.2
 		}
 	}
-	
+
 	// Cap confidence at 1.0
 	if baseConfidence > 1.0 {
 		baseConfidence = 1.0
 	}
-	
+
 	return baseConfidence
 }
 
@@ -563,13 +563,13 @@ func (tsa *ToolSystemAdapter) getToolCategory(toolName string) types.ToolCategor
 func (tsa *ToolSystemAdapter) CreateExecutionPlan(ctx context.Context, toolCalls []types.ToolCall, strategy types.ExecutionStrategy) (*types.ExecutionPlan, error) {
 	// Analyze dependencies between tool calls
 	dependencies := tsa.analyzeDependencies(toolCalls)
-	
+
 	// Convert ToolCalls to ExecutionSteps
 	steps := make([]types.ExecutionStep, len(toolCalls))
 	for i, call := range toolCalls {
 		stepID := fmt.Sprintf("step_%d", i+1)
 		stepDeps := dependencies[stepID]
-		
+
 		steps[i] = types.ExecutionStep{
 			ID:           stepID,
 			ToolName:     call.Function.Name,
@@ -579,7 +579,7 @@ func (tsa *ToolSystemAdapter) CreateExecutionPlan(ctx context.Context, toolCalls
 			Timeout:      time.Duration(tsa.config.DefaultTimeout) * time.Millisecond,
 		}
 	}
-	
+
 	plan := &types.ExecutionPlan{
 		ID:             fmt.Sprintf("plan_%d", time.Now().UnixNano()),
 		Name:           "Generated Plan",
@@ -589,14 +589,14 @@ func (tsa *ToolSystemAdapter) CreateExecutionPlan(ctx context.Context, toolCalls
 		MaxConcurrency: tsa.config.MaxConcurrentExecutions,
 		Timeout:        time.Duration(tsa.config.DefaultTimeout) * time.Millisecond,
 	}
-	
+
 	return plan, nil
 }
 
 // analyzeDependencies analyzes dependencies between tool calls (simplified)
 func (tsa *ToolSystemAdapter) analyzeDependencies(toolCalls []types.ToolCall) map[string][]string {
 	dependencies := make(map[string][]string)
-	
+
 	// Simple dependency analysis - tools that modify files should run before tools that read them
 	for i, call := range toolCalls {
 		stepID := fmt.Sprintf("step_%d", i+1)
@@ -604,7 +604,7 @@ func (tsa *ToolSystemAdapter) analyzeDependencies(toolCalls []types.ToolCall) ma
 			if i == j {
 				continue
 			}
-			
+
 			// Check if one tool writes and another reads the same file
 			if tsa.hasFileDependency(call, otherCall) {
 				otherStepID := fmt.Sprintf("step_%d", j+1)
@@ -612,7 +612,7 @@ func (tsa *ToolSystemAdapter) analyzeDependencies(toolCalls []types.ToolCall) ma
 			}
 		}
 	}
-	
+
 	return dependencies
 }
 
@@ -684,7 +684,7 @@ func (tsa *ToolSystemAdapter) optimizeExecutionOrder(toolCalls []types.ToolCall,
 func (tsa *ToolSystemAdapter) sortByDependencies(toolCalls []types.ToolCall) []types.ToolCall {
 	// Simple topological sort - write tools before read tools
 	var writeCalls, readCalls, otherCalls []types.ToolCall
-	
+
 	for _, call := range toolCalls {
 		if tsa.isFileWriteTool(call.Function.Name) {
 			writeCalls = append(writeCalls, call)
@@ -694,13 +694,13 @@ func (tsa *ToolSystemAdapter) sortByDependencies(toolCalls []types.ToolCall) []t
 			otherCalls = append(otherCalls, call)
 		}
 	}
-	
+
 	// Combine in order: writes, others, reads
 	result := make([]types.ToolCall, 0, len(toolCalls))
 	result = append(result, writeCalls...)
 	result = append(result, otherCalls...)
 	result = append(result, readCalls...)
-	
+
 	return result
 }
 
@@ -708,7 +708,7 @@ func (tsa *ToolSystemAdapter) sortByDependencies(toolCalls []types.ToolCall) []t
 func (tsa *ToolSystemAdapter) groupForConcurrency(toolCalls []types.ToolCall) []types.ToolCall {
 	// Group read-only tools together first, then write tools
 	var readOnlyCalls, writeCalls []types.ToolCall
-	
+
 	for _, call := range toolCalls {
 		if tsa.isFileReadTool(call.Function.Name) || call.Function.Name == "grep" {
 			readOnlyCalls = append(readOnlyCalls, call)
@@ -716,12 +716,12 @@ func (tsa *ToolSystemAdapter) groupForConcurrency(toolCalls []types.ToolCall) []
 			writeCalls = append(writeCalls, call)
 		}
 	}
-	
+
 	// Combine: read-only first (can run concurrently), then writes (sequential)
 	result := make([]types.ToolCall, 0, len(toolCalls))
 	result = append(result, readOnlyCalls...)
 	result = append(result, writeCalls...)
-	
+
 	return result
 }
 
@@ -730,7 +730,7 @@ func (tsa *ToolSystemAdapter) optimizeForPerformance(toolCalls []types.ToolCall)
 	// Sort by expected execution time (fastest first for better parallelization)
 	sorted := make([]types.ToolCall, len(toolCalls))
 	copy(sorted, toolCalls)
-	
+
 	// Simple bubble sort by estimated execution time
 	for i := 0; i < len(sorted)-1; i++ {
 		for j := i + 1; j < len(sorted); j++ {
@@ -741,7 +741,7 @@ func (tsa *ToolSystemAdapter) optimizeForPerformance(toolCalls []types.ToolCall)
 			}
 		}
 	}
-	
+
 	return sorted
 }
 
@@ -749,11 +749,11 @@ func (tsa *ToolSystemAdapter) optimizeForPerformance(toolCalls []types.ToolCall)
 func (tsa *ToolSystemAdapter) getToolExecutionTime(toolName string) time.Duration {
 	tsa.mutex.RLock()
 	defer tsa.mutex.RUnlock()
-	
+
 	if perf, exists := tsa.metrics.PerformanceStats[toolName]; exists {
 		return perf.AvgExecutionTime
 	}
-	
+
 	// Default estimates based on tool type
 	switch toolName {
 	case "file_read", "file_list":
@@ -772,12 +772,12 @@ func (tsa *ToolSystemAdapter) getToolExecutionTime(toolName string) time.Duratio
 // estimateExecutionDuration estimates total execution duration
 func (tsa *ToolSystemAdapter) estimateExecutionDuration(toolCalls []types.ToolCall) time.Duration {
 	var totalDuration time.Duration
-	
+
 	for _, call := range toolCalls {
 		toolDuration := tsa.getToolExecutionTime(call.Function.Name)
 		totalDuration += toolDuration
 	}
-	
+
 	// Add 20% buffer for overhead
 	return time.Duration(float64(totalDuration) * 1.2)
 }
@@ -794,13 +794,13 @@ func (tsa *ToolSystemAdapter) GetToolMetrics(toolName string) (*types.ToolMetada
 	if metadata == nil {
 		return &types.ToolMetadata{}, nil
 	}
-	
+
 	// Convert tools.ToolMetadata to types.ToolMetadata
 	return &types.ToolMetadata{
 		Usage: &types.ToolUsageStats{
-			TotalCalls:     0,
-			AverageTime:    0,
-			LastReset:      time.Now(),
+			TotalCalls:  0,
+			AverageTime: 0,
+			LastReset:   time.Now(),
 		},
 		Performance: &types.ToolPerformance{
 			AvgExecutionTime: 0,
@@ -819,20 +819,20 @@ func (tsa *ToolSystemAdapter) GetSystemMetrics() (*types.ToolSystemMetrics, erro
 func (tsa *ToolSystemAdapter) GetExecutionHistory(limit int) ([]types.ToolExecutionRecord, error) {
 	tsa.mutex.RLock()
 	defer tsa.mutex.RUnlock()
-	
+
 	if limit <= 0 {
 		limit = len(tsa.execHistory)
 	}
-	
+
 	// Return the most recent records up to the limit
 	start := 0
 	if len(tsa.execHistory) > limit {
 		start = len(tsa.execHistory) - limit
 	}
-	
+
 	result := make([]types.ToolExecutionRecord, len(tsa.execHistory)-start)
 	copy(result, tsa.execHistory[start:])
-	
+
 	return result, nil
 }
 
@@ -840,11 +840,11 @@ func (tsa *ToolSystemAdapter) GetExecutionHistory(limit int) ([]types.ToolExecut
 func (tsa *ToolSystemAdapter) Configure(config *types.ToolSystemConfig) error {
 	tsa.mutex.Lock()
 	defer tsa.mutex.Unlock()
-	
+
 	if config == nil {
 		return fmt.Errorf("config cannot be nil")
 	}
-	
+
 	tsa.config = config
 	return nil
 }
@@ -853,7 +853,7 @@ func (tsa *ToolSystemAdapter) Configure(config *types.ToolSystemConfig) error {
 func (tsa *ToolSystemAdapter) GetConfiguration() *types.ToolSystemConfig {
 	tsa.mutex.RLock()
 	defer tsa.mutex.RUnlock()
-	
+
 	// Return a copy to prevent external modification
 	configCopy := *tsa.config
 	return &configCopy

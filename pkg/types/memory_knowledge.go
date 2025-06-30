@@ -6,46 +6,46 @@ import (
 
 // Knowledge represents a piece of stored knowledge
 type Knowledge struct {
-	ID          string                 `json:"id"`
-	Type        KnowledgeType          `json:"type"`
-	Title       string                 `json:"title"`
-	Content     string                 `json:"content"`
-	Summary     string                 `json:"summary"`
-	Keywords    []string               `json:"keywords"`
-	Tags        []string               `json:"tags"`
-	Category    string                 `json:"category"`
-	Source      string                 `json:"source"`
-	Confidence  float64                `json:"confidence"` // 0.0-1.0
-	Relevance   float64                `json:"relevance"`  // 0.0-1.0
-	Quality     float64                `json:"quality"`    // 0.0-1.0
-	ProjectID   string                 `json:"projectId"`
-	Verified    bool                   `json:"verified"`
-	Usage       *KnowledgeUsage        `json:"usage"`
-	Relations   []KnowledgeRelation    `json:"relations"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-	CreatedAt   time.Time              `json:"createdAt"`
-	UpdatedAt   time.Time              `json:"updatedAt"`
-	LastUpdated time.Time              `json:"lastUpdated"`
-	AccessedAt  time.Time              `json:"accessedAt"`
-	LastAccessed time.Time             `json:"lastAccessed"`
-	AccessCount int                    `json:"accessCount"`
-	ExpiresAt   *time.Time             `json:"expiresAt,omitempty"`
+	ID           string                 `json:"id"`
+	Type         KnowledgeType          `json:"type"`
+	Title        string                 `json:"title"`
+	Content      string                 `json:"content"`
+	Summary      string                 `json:"summary"`
+	Keywords     []string               `json:"keywords"`
+	Tags         []string               `json:"tags"`
+	Category     string                 `json:"category"`
+	Source       string                 `json:"source"`
+	Confidence   float64                `json:"confidence"` // 0.0-1.0
+	Relevance    float64                `json:"relevance"`  // 0.0-1.0
+	Quality      float64                `json:"quality"`    // 0.0-1.0
+	ProjectID    string                 `json:"projectId"`
+	Verified     bool                   `json:"verified"`
+	Usage        *KnowledgeUsage        `json:"usage"`
+	Relations    []KnowledgeRelation    `json:"relations"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+	CreatedAt    time.Time              `json:"createdAt"`
+	UpdatedAt    time.Time              `json:"updatedAt"`
+	LastUpdated  time.Time              `json:"lastUpdated"`
+	AccessedAt   time.Time              `json:"accessedAt"`
+	LastAccessed time.Time              `json:"lastAccessed"`
+	AccessCount  int                    `json:"accessCount"`
+	ExpiresAt    *time.Time             `json:"expiresAt,omitempty"`
 }
 
 // KnowledgeType represents the type of knowledge
 type KnowledgeType string
 
 const (
-	KnowledgeTypeCode        KnowledgeType = "code"
-	KnowledgeTypePattern     KnowledgeType = "pattern"
-	KnowledgeTypeDecision    KnowledgeType = "decision"
-	KnowledgeTypeExperience  KnowledgeType = "experience"
-	KnowledgeTypeError       KnowledgeType = "error"
-	KnowledgeTypeSolution    KnowledgeType = "solution"
+	KnowledgeTypeCode         KnowledgeType = "code"
+	KnowledgeTypePattern      KnowledgeType = "pattern"
+	KnowledgeTypeDecision     KnowledgeType = "decision"
+	KnowledgeTypeExperience   KnowledgeType = "experience"
+	KnowledgeTypeError        KnowledgeType = "error"
+	KnowledgeTypeSolution     KnowledgeType = "solution"
 	KnowledgeTypeBestPractice KnowledgeType = "best_practice"
-	KnowledgeTypeLesson      KnowledgeType = "lesson"
-	KnowledgeTypeInsight     KnowledgeType = "insight"
-	KnowledgeTypeContext     KnowledgeType = "context"
+	KnowledgeTypeLesson       KnowledgeType = "lesson"
+	KnowledgeTypeInsight      KnowledgeType = "insight"
+	KnowledgeTypeContext      KnowledgeType = "context"
 	KnowledgeTypeArchitecture KnowledgeType = "architecture"
 )
 
@@ -61,31 +61,31 @@ type KnowledgeUsage struct {
 
 // KnowledgeRelation represents a relationship between knowledge items
 type KnowledgeRelation struct {
-	Type         RelationType `json:"type"`
-	TargetID     string       `json:"targetId"`
-	Strength     float64      `json:"strength"`    // 0.0-1.0, strength of relationship
-	Description  string       `json:"description"`
-	CreatedAt    time.Time    `json:"createdAt"`
+	Type        RelationType `json:"type"`
+	TargetID    string       `json:"targetId"`
+	Strength    float64      `json:"strength"` // 0.0-1.0, strength of relationship
+	Description string       `json:"description"`
+	CreatedAt   time.Time    `json:"createdAt"`
 }
 
 // RelationType represents the type of relationship between knowledge items
 type RelationType string
 
 const (
-	RelationTypeRelated      RelationType = "related"
-	RelationTypeDependsOn    RelationType = "depends_on"
-	RelationTypeSupersedes   RelationType = "supersedes"
-	RelationTypeContradicts  RelationType = "contradicts"
-	RelationTypeBuildsOn     RelationType = "builds_on"
-	RelationTypeImplements   RelationType = "implements"
-	RelationTypeExemplifies  RelationType = "exemplifies"
-	RelationTypeSimilar      RelationType = "similar"
+	RelationTypeRelated     RelationType = "related"
+	RelationTypeDependsOn   RelationType = "depends_on"
+	RelationTypeSupersedes  RelationType = "supersedes"
+	RelationTypeContradicts RelationType = "contradicts"
+	RelationTypeBuildsOn    RelationType = "builds_on"
+	RelationTypeImplements  RelationType = "implements"
+	RelationTypeExemplifies RelationType = "exemplifies"
+	RelationTypeSimilar     RelationType = "similar"
 )
 
 // KnowledgeGraph represents a graph of knowledge relationships
 type KnowledgeGraph struct {
-	Nodes    []KnowledgeNode `json:"nodes"`
-	Edges    []KnowledgeEdge `json:"edges"`
+	Nodes    []KnowledgeNode        `json:"nodes"`
+	Edges    []KnowledgeEdge        `json:"edges"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -122,14 +122,14 @@ type KnowledgeFilters struct {
 
 // KnowledgeValidation represents validation of knowledge
 type KnowledgeValidation struct {
-	Valid         bool     `json:"valid"`
-	Errors        []string `json:"errors,omitempty"`
-	Warnings      []string `json:"warnings,omitempty"`
-	Suggestions   []string `json:"suggestions,omitempty"`
-	Completeness  float64  `json:"completeness"`
-	Accuracy      float64  `json:"accuracy"`
-	Consistency   float64  `json:"consistency"`
-	QualityScore  float64  `json:"qualityScore"`
+	Valid        bool     `json:"valid"`
+	Errors       []string `json:"errors,omitempty"`
+	Warnings     []string `json:"warnings,omitempty"`
+	Suggestions  []string `json:"suggestions,omitempty"`
+	Completeness float64  `json:"completeness"`
+	Accuracy     float64  `json:"accuracy"`
+	Consistency  float64  `json:"consistency"`
+	QualityScore float64  `json:"qualityScore"`
 }
 
 // KnowledgeScore represents scoring of knowledge quality
@@ -145,14 +145,14 @@ type KnowledgeScore struct {
 
 // KnowledgeBaseConfig represents configuration for knowledge base
 type KnowledgeBaseConfig struct {
-	MaxKnowledgeItems    int                `json:"maxKnowledgeItems"`
-	AutoCategorization   bool               `json:"autoCategorization"`
-	AutoTagging          bool               `json:"autoTagging"`
-	QualityThreshold     float64            `json:"qualityThreshold"`
-	ValidationEnabled    bool               `json:"validationEnabled"`
-	GraphEnabled         bool               `json:"graphEnabled"`
-	SimilarityThreshold  float64            `json:"similarityThreshold"`
-	ConsolidationEnabled bool               `json:"consolidationEnabled"`
+	MaxKnowledgeItems    int     `json:"maxKnowledgeItems"`
+	AutoCategorization   bool    `json:"autoCategorization"`
+	AutoTagging          bool    `json:"autoTagging"`
+	QualityThreshold     float64 `json:"qualityThreshold"`
+	ValidationEnabled    bool    `json:"validationEnabled"`
+	GraphEnabled         bool    `json:"graphEnabled"`
+	SimilarityThreshold  float64 `json:"similarityThreshold"`
+	ConsolidationEnabled bool    `json:"consolidationEnabled"`
 }
 
 // KnowledgeGapAnalysis represents analysis of knowledge gaps
@@ -170,7 +170,7 @@ type KnowledgeGapAnalysis struct {
 type KnowledgeGap struct {
 	Area        string   `json:"area"`
 	Description string   `json:"description"`
-	Severity    string   `json:"severity"`    // low, medium, high, critical
+	Severity    string   `json:"severity"` // low, medium, high, critical
 	Impact      string   `json:"impact"`
 	Topics      []string `json:"topics"`
 	Sources     []string `json:"sources,omitempty"`
@@ -186,10 +186,10 @@ type GapPriority struct {
 
 // KnowledgeMetrics represents metrics for knowledge analysis
 type KnowledgeMetrics struct {
-	TotalKnowledge    int           `json:"totalKnowledge"`
+	TotalKnowledge    int            `json:"totalKnowledge"`
 	KnowledgeByType   map[string]int `json:"knowledgeByType"`
-	AverageQuality    float64       `json:"averageQuality"`
-	AverageRelevance  float64       `json:"averageRelevance"`
-	AverageConfidence float64       `json:"averageConfidence"`
-	LastUpdated       time.Time     `json:"lastUpdated"`
+	AverageQuality    float64        `json:"averageQuality"`
+	AverageRelevance  float64        `json:"averageRelevance"`
+	AverageConfidence float64        `json:"averageConfidence"`
+	LastUpdated       time.Time      `json:"lastUpdated"`
 }
