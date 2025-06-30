@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  GO_VERSION: '1.21'
+  GO_VERSION: '1.18'
 
 jobs:
   test:
@@ -107,7 +107,7 @@ jobs:
         if [ "${{ matrix.goos }}" = "windows" ]; then
           binary_name="${binary_name}.exe"
         fi
-        go build -ldflags="-w -s" -o "build/${binary_name}" cmd/simple-main.go
+        go build -ldflags="-w -s" -o "build/${binary_name}" cmd/main.go
         
     - name: Upload build artifacts
       uses: actions/upload-artifact@v3
@@ -134,7 +134,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         
     - name: Build binary
-      run: go build -o deep-coding-agent cmd/simple-main.go
+      run: go build -o deep-coding-agent cmd/main.go
       
     - name: Make binary executable (Unix)
       if: runner.os != 'Windows'
@@ -145,7 +145,7 @@ jobs:
       run: |
         ./deep-coding-agent version
         ./deep-coding-agent config --list
-        ./deep-coding-agent analyze cmd/simple-main.go
+        ./deep-coding-agent analyze cmd/main.go
         ./deep-coding-agent generate "test function" go
         ./deep-coding-agent ai-status
         
@@ -154,7 +154,7 @@ jobs:
       run: |
         .\deep-coding-agent.exe version
         .\deep-coding-agent.exe config --list
-        .\deep-coding-agent.exe analyze cmd\simple-main.go
+        .\deep-coding-agent.exe analyze cmd\main.go
         .\deep-coding-agent.exe generate "test function" go
         .\deep-coding-agent.exe ai-status
 
@@ -173,7 +173,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         
     - name: Build binary
-      run: go build -o deep-coding-agent cmd/simple-main.go
+      run: go build -o deep-coding-agent cmd/main.go
       
     - name: Create test files
       run: |

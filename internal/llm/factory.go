@@ -100,6 +100,10 @@ func NewDefaultClientFactory() *DefaultClientFactory {
 
 // CreateHTTPClient creates an HTTP-mode client
 func (f *DefaultClientFactory) CreateHTTPClient(config *Config) (HTTPClient, error) {
+	if config == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+
 	client, err := NewHTTPClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
