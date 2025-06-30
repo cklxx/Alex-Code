@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  deep-coding-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: deep-coding-agent:latest
+    container_name: deep-coding-agent
+    restart: unless-stopped
+    
+    # Mount current directory for analysis
+    volumes:
+      - .:/workspace:ro
+      - deep-coding-config:/home/appuser/.config
+    
+    # Environment variables
+    environment:
+      - DEEP_CODING_CONFIG_PATH=/home/appuser/.config/deep-coding-config.json
+      - DEEP_CODING_LOG_LEVEL=info
+    
+    # Default command - can be overridden
+    command: ["analyze", "/workspace", "--format=json"]
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 128M
+          cpus: '0.5'
+
+  # Development service with hot reload
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: development
+    image: deep-coding-agent:dev
+    container_name: deep-coding-agent-dev
+    
+    volumes:
+      - .:/app
+      - go-modules:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+    
+    environment:
+      - CGO_ENABLED=0
+      - GOOS=linux
+    
+    working_dir: /app
+    command: ["go", "run", "cmd/simple-main.go", "--help"]
+    
+    # Enable development features
+    stdin_open: true
+    tty: true
+
+  # CI/Testing service
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    image: deep-coding-agent:test
+    container_name: deep-coding-agent-test
+    
+    volumes:
+      - .:/app
+      - test-results:/app/test-results
+    
+    environment:
+      - GO_ENV=test
+      - COVERAGE_OUTPUT=/app/test-results/coverage.out
+    
+    command: ["./scripts/test.sh", "all"]
+
+  # Performance testing service
+  performance:
+    image: deep-coding-agent:latest
+    container_name: deep-coding-agent-perf
+    
+    volumes:
+      - ./test/performance:/workspace:ro
+      - performance-results:/results
+    
+    environment:
+      - PERFORMANCE_MODE=true
+      - RESULTS_PATH=/results
+    
+    command: ["analyze", "/workspace", "--concurrent", "--format=json"]
+    
+    # Dedicated resources for performance testing
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2.0'
+
+volumes:
+  deep-coding-config:
+    driver: local
+  go-modules:
+    driver: local
+  go-build-cache:
+    driver: local
+  test-results:
+    driver: local
+  performance-results:
+    driver: local
+
+networks:
+  default:
+    name: deep-coding-network
+    driver: bridge
