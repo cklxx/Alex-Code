@@ -51,7 +51,7 @@ services:
       - GOOS=linux
     
     working_dir: /app
-    command: ["go", "run", "cmd/simple-main.go", "--help"]
+    command: ["go", "run", "cmd/main.go", "--help"]
     
     # Enable development features
     stdin_open: true

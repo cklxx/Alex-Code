@@ -12,7 +12,7 @@ on:
         type: string
 
 env:
-  GO_VERSION: '1.21'
+  GO_VERSION: '1.18'
 
 jobs:
   test:
@@ -98,13 +98,13 @@ jobs:
         if [ "${GOOS}" = "windows" ]; then
           binary_name="${binary_name}.exe"
           go build -ldflags="-w -s -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
-            -o "release/${binary_name}" cmd/simple-main.go
+            -o "release/${binary_name}" cmd/main.go
           (cd release && zip "${binary_name}.zip" "${binary_name}")
           rm "release/${binary_name}"
           echo "archive_name=${binary_name}.zip" >> $GITHUB_ENV
         else
           go build -ldflags="-w -s -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
-            -o "release/${binary_name}" cmd/simple-main.go
+            -o "release/${binary_name}" cmd/main.go
           (cd release && tar -czf "${binary_name}.tar.gz" "${binary_name}")
           rm "release/${binary_name}"
           echo "archive_name=${binary_name}.tar.gz" >> $GITHUB_ENV
