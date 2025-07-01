@@ -17,6 +17,7 @@ func GetAllBuiltinTools() []Tool {
 
 		// File tools
 		CreateFileReadTool(),
+		CreateFileWriteTool(),
 		CreateFileUpdateTool(),
 		CreateFileReplaceTool(),
 		CreateFileListTool(),
@@ -52,6 +53,8 @@ func GetToolByName(name string) Tool {
 		return NewTodoReadTool(configManager)
 	case "file_read":
 		return CreateFileReadTool()
+	case "file_write":
+		return CreateFileWriteTool()
 	case "file_update":
 		return CreateFileUpdateTool()
 	case "file_replace":
@@ -97,6 +100,7 @@ func GetToolsByCategory() map[string][]Tool {
 		},
 		"file": {
 			CreateFileReadTool(),
+			CreateFileWriteTool(),
 			CreateFileUpdateTool(),
 			CreateFileReplaceTool(),
 			CreateFileListTool(),

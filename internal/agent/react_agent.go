@@ -16,6 +16,11 @@ import (
 	"deep-coding-agent/pkg/types"
 )
 
+// ContextKey 用于在context中存储值，避免类型冲突
+type ContextKey string
+
+const SessionIDKey ContextKey = "session_id"
+
 // ReactCoreInterface - ReAct核心接口
 type ReactCoreInterface interface {
 	SolveTask(ctx context.Context, task string, streamCallback StreamCallback) (*types.ReactTaskResult, error)
@@ -177,7 +182,7 @@ func (r *ReactAgent) ProcessMessage(ctx context.Context, userMessage string, con
 	currentSession.AddMessage(userMsg)
 
 	// Add session ID to context for caching
-	ctxWithSession := context.WithValue(ctx, "session_id", currentSession.ID)
+	ctxWithSession := context.WithValue(ctx, SessionIDKey, currentSession.ID)
 
 	// 执行统一的ReAct循环（非流式）
 	result, err := r.reactCore.SolveTask(ctxWithSession, userMessage, nil)
@@ -237,7 +242,7 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 	currentSession.AddMessage(userMsg)
 
 	// Add session ID to context for caching
-	ctxWithSession := context.WithValue(ctx, "session_id", currentSession.ID)
+	ctxWithSession := context.WithValue(ctx, SessionIDKey, currentSession.ID)
 
 	// 执行统一的ReAct循环（流式）
 	result, err := r.reactCore.SolveTask(ctxWithSession, userMessage, callback)
