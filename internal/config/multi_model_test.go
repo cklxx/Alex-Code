@@ -132,3 +132,74 @@ func TestLegacyConfigCompatibility(t *testing.T) {
 		t.Errorf("expected fallback to single config model %s, got %s", manager.config.Model, fallbackConfig.Model)
 	}
 }
+
+func TestNestedKeyConfiguration(t *testing.T) {
+	// Create a config manager
+	manager, err := NewManager()
+	if err != nil {
+		t.Fatalf("failed to create config manager: %v", err)
+	}
+
+	// Test setting nested key
+	testAPIKey := "test-nested-api-key"
+	err = manager.Set("models.basic.api_key", testAPIKey)
+	if err != nil {
+		t.Fatalf("failed to set nested key: %v", err)
+	}
+
+	// Test getting nested key
+	value, err := manager.Get("models.basic.api_key")
+	if err != nil {
+		t.Fatalf("failed to get nested key: %v", err)
+	}
+
+	if value != testAPIKey {
+		t.Errorf("expected %s, got %s", testAPIKey, value)
+	}
+
+	// Test setting numeric nested key
+	testMaxTokens := 5000
+	err = manager.Set("models.reasoning.max_tokens", testMaxTokens)
+	if err != nil {
+		t.Fatalf("failed to set nested numeric key: %v", err)
+	}
+
+	// Test getting numeric nested key
+	value, err = manager.Get("models.reasoning.max_tokens")
+	if err != nil {
+		t.Fatalf("failed to get nested numeric key: %v", err)
+	}
+
+	if value != testMaxTokens {
+		t.Errorf("expected %d, got %v", testMaxTokens, value)
+	}
+
+	// Test setting float nested key
+	testTemp := 0.9
+	err = manager.Set("models.basic.temperature", testTemp)
+	if err != nil {
+		t.Fatalf("failed to set nested float key: %v", err)
+	}
+
+	// Test getting float nested key
+	value, err = manager.Get("models.basic.temperature")
+	if err != nil {
+		t.Fatalf("failed to get nested float key: %v", err)
+	}
+
+	if value != testTemp {
+		t.Errorf("expected %f, got %v", testTemp, value)
+	}
+
+	// Test invalid nested key
+	_, err = manager.Get("models.invalid.field")
+	if err == nil {
+		t.Error("expected error for invalid model type, got nil")
+	}
+
+	// Test invalid field
+	_, err = manager.Get("models.basic.invalid_field")
+	if err == nil {
+		t.Error("expected error for invalid field, got nil")
+	}
+}

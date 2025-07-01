@@ -343,7 +343,7 @@ func runInteractive(agentInstance *agent.ReactAgent, configManager *config.Manag
 					cliLogger.Printf("🔧 Tool execution started: %s", chunk.Content)
 				}
 			case "tool_result":
-				fmt.Printf("✅ %s\n", chunk.Content)
+				fmt.Printf("  ⎿  %s\n", chunk.Content)
 				if verbose || debug {
 					cliLogger.Printf("✅ Tool execution completed: %s", chunk.Content)
 				}
@@ -467,10 +467,12 @@ func runSinglePrompt(agentInstance *agent.ReactAgent, configManager *config.Mana
 			// Real-time LLM response content streaming
 			fmt.Print(chunk.Content)
 		case "tool_start":
+			fmt.Printf("\n🔧 %s\n", chunk.Content)
 			if verbose || debug {
 				cliLogger.Printf("🔧 Tool execution started: %s", chunk.Content)
 			}
 		case "tool_result":
+			fmt.Printf("  ⎿  %s\n", chunk.Content)
 			if verbose || debug {
 				cliLogger.Printf("✅ Tool execution completed: %s", chunk.Content)
 			}

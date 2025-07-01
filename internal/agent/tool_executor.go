@@ -255,34 +255,53 @@ func (te *ToolExecutor) executeParallelToolsStream(ctx context.Context, toolCall
 		call   *types.ReactToolCall
 	}
 
-	resultChan := make(chan toolResult, len(toolCalls))
-
-	// 启动goroutines并行执行
-	for _, tc := range toolCalls {
-		// 发送工具开始信号
-		toolCallStr := te.formatToolCallForDisplay(tc.Name, tc.Arguments)
-		callback(StreamChunk{Type: "tool_start", Content: toolCallStr})
-
-		go func(toolCall *types.ReactToolCall) {
+	// 启动goroutines并行执行，但保持结果的有序显示
+	type indexedResult struct {
+		toolResult
+		index int
+	}
+	
+	indexedResultChan := make(chan indexedResult, len(toolCalls))
+	
+	for i, tc := range toolCalls {
+		go func(toolCall *types.ReactToolCall, index int) {
+			// 在goroutine内部发送工具开始信号，避免竞态条件
+			toolCallStr := te.formatToolCallForDisplay(toolCall.Name, toolCall.Arguments)
+			callback(StreamChunk{Type: "tool_start", Content: toolCallStr})
+			
 			result, err := te.executeTool(ctx, toolCall.Name, toolCall.Arguments)
-			resultChan <- toolResult{
-				name:   toolCall.Name,
-				result: result,
-				err:    err,
-				call:   toolCall,
+			indexedResultChan <- indexedResult{
+				toolResult: toolResult{
+					name:   toolCall.Name,
+					result: result,
+					err:    err,
+					call:   toolCall,
+				},
+				index: index,
 			}
-		}(tc)
+		}(tc, i)
 	}
 
-	// 收集结果
+	// 收集结果并按原始顺序处理
 	var results []string
 	var errors []string
 	var allMetadata []map[string]interface{}
 	overallSuccess := true
+	
+	// 使用数组来存储按顺序的结果
+	orderedResults := make([]indexedResult, len(toolCalls))
+	resultCount := 0
 
-	for i := 0; i < len(toolCalls); i++ {
-		res := <-resultChan
-
+	for resultCount < len(toolCalls) {
+		indexedRes := <-indexedResultChan
+		orderedResults[indexedRes.index] = indexedRes
+		resultCount++
+	}
+	
+	// 按原始顺序处理结果
+	for _, indexedRes := range orderedResults {
+		res := indexedRes.toolResult
+		
 		if res.err != nil {
 			errors = append(errors, fmt.Sprintf("%s: %v", res.name, res.err))
 			callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: %v", res.name, res.err)})
@@ -334,8 +353,11 @@ func (te *ToolExecutor) executeParallelToolsStream(ctx context.Context, toolCall
 
 // formatToolCallForDisplay - 格式化工具调用显示
 func (te *ToolExecutor) formatToolCallForDisplay(toolName string, args map[string]interface{}) string {
+	// Green color for the dot
+	greenDot := "\033[32m⏺\033[0m"
+	
 	if len(args) == 0 {
-		return fmt.Sprintf("%s()", toolName)
+		return fmt.Sprintf("%s %s()", greenDot, toolName)
 	}
 
 	// Build arguments string
@@ -369,7 +391,7 @@ func (te *ToolExecutor) formatToolCallForDisplay(toolName string, args map[strin
 		argsStr = argsStr[:97] + "..."
 	}
 
-	return fmt.Sprintf("%s(%s)", toolName, argsStr)
+	return fmt.Sprintf("%s %s(%s)", greenDot, toolName, argsStr)
 }
 
 // executeTool - 执行工具

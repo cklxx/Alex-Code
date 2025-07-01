@@ -111,6 +111,10 @@ export ALLOWED_TOOLS="file_read,bash"
 - **Response Speed**: Most operations complete in <30ms
 - **Performance Gain**: 40-100x faster than predecessor implementations
 
+## Documentation
+
+- **[Software Engineering Roles Analysis](docs/software-engineering-roles-analysis.md)**: Comprehensive analysis of roles and responsibilities across software engineering phases (2024)
+
 ## License
 
 MIT License

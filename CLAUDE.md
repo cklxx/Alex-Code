@@ -467,6 +467,21 @@ Configuration is managed through `~/.deep-coding-config.json` with the config ma
 - **Minimal Configuration**: Avoid configuration options unless absolutely necessary
 - **Purposeful Entities**: Only create new types, interfaces, or abstractions when they serve a clear purpose
 
+### Search and Documentation Strategy
+
+**IMPORTANT: Always search using current date context (2025-07 currently)**
+
+**Open Source Code Research Priority:**
+1. **Context7 First**: Use Context7 MCP tools for library documentation and API references
+2. **DeepWiki Search**: Prioritize DeepWiki for comprehensive open source documentation
+3. **Current Date Context**: Always include current year/month (2025-07) when searching for recent versions, updates, and compatibility information
+
+**Search Guidelines:**
+- When researching libraries or frameworks, always specify "2025" or "latest 2025" in searches
+- Use Context7 tools to get up-to-date library documentation before implementation
+- Prefer DeepWiki results for open source projects over general web search
+- Include version constraints and compatibility requirements in searches
+
 ### Naming Guidelines
 
 **Use clear, descriptive names that express intent:**

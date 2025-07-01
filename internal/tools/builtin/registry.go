@@ -9,9 +9,9 @@ func GetAllBuiltinTools() []Tool {
 
 	return []Tool{
 		// Thinking and reasoning tools
-		NewThinkTool(configManager),
+		NewThinkTool(),
 
-		// Task management tools  
+		// Task management tools
 		NewTodoUpdateTool(configManager),
 		NewTodoReadTool(configManager),
 
@@ -46,7 +46,7 @@ func GetToolByName(name string) Tool {
 
 	switch name {
 	case "think":
-		return NewThinkTool(configManager)
+		return NewThinkTool()
 	case "todo_update":
 		return NewTodoUpdateTool(configManager)
 	case "todo_read":
@@ -92,7 +92,7 @@ func GetToolsByCategory() map[string][]Tool {
 
 	return map[string][]Tool{
 		"reasoning": {
-			NewThinkTool(configManager),
+			NewThinkTool(),
 		},
 		"task_management": {
 			NewTodoUpdateTool(configManager),
