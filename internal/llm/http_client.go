@@ -8,12 +8,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
 // HTTPLLMClient implements the HTTPClient interface for HTTP-based LLM communication
 type HTTPLLMClient struct {
-	httpClient *http.Client
+	httpClient   *http.Client
+	cacheManager *CacheManager
 }
 
 // NewHTTPClient creates a new HTTP-based LLM client
@@ -25,7 +27,8 @@ func NewHTTPClient() (*HTTPLLMClient, error) {
 	}
 
 	return &HTTPLLMClient{
-		httpClient: httpClient,
+		httpClient:   httpClient,
+		cacheManager: GetGlobalCacheManager(),
 	}, nil
 }
 
@@ -59,6 +62,17 @@ func (c *HTTPLLMClient) getModelConfig(req *ChatRequest) (string, string, string
 func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request cannot be nil")
+	}
+
+	// Extract session ID from context or request metadata
+	sessionID := c.extractSessionID(ctx, req)
+	
+	// Optimize messages using cache
+	originalMessages := req.Messages
+	if sessionID != "" {
+		req.Messages = c.cacheManager.GetOptimizedMessages(sessionID, req.Messages)
+		log.Printf("[DEBUG] HTTPLLMClient: Message optimization - Original: %d, Optimized: %d", 
+			len(originalMessages), len(req.Messages))
 	}
 
 	// Get model configuration for this request
@@ -139,6 +153,35 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 			chatResp.Choices[0].Message.Role, len(chatResp.Choices[0].Message.Content))
 	}
 
+	// Update cache with the new conversation
+	if sessionID != "" && len(chatResp.Choices) > 0 {
+		// Prepare messages to cache (original user messages + assistant response)
+		newMessages := make([]Message, 0, len(originalMessages)+1)
+		
+		// Add original user messages (the ones that weren't already cached)
+		for _, msg := range originalMessages {
+			if msg.Role == "user" {
+				newMessages = append(newMessages, msg)
+			}
+		}
+		
+		// Add assistant response
+		newMessages = append(newMessages, chatResp.Choices[0].Message)
+		
+		// Calculate approximate token usage
+		tokensUsed := 0
+		if chatResp.Usage.TotalTokens > 0 {
+			tokensUsed = chatResp.Usage.TotalTokens
+		} else {
+			// Rough estimation: ~4 chars per token
+			for _, msg := range newMessages {
+				tokensUsed += len(msg.Content) / 4
+			}
+		}
+		
+		c.cacheManager.UpdateCache(sessionID, newMessages, tokensUsed)
+	}
+
 	return &chatResp, nil
 }
 
@@ -157,6 +200,45 @@ func (c *HTTPLLMClient) SetHTTPClient(client *http.Client) {
 // GetHTTPClient returns the current HTTP client
 func (c *HTTPLLMClient) GetHTTPClient() *http.Client {
 	return c.httpClient
+}
+
+// extractSessionID extracts session ID from context or request
+func (c *HTTPLLMClient) extractSessionID(ctx context.Context, req *ChatRequest) string {
+	// Try to get session ID from context
+	if sessionID := ctx.Value("session_id"); sessionID != nil {
+		if id, ok := sessionID.(string); ok {
+			return id
+		}
+	}
+	
+	// Try to get from request metadata
+	for _, msg := range req.Messages {
+		if msg.Role == "system" && len(msg.Content) > 0 {
+			// Look for session ID in system message
+			if strings.Contains(msg.Content, "session_id:") {
+				parts := strings.Split(msg.Content, "session_id:")
+				if len(parts) > 1 {
+					sessionPart := strings.TrimSpace(parts[1])
+					if idx := strings.Index(sessionPart, " "); idx != -1 {
+						return sessionPart[:idx]
+					}
+					return sessionPart
+				}
+			}
+		}
+	}
+	
+	return ""
+}
+
+// GetCacheStats returns cache statistics
+func (c *HTTPLLMClient) GetCacheStats() map[string]interface{} {
+	return c.cacheManager.GetCacheStats()
+}
+
+// ClearSessionCache clears cache for a specific session
+func (c *HTTPLLMClient) ClearSessionCache(sessionID string) {
+	c.cacheManager.ClearCache(sessionID)
 }
 
 // Close closes the client and cleans up resources
