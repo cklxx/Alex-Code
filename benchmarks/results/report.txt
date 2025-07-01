@@ -1,0 +1,19 @@
+Deep Coding Agent Benchmark Report
+==========================================
+
+Dataset: HumanEval
+Total Problems: 3
+Mode: Agent
+Agent Path: ../deep-coding-agent
+Use ReAct Agent: false
+
+Results:
+--------
+Successfully Generated: 3/3 (100.0%)
+Passed Tests: 1/3 (33.3%)
+Average Duration: 7.069µs
+Total Duration: 21.208µs
+
+Pass@1 Rate: 0.333
+
+Detailed Results saved to: results/results.json
