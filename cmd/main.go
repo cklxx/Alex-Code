@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -27,7 +28,7 @@ func init() {
 	if os.Getenv("DEBUG") == "true" {
 		cliLogger = log.New(os.Stdout, "[CLI] ", log.LstdFlags|log.Lshortfile)
 	} else {
-		cliLogger = log.New(os.Stdout, "[CLI] ", log.LstdFlags)
+		cliLogger = log.New(io.Discard, "", 0)
 	}
 }
 

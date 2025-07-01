@@ -130,13 +130,10 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		// 解析并执行工具调用
 		toolCalls := rc.agent.parseToolCalls(&choice.Message)
 		if len(toolCalls) > 0 {
-			log.Printf("[DEBUG] ReactCore: Starting tool execution for %d tools", len(toolCalls))
-
 			step.Action = "tool_execution"
 			step.ToolCall = toolCalls[0] // 记录第一个工具调用
 
 			if isStreaming {
-				log.Printf("[DEBUG] ReactCore: Sending tool_start stream chunk")
 				streamCallback(StreamChunk{
 					Type:     "tool_start",
 					Content:  fmt.Sprintf("⚡ Executing %d tool(s): %s", len(toolCalls), rc.formatToolNames(toolCalls)),
@@ -144,7 +141,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			}
 
 			// 执行工具调用
-			log.Printf("[DEBUG] ReactCore: About to execute tools, isStreaming: %v", isStreaming)
 			toolResult := rc.agent.executeParallelToolsStream(ctx, toolCalls, streamCallback)
 
 			log.Printf("[DEBUG] ReactCore: Tool execution completed, result success: %v", toolResult != nil && toolResult[0].Success)
@@ -155,7 +151,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			if toolResult != nil {
 				toolMessages := rc.buildToolMessages(toolResult)
 				messages = append(messages, toolMessages...)
-				log.Printf("[DEBUG] ReactCore: messages: %v", messages)
 
 				step.Observation = rc.generateObservation(toolResult, iteration)
 			}
