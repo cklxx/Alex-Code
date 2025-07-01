@@ -88,12 +88,12 @@ Default config file: `~/.deep-coding-config.json`
 
 ```json
 {
-  "aiProvider": "openai",
-  "openaiApiKey": "your-key",
-  "maxTokens": 4000,
-  "temperature": 0.7,
-  "streamResponse": true,
-  "maxConcurrentTools": 5
+    "api_key": "sk-or-xxx",
+    "base_url": "https://openrouter.ai/api/v1", 
+    "model": "deepseek/deepseek-chat-v3-0324:free",
+    "max_tokens": 4000,
+    "temperature": 0.7,
+    "max_turns": 25,
 }
 ```
 
