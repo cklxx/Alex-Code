@@ -43,7 +43,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	messages := []llm.Message{
 		{Role: "system", Content: rc.buildToolDrivenTaskPrompt(task)},
 		{Role: "system", Content: rc.agent.contextMgr.CompressContext(taskCtx)},
-		{Role: "user", Content: task},
+		{Role: "user", Content: task + "\n\n think about the task and break it down into a list of todos and then call the todo_update tool to create the todos"},
 	}
 
 	// 执行工具驱动的ReAct循环
@@ -62,18 +62,9 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 				Metadata: map[string]interface{}{"iteration": iteration, "phase": "tool_driven_processing"}})
 		}
 
-		// 构建可用工具列表 - 仅在第一轮包含所有工具，后续轮次不包含工具定义
-		var tools []llm.Tool
-		var toolChoice string
-
-		if iteration == 1 {
-			tools = rc.buildToolDefinitions()
-			toolChoice = "auto"
-		} else {
-			// 后续轮次不包含工具定义，避免token过多
-			tools = nil
-			toolChoice = ""
-		}
+		// 构建可用工具列表 - 每轮都包含工具定义以确保模型能调用工具
+		tools := rc.buildToolDefinitions()
+		toolChoice := "auto"
 
 		request := &llm.ChatRequest{
 			Messages:   messages,
@@ -133,14 +124,14 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 		choice := response.Choices[0]
 		step.Thought = strings.TrimSpace(choice.Message.Content)
-		// 有工具调用时，添加assistant消息到对话历史
+		// 添加assistant消息到对话历史
 		messages = append(messages, choice.Message)
 		// 解析并执行工具调用
 		toolCalls := rc.agent.parseToolCalls(&choice.Message)
 		log.Printf("[DEBUG] ReactCore: Parsed %d tool calls from LLM response", len(toolCalls))
 		if len(toolCalls) > 0 {
 			log.Printf("[DEBUG] ReactCore: Starting tool execution for %d tools", len(toolCalls))
-			
+
 			step.Action = "tool_execution"
 			step.ToolCall = toolCalls[0] // 记录第一个工具调用
 
@@ -170,13 +161,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 				messages = append(messages, toolMessages...)
 
 				step.Observation = rc.generateObservation(toolResult, iteration)
-
-				if isStreaming {
-					streamCallback(StreamChunk{
-						Type:     "tool_result",
-						Content:  step.Observation,
-						Metadata: map[string]interface{}{"iteration": iteration, "success": toolResult.Success}})
-				}
 
 				// 检查是否是think工具的结果，并评估是否需要继续
 				if rc.isThinkToolResult(toolResult) && rc.shouldContinueAfterThinking(toolResult.Content) {

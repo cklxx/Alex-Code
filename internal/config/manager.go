@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"deep-coding-agent/internal/llm"
@@ -64,6 +65,11 @@ func NewManager() (*Manager, error) {
 
 // Get retrieves a configuration value by key
 func (m *Manager) Get(key string) (interface{}, error) {
+	// Handle nested keys like "models.basic.api_key"
+	if strings.Contains(key, ".") {
+		return m.getNestedValue(key)
+	}
+
 	switch key {
 	// Core fields
 	case "api_key":
@@ -87,8 +93,59 @@ func (m *Manager) Get(key string) (interface{}, error) {
 	}
 }
 
+// getNestedValue handles nested key access like "models.basic.api_key"
+func (m *Manager) getNestedValue(key string) (interface{}, error) {
+	parts := strings.Split(key, ".")
+	
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("invalid nested key format: %s", key)
+	}
+
+	switch parts[0] {
+	case "models":
+		if len(parts) < 3 {
+			return nil, fmt.Errorf("models key requires model type and field: %s", key)
+		}
+		
+		modelTypeStr := parts[1]
+		field := parts[2]
+		modelType := llm.ModelType(modelTypeStr)
+		
+		if m.config.Models == nil {
+			return nil, fmt.Errorf("models configuration not found")
+		}
+		
+		modelConfig, exists := m.config.Models[modelType]
+		if !exists {
+			return nil, fmt.Errorf("model type '%s' not found in configuration", modelTypeStr)
+		}
+		
+		switch field {
+		case "api_key":
+			return modelConfig.APIKey, nil
+		case "base_url":
+			return modelConfig.BaseURL, nil
+		case "model":
+			return modelConfig.Model, nil
+		case "temperature":
+			return modelConfig.Temperature, nil
+		case "max_tokens":
+			return modelConfig.MaxTokens, nil
+		default:
+			return nil, fmt.Errorf("unknown model config field: %s", field)
+		}
+	default:
+		return nil, fmt.Errorf("unknown nested config key: %s", key)
+	}
+}
+
 // Set updates a configuration value
 func (m *Manager) Set(key string, value interface{}) error {
+	// Handle nested keys like "models.basic.api_key"
+	if strings.Contains(key, ".") {
+		return m.setNestedValue(key, value)
+	}
+
 	switch key {
 	// Core fields
 	case "api_key":
@@ -130,6 +187,75 @@ func (m *Manager) Set(key string, value interface{}) error {
 	}
 
 	return m.save()
+}
+
+// setNestedValue handles nested key setting like "models.basic.api_key"
+func (m *Manager) setNestedValue(key string, value interface{}) error {
+	parts := strings.Split(key, ".")
+	
+	if len(parts) < 2 {
+		return fmt.Errorf("invalid nested key format: %s", key)
+	}
+
+	switch parts[0] {
+	case "models":
+		if len(parts) < 3 {
+			return fmt.Errorf("models key requires model type and field: %s", key)
+		}
+		
+		modelTypeStr := parts[1]
+		field := parts[2]
+		modelType := llm.ModelType(modelTypeStr)
+		
+		// Initialize models map if it doesn't exist
+		if m.config.Models == nil {
+			m.config.Models = make(map[llm.ModelType]*llm.ModelConfig)
+		}
+		
+		// Initialize model config if it doesn't exist
+		if m.config.Models[modelType] == nil {
+			m.config.Models[modelType] = &llm.ModelConfig{}
+		}
+		
+		switch field {
+		case "api_key":
+			if str, ok := value.(string); ok {
+				m.config.Models[modelType].APIKey = str
+			} else {
+				return fmt.Errorf("api_key must be a string")
+			}
+		case "base_url":
+			if str, ok := value.(string); ok {
+				m.config.Models[modelType].BaseURL = str
+			} else {
+				return fmt.Errorf("base_url must be a string")
+			}
+		case "model":
+			if str, ok := value.(string); ok {
+				m.config.Models[modelType].Model = str
+			} else {
+				return fmt.Errorf("model must be a string")
+			}
+		case "temperature":
+			if temp, ok := value.(float64); ok {
+				m.config.Models[modelType].Temperature = temp
+			} else {
+				return fmt.Errorf("temperature must be a float64")
+			}
+		case "max_tokens":
+			if num, ok := value.(int); ok {
+				m.config.Models[modelType].MaxTokens = num
+			} else {
+				return fmt.Errorf("max_tokens must be an integer")
+			}
+		default:
+			return fmt.Errorf("unknown model config field: %s", field)
+		}
+		
+		return m.save()
+	default:
+		return fmt.Errorf("unknown nested config key: %s", key)
+	}
 }
 
 // GetString returns a string configuration value

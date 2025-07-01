@@ -535,7 +535,7 @@ func (t *ProcessMonitorTool) Name() string {
 }
 
 func (t *ProcessMonitorTool) Description() string {
-	return "Monitor, list, and manage system processes. Can list processes, get process details, and manage process lifecycle."
+	return "Monitor and manage system processes. List processes, get details, and control process lifecycle."
 }
 
 func (t *ProcessMonitorTool) Parameters() map[string]interface{} {

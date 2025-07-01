@@ -676,9 +676,9 @@ func (t *FileListTool) Parameters() map[string]interface{} {
 			"depth": map[string]interface{}{
 				"type":        "integer",
 				"description": "Maximum depth to traverse (1=current level, 2=one level deeper, etc.). Only works with recursive=true",
-				"default":     2,
+				"default":     3,
 				"minimum":     1,
-				"maximum":     10,
+				"maximum":     3,
 			},
 			"show_hidden": map[string]interface{}{
 				"type":        "boolean",
@@ -700,7 +700,7 @@ func (t *FileListTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
 		AddOptionalStringField("path", "Path to list (directory or glob pattern)").
 		AddBoolField("recursive", "List files recursively", false).
-		AddOptionalIntField("depth", "Maximum depth to traverse", 1, 10).
+		AddOptionalIntField("depth", "Maximum depth to traverse", 1, 3).
 		AddBoolField("show_hidden", "Include hidden files", false)
 
 	return validator.Validate(args)
@@ -721,7 +721,7 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 		recursive, _ = recursiveArg.(bool)
 	}
 
-	depth := 2
+	depth := 3
 	if depthArg, ok := args["depth"]; ok {
 		if d, ok := depthArg.(float64); ok {
 			depth = int(d)
@@ -730,8 +730,8 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 		}
 		if depth < 1 {
 			depth = 1
-		} else if depth > 10 {
-			depth = 10
+		} else if depth > 3 {
+			depth = 3
 		}
 	}
 

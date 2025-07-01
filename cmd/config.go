@@ -63,11 +63,26 @@ CONFIGURATION KEYS:
     max_turns           Maximum ReAct agent turns (1-20)
     default_model_type  Default model type (basic|reasoning)
 
+NESTED CONFIGURATION KEYS:
+    models.basic.api_key        API key for basic model
+    models.basic.base_url       Base URL for basic model
+    models.basic.model          Model name for basic model
+    models.basic.temperature    Temperature for basic model
+    models.basic.max_tokens     Max tokens for basic model
+    models.reasoning.api_key    API key for reasoning model
+    models.reasoning.base_url   Base URL for reasoning model
+    models.reasoning.model      Model name for reasoning model
+    models.reasoning.temperature Temperature for reasoning model
+    models.reasoning.max_tokens Max tokens for reasoning model
+
 EXAMPLES:
     deep-coding-agent config show
     deep-coding-agent config get api_key
     deep-coding-agent config set temperature 0.8
     deep-coding-agent config set model "deepseek/deepseek-chat-v3-0324:free"
+    deep-coding-agent config set models.basic.api_key "sk-..."
+    deep-coding-agent config set models.reasoning.model "gpt-4"
+    deep-coding-agent config get models.basic.temperature
     deep-coding-agent config validate
     deep-coding-agent config reset
 
@@ -110,47 +125,86 @@ func handleConfigSet(manager *config.Manager, args []string) error {
 
 	// Type conversion based on key
 	var convertedValue interface{}
-	switch key {
-	case "max_tokens":
-		intVal, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("max_tokens must be an integer: %w", err)
+	
+	// Handle nested keys
+	if strings.Contains(key, ".") {
+		parts := strings.Split(key, ".")
+		if len(parts) >= 3 && parts[0] == "models" {
+			field := parts[2]
+			switch field {
+			case "max_tokens":
+				intVal, err := strconv.Atoi(value)
+				if err != nil {
+					return fmt.Errorf("max_tokens must be an integer: %w", err)
+				}
+				if intVal < 1 || intVal > 100000 {
+					return fmt.Errorf("max_tokens must be between 1 and 100000")
+				}
+				convertedValue = intVal
+			case "temperature":
+				floatVal, err := strconv.ParseFloat(value, 64)
+				if err != nil {
+					return fmt.Errorf("temperature must be a number: %w", err)
+				}
+				if floatVal < 0.0 || floatVal > 2.0 {
+					return fmt.Errorf("temperature must be between 0.0 and 2.0")
+				}
+				convertedValue = floatVal
+			case "api_key", "base_url", "model":
+				if strings.TrimSpace(value) == "" {
+					return fmt.Errorf("%s cannot be empty", field)
+				}
+				convertedValue = value
+			default:
+				return fmt.Errorf("unknown model configuration field: %s", field)
+			}
+		} else {
+			return fmt.Errorf("unsupported nested configuration key: %s", key)
 		}
-		if intVal < 1 || intVal > 100000 {
-			return fmt.Errorf("max_tokens must be between 1 and 100000")
+	} else {
+		// Handle top-level keys
+		switch key {
+		case "max_tokens":
+			intVal, err := strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("max_tokens must be an integer: %w", err)
+			}
+			if intVal < 1 || intVal > 100000 {
+				return fmt.Errorf("max_tokens must be between 1 and 100000")
+			}
+			convertedValue = intVal
+		case "max_turns":
+			intVal, err := strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("max_turns must be an integer: %w", err)
+			}
+			if intVal < 1 || intVal > 20 {
+				return fmt.Errorf("max_turns must be between 1 and 20")
+			}
+			convertedValue = intVal
+		case "temperature":
+			floatVal, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return fmt.Errorf("temperature must be a number: %w", err)
+			}
+			if floatVal < 0.0 || floatVal > 2.0 {
+				return fmt.Errorf("temperature must be between 0.0 and 2.0")
+			}
+			convertedValue = floatVal
+		case "default_model_type":
+			modelType := llm.ModelType(value)
+			if modelType != llm.BasicModel && modelType != llm.ReasoningModel {
+				return fmt.Errorf("default_model_type must be 'basic' or 'reasoning'")
+			}
+			convertedValue = modelType
+		case "api_key", "base_url", "model":
+			if strings.TrimSpace(value) == "" {
+				return fmt.Errorf("%s cannot be empty", key)
+			}
+			convertedValue = value
+		default:
+			return fmt.Errorf("unknown configuration key: %s", key)
 		}
-		convertedValue = intVal
-	case "max_turns":
-		intVal, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("max_turns must be an integer: %w", err)
-		}
-		if intVal < 1 || intVal > 20 {
-			return fmt.Errorf("max_turns must be between 1 and 20")
-		}
-		convertedValue = intVal
-	case "temperature":
-		floatVal, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			return fmt.Errorf("temperature must be a number: %w", err)
-		}
-		if floatVal < 0.0 || floatVal > 2.0 {
-			return fmt.Errorf("temperature must be between 0.0 and 2.0")
-		}
-		convertedValue = floatVal
-	case "default_model_type":
-		modelType := llm.ModelType(value)
-		if modelType != llm.BasicModel && modelType != llm.ReasoningModel {
-			return fmt.Errorf("default_model_type must be 'basic' or 'reasoning'")
-		}
-		convertedValue = modelType
-	case "api_key", "base_url", "model":
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("%s cannot be empty", key)
-		}
-		convertedValue = value
-	default:
-		return fmt.Errorf("unknown configuration key: %s", key)
 	}
 
 	if err := manager.Set(key, convertedValue); err != nil {
