@@ -8,14 +8,12 @@ import (
 	"time"
 )
 
-
 // StreamChunk represents a streaming response chunk
 type StreamChunk struct {
 	Content string `json:"content"`
 	Delta   string `json:"delta,omitempty"`
 	Done    bool   `json:"done,omitempty"`
 }
-
 
 // TodoItem represents a single todo task
 type TodoItem struct {
@@ -84,7 +82,6 @@ type Config struct {
 	LastUpdated    time.Time         `yaml:"lastUpdated" json:"lastUpdated" mapstructure:"lastUpdated"`
 }
 
-
 // SupportedLanguages contains the list of supported programming languages
 var SupportedLanguages = map[string]string{
 	".go":    "go",
@@ -103,7 +100,6 @@ var SupportedLanguages = map[string]string{
 	".kt":    "kotlin",
 	".swift": "swift",
 }
-
 
 // FunctionCall represents a standard OpenAI-style function call
 type FunctionCall struct {
@@ -151,55 +147,55 @@ type FunctionDefinition struct {
 
 // DirectoryContextInfo - 目录上下文信息
 type DirectoryContextInfo struct {
-	Path          string    `json:"path"`           // 完整路径
-	FileCount     int       `json:"file_count"`     // 文件数量
-	DirCount      int       `json:"dir_count"`      // 目录数量
-	TotalSize     int64     `json:"total_size"`     // 总大小
-	LastModified  time.Time `json:"last_modified"`  // 最后修改时间
-	TopFiles      []FileInfo `json:"top_files"`     // 主要文件列表
-	ProjectType   string    `json:"project_type"`   // 项目类型（Go、Python等）
-	Description   string    `json:"description"`    // 目录简要描述
+	Path         string     `json:"path"`          // 完整路径
+	FileCount    int        `json:"file_count"`    // 文件数量
+	DirCount     int        `json:"dir_count"`     // 目录数量
+	TotalSize    int64      `json:"total_size"`    // 总大小
+	LastModified time.Time  `json:"last_modified"` // 最后修改时间
+	TopFiles     []FileInfo `json:"top_files"`     // 主要文件列表
+	ProjectType  string     `json:"project_type"`  // 项目类型（Go、Python等）
+	Description  string     `json:"description"`   // 目录简要描述
 }
 
 // FileInfo - 文件信息
 type FileInfo struct {
-	Name      string    `json:"name"`       // 文件名
-	Path      string    `json:"path"`       // 相对路径
-	Size      int64     `json:"size"`       // 文件大小
-	Modified  time.Time `json:"modified"`   // 修改时间
-	Type      string    `json:"type"`       // 文件类型
-	IsDir     bool      `json:"is_dir"`     // 是否为目录
+	Name     string    `json:"name"`     // 文件名
+	Path     string    `json:"path"`     // 相对路径
+	Size     int64     `json:"size"`     // 文件大小
+	Modified time.Time `json:"modified"` // 修改时间
+	Type     string    `json:"type"`     // 文件类型
+	IsDir    bool      `json:"is_dir"`   // 是否为目录
 }
 
 // ReactTaskContext - ReAct任务上下文
 type ReactTaskContext struct {
-	TaskID       string                  `json:"task_id"`       // 任务ID
-	Goal         string                  `json:"goal"`          // 任务目标
-	History      []ReactExecutionStep    `json:"history"`       // 执行历史
-	Memory       map[string]interface{}  `json:"memory"`        // 任务内存
-	StartTime    time.Time               `json:"start_time"`    // 开始时间
-	LastUpdate   time.Time               `json:"last_update"`   // 最后更新时间
-	TokensUsed   int                     `json:"tokens_used"`   // 已使用token数
-	Metadata     map[string]interface{}  `json:"metadata"`      // 元数据
+	TaskID     string                 `json:"task_id"`     // 任务ID
+	Goal       string                 `json:"goal"`        // 任务目标
+	History    []ReactExecutionStep   `json:"history"`     // 执行历史
+	Memory     map[string]interface{} `json:"memory"`      // 任务内存
+	StartTime  time.Time              `json:"start_time"`  // 开始时间
+	LastUpdate time.Time              `json:"last_update"` // 最后更新时间
+	TokensUsed int                    `json:"tokens_used"` // 已使用token数
+	Metadata   map[string]interface{} `json:"metadata"`    // 元数据
 	// Directory context information
-	WorkingDir   string                  `json:"working_dir"`   // 对话发起时的工作目录
-	DirectoryInfo *DirectoryContextInfo  `json:"directory_info,omitempty"` // 目录信息
+	WorkingDir    string                `json:"working_dir"`              // 对话发起时的工作目录
+	DirectoryInfo *DirectoryContextInfo `json:"directory_info,omitempty"` // 目录信息
 }
 
 // ReactExecutionStep - ReAct执行步骤
 type ReactExecutionStep struct {
-	Number      int              `json:"number"`              // 步骤编号
-	Thought     string           `json:"thought"`             // 思考内容
-	Analysis    string           `json:"analysis"`            // 分析结果
-	Action      string           `json:"action"`              // 执行动作
-	ToolCall    *ReactToolCall   `json:"tool_call,omitempty"` // 工具调用
-	Result      *ReactToolResult `json:"result,omitempty"`    // 执行结果
-	Observation string           `json:"observation"`         // 观察结果
-	Confidence  float64          `json:"confidence"`          // 置信度 0.0-1.0
-	Duration    time.Duration    `json:"duration"`            // 执行时长
-	Timestamp   time.Time        `json:"timestamp"`           // 时间戳
-	Error       string           `json:"error,omitempty"`     // 错误信息
-	TokensUsed  int              `json:"tokens_used"`         // 本步骤使用的token数
+	Number      int                `json:"number"`              // 步骤编号
+	Thought     string             `json:"thought"`             // 思考内容
+	Analysis    string             `json:"analysis"`            // 分析结果
+	Action      string             `json:"action"`              // 执行动作
+	ToolCall    *ReactToolCall     `json:"tool_call,omitempty"` // 工具调用
+	Result      []*ReactToolResult `json:"result,omitempty"`    // 执行结果
+	Observation string             `json:"observation"`         // 观察结果
+	Confidence  float64            `json:"confidence"`          // 置信度 0.0-1.0
+	Duration    time.Duration      `json:"duration"`            // 执行时长
+	Timestamp   time.Time          `json:"timestamp"`           // 时间戳
+	Error       string             `json:"error,omitempty"`     // 错误信息
+	TokensUsed  int                `json:"tokens_used"`         // 本步骤使用的token数
 }
 
 // ReactTaskResult - ReAct任务执行结果
@@ -232,6 +228,7 @@ type ReactToolResult struct {
 	ToolName  string                 `json:"tool_name,omitempty"`  // 工具名称
 	ToolArgs  map[string]interface{} `json:"tool_args,omitempty"`  // 工具参数
 	ToolCalls []*ReactToolCall       `json:"tool_calls,omitempty"` // 多个工具调用（并行执行时）
+	CallID    string                 `json:"call_id,omitempty"`    // 调用ID
 }
 
 // ReactConfig - ReAct代理配置
@@ -279,7 +276,7 @@ func NewReactConfig() *ReactConfig {
 func NewReactTaskContext(taskID, goal string) *ReactTaskContext {
 	workingDir, _ := getCurrentWorkingDir()
 	directoryInfo := gatherDirectoryInfo(workingDir)
-	
+
 	return &ReactTaskContext{
 		TaskID:        taskID,
 		Goal:          goal,
@@ -336,7 +333,7 @@ func gatherDirectoryInfo(dirPath string) *DirectoryContextInfo {
 		} else {
 			fileCount++
 			totalSize += info.Size()
-			
+
 			// 检测项目类型
 			ext := strings.ToLower(filepath.Ext(entry.Name()))
 			switch ext {
@@ -416,13 +413,13 @@ func generateDirectoryDescription(dirPath string, fileCount, dirCount int, proje
 	var desc strings.Builder
 	desc.WriteString("Working in ")
 	desc.WriteString(baseName)
-	
+
 	if projectType != "Unknown" {
 		desc.WriteString(" (")
 		desc.WriteString(projectType)
 		desc.WriteString(" project)")
 	}
-	
+
 	desc.WriteString(" containing ")
 	if fileCount > 0 {
 		desc.WriteString(formatCount(fileCount, "file"))
@@ -443,7 +440,7 @@ func formatCount(count int, singular string, plural ...string) string {
 	if len(plural) > 0 {
 		pluralForm = plural[0]
 	}
-	
+
 	if count == 1 {
 		return "1 " + singular
 	}

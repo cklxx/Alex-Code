@@ -207,7 +207,11 @@ func (r *ReactAgent) ProcessMessage(ctx context.Context, userMessage string, con
 	toolResults := make([]types.ReactToolResult, 0)
 	for _, step := range result.Steps {
 		if step.Result != nil {
-			toolResults = append(toolResults, *step.Result)
+			for _, tr := range step.Result {
+				if tr != nil {
+					toolResults = append(toolResults, *tr)
+				}
+			}
 		}
 	}
 
@@ -277,11 +281,7 @@ func (r *ReactAgent) parseToolCalls(message *llm.Message) []*types.ReactToolCall
 	return r.toolExecutor.parseToolCalls(message)
 }
 
-func (r *ReactAgent) executeParallelTools(ctx context.Context, toolCalls []*types.ReactToolCall) *types.ReactToolResult {
-	return r.toolExecutor.executeParallelTools(ctx, toolCalls)
-}
-
-func (r *ReactAgent) executeParallelToolsStream(ctx context.Context, toolCalls []*types.ReactToolCall, callback StreamCallback) *types.ReactToolResult {
+func (r *ReactAgent) executeParallelToolsStream(ctx context.Context, toolCalls []*types.ReactToolCall, callback StreamCallback) []*types.ReactToolResult {
 	return r.toolExecutor.executeParallelToolsStream(ctx, toolCalls, callback)
 }
 
