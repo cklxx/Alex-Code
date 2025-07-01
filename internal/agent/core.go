@@ -115,7 +115,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 		if len(response.Choices) == 0 {
 			log.Printf("[ERROR] ReactCore: No response choices at iteration %d", iteration)
-			log.Printf("[DEBUG] ReactCore: Full response: %+v", response)
 			if isStreaming {
 				streamCallback(StreamChunk{Type: "error", Content: "❌ No response choices from LLM - API response format issue"})
 			}
@@ -125,10 +124,11 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		choice := response.Choices[0]
 		step.Thought = strings.TrimSpace(choice.Message.Content)
 		// 添加assistant消息到对话历史
-		messages = append(messages, choice.Message)
+		if len(choice.Message.Content) > 0 {
+			messages = append(messages, choice.Message)
+		}
 		// 解析并执行工具调用
 		toolCalls := rc.agent.parseToolCalls(&choice.Message)
-		log.Printf("[DEBUG] ReactCore: Parsed %d tool calls from LLM response", len(toolCalls))
 		if len(toolCalls) > 0 {
 			log.Printf("[DEBUG] ReactCore: Starting tool execution for %d tools", len(toolCalls))
 
@@ -145,13 +145,9 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 			// 执行工具调用
 			log.Printf("[DEBUG] ReactCore: About to execute tools, isStreaming: %v", isStreaming)
-			var toolResult *types.ReactToolResult
-			if isStreaming {
-				toolResult = rc.agent.executeParallelToolsStream(ctx, toolCalls, streamCallback)
-			} else {
-				toolResult = rc.agent.executeParallelTools(ctx, toolCalls)
-			}
-			log.Printf("[DEBUG] ReactCore: Tool execution completed, result success: %v", toolResult != nil && toolResult.Success)
+			toolResult := rc.agent.executeParallelToolsStream(ctx, toolCalls, streamCallback)
+
+			log.Printf("[DEBUG] ReactCore: Tool execution completed, result success: %v", toolResult != nil && toolResult[0].Success)
 
 			step.Result = toolResult
 
@@ -159,25 +155,9 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			if toolResult != nil {
 				toolMessages := rc.buildToolMessages(toolResult)
 				messages = append(messages, toolMessages...)
+				log.Printf("[DEBUG] ReactCore: messages: %v", messages)
 
 				step.Observation = rc.generateObservation(toolResult, iteration)
-
-				// 检查是否是think工具的结果，并评估是否需要继续
-				if rc.isThinkToolResult(toolResult) && rc.shouldContinueAfterThinking(toolResult.Content) {
-					// Think工具执行完成，继续下一轮
-					log.Printf("[DEBUG] Think tool completed, continuing to next iteration")
-				} else if rc.isTaskCompleteFromResult(toolResult, step.Thought) {
-					// 任务完成
-					if isStreaming {
-						streamCallback(StreamChunk{Type: "complete", Content: "✅ Task completed successfully"})
-					}
-
-					step.Duration = time.Since(step.Timestamp)
-					taskCtx.History = append(taskCtx.History, step)
-
-					finalAnswer := rc.extractFinalAnswer(toolResult, step.Thought)
-					return rc.buildFinalResult(taskCtx, finalAnswer, 0.9, true), nil
-				}
 			}
 		} else {
 			finalAnswer := choice.Message.Content
@@ -288,31 +268,19 @@ func (rc *ReactCore) buildToolDefinitions() []llm.Tool {
 }
 
 // buildToolMessages - 构建工具结果消息
-func (rc *ReactCore) buildToolMessages(actionResult *types.ReactToolResult) []llm.Message {
+func (rc *ReactCore) buildToolMessages(actionResult []*types.ReactToolResult) []llm.Message {
 	var toolMessages []llm.Message
 
-	if len(actionResult.ToolCalls) > 0 {
-		// 处理多个工具调用的结果
-		for _, toolCall := range actionResult.ToolCalls {
-			toolMessage := llm.Message{
-				Role:       "assistant",
-				Content:    actionResult.Content,
-				ToolCallId: toolCall.CallID,
-			}
-			if !actionResult.Success {
-				toolMessage.Content = actionResult.Error
-			}
-			toolMessages = append(toolMessages, toolMessage)
-		}
-	} else {
-		// 处理单个工具或代码执行结果
-		content := actionResult.Content
-		if !actionResult.Success {
-			content = actionResult.Error
+	for _, result := range actionResult {
+		content := result.Content
+		if !result.Success {
+			content = result.Error
 		}
 		toolMessages = append(toolMessages, llm.Message{
-			Role:    "assistant",
-			Content: content,
+			Role:       "tool",
+			Content:    content,
+			Name:       result.ToolName,
+			ToolCallId: result.CallID,
 		})
 	}
 
@@ -320,34 +288,37 @@ func (rc *ReactCore) buildToolMessages(actionResult *types.ReactToolResult) []ll
 }
 
 // generateObservation - 生成观察结果
-func (rc *ReactCore) generateObservation(toolResult *types.ReactToolResult, iteration int) string {
+func (rc *ReactCore) generateObservation(toolResult []*types.ReactToolResult, iteration int) string {
 	if toolResult == nil {
 		return "No tool execution result to observe"
 	}
 
-	if toolResult.Success {
-		// 检查是否是特定工具的结果
-		if len(toolResult.ToolCalls) > 0 {
-			toolName := toolResult.ToolCalls[0].Name
-			// 清理工具输出，移除冗余格式信息
-			cleanContent := rc.cleanToolOutput(toolResult.Content)
-			switch toolName {
-			case "think":
-				return fmt.Sprintf("🧠 Thinking completed: %s", rc.truncateContent(cleanContent, 100))
-			case "todo_update":
-				return fmt.Sprintf("📋 Todo management: %s", rc.truncateContent(cleanContent, 100))
-			case "file_read":
-				return fmt.Sprintf("📖 File read: %s", rc.truncateContent(cleanContent, 100))
-			case "bash":
-				return fmt.Sprintf("⚡ Command executed: %s", rc.truncateContent(cleanContent, 100))
-			default:
-				return fmt.Sprintf("✅ %s completed: %s", toolName, rc.truncateContent(cleanContent, 100))
+	for _, result := range toolResult {
+		if result.Success {
+			// 检查是否是特定工具的结果
+			if len(result.ToolCalls) > 0 {
+				toolName := result.ToolCalls[0].Name
+				// 清理工具输出，移除冗余格式信息
+				cleanContent := rc.cleanToolOutput(result.Content)
+				switch toolName {
+				case "think":
+					return fmt.Sprintf("🧠 Thinking completed: %s", rc.truncateContent(cleanContent, 100))
+				case "todo_update":
+					return fmt.Sprintf("📋 Todo management: %s", rc.truncateContent(cleanContent, 100))
+				case "file_read":
+					return fmt.Sprintf("📖 File read: %s", rc.truncateContent(cleanContent, 100))
+				case "bash":
+					return fmt.Sprintf("⚡ Command executed: %s", rc.truncateContent(cleanContent, 100))
+				default:
+					return fmt.Sprintf("✅ %s completed: %s", toolName, rc.truncateContent(cleanContent, 100))
+				}
 			}
+			return fmt.Sprintf("✅ Tool execution successful: %s", rc.truncateContent(rc.cleanToolOutput(toolResult[0].Content), 100))
+		} else {
+			return fmt.Sprintf("❌ Tool execution failed: %s", result.Error)
 		}
-		return fmt.Sprintf("✅ Tool execution successful: %s", rc.truncateContent(rc.cleanToolOutput(toolResult.Content), 100))
-	} else {
-		return fmt.Sprintf("❌ Tool execution failed: %s", toolResult.Error)
 	}
+	return "No tool execution result to observe"
 }
 
 // formatToolNames - 格式化工具名称列表
@@ -357,70 +328,6 @@ func (rc *ReactCore) formatToolNames(toolCalls []*types.ReactToolCall) string {
 		names = append(names, tc.Name)
 	}
 	return strings.Join(names, ", ")
-}
-
-// isThinkToolResult - 检查是否是think工具的结果
-func (rc *ReactCore) isThinkToolResult(toolResult *types.ReactToolResult) bool {
-	if toolResult == nil || len(toolResult.ToolCalls) == 0 {
-		return false
-	}
-	return toolResult.ToolCalls[0].Name == "think"
-}
-
-// shouldContinueAfterThinking - 判断思考后是否应该继续
-func (rc *ReactCore) shouldContinueAfterThinking(thinkingResult string) bool {
-	// 简单启发式：如果thinking结果包含action词汇，应该继续执行
-	content := strings.ToLower(thinkingResult)
-	actionWords := []string{"need to", "should", "next step", "implement", "create", "execute", "run", "call"}
-
-	for _, word := range actionWords {
-		if strings.Contains(content, word) {
-			return true
-		}
-	}
-
-	// 如果thinking结果很长，可能包含完整的分析，应该继续
-	return len(thinkingResult) > 200
-}
-
-// isTaskCompleteFromResult - 基于工具结果判断任务是否完成
-func (rc *ReactCore) isTaskCompleteFromResult(toolResult *types.ReactToolResult, thought string) bool {
-	if toolResult == nil {
-		return false
-	}
-
-	content := strings.ToLower(toolResult.Content)
-
-	// 明确的完成信号
-	completionSignals := []string{
-		"task completed", "successfully completed", "finished", "done",
-		"implementation complete", "all tests pass", "deployment successful",
-		"todo completed", "all todos completed",
-	}
-
-	for _, signal := range completionSignals {
-		if strings.Contains(content, signal) {
-			return true
-		}
-	}
-
-	// 检查是否是todo工具完成了最后一个任务
-	if len(toolResult.ToolCalls) > 0 && toolResult.ToolCalls[0].Name == "todo_update" {
-		if strings.Contains(content, "completed") &&
-			(strings.Contains(strings.ToLower(thought), "final") || strings.Contains(strings.ToLower(thought), "last")) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// extractFinalAnswer - 从结果中提取最终答案
-func (rc *ReactCore) extractFinalAnswer(toolResult *types.ReactToolResult, thought string) string {
-	if toolResult != nil && toolResult.Success {
-		return toolResult.Content
-	}
-	return thought
 }
 
 // truncateContent - 截断内容到指定长度

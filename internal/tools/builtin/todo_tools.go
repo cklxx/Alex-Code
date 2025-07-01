@@ -207,7 +207,6 @@ func (t *TodoUpdateTool) createTodo(config *types.Config, args map[string]interf
 	if err := t.saveConfig(config); err != nil {
 		return nil, fmt.Errorf("failed to save config: %w", err)
 	}
-
 	return &ToolResult{
 		Content: fmt.Sprintf("✅ Created todo: %s (ID: %s, Order: %d)", content, id, order),
 		Data: map[string]interface{}{
@@ -266,7 +265,6 @@ func (t *TodoUpdateTool) createBatchTodos(config *types.Config, args map[string]
 	if err := t.saveConfig(config); err != nil {
 		return nil, fmt.Errorf("failed to save config: %w", err)
 	}
-
 	return &ToolResult{
 		Content: summary.String(),
 		Data: map[string]interface{}{
