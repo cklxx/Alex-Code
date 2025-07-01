@@ -48,8 +48,22 @@ func (t *FileReadTool) Parameters() map[string]interface{} {
 }
 
 func (t *FileReadTool) Validate(args map[string]interface{}) error {
+	// 检查必需的路径参数（支持 file_path 或 path）
+	hasFilePath := false
+	if _, ok := args["file_path"]; ok {
+		hasFilePath = true
+	}
+	if _, ok := args["path"]; ok {
+		hasFilePath = true
+	}
+	
+	if !hasFilePath {
+		return fmt.Errorf("missing required parameter: file_path or path")
+	}
+
 	validator := NewValidationFramework().
-		AddStringField("file_path", "Path to the file to read").
+		AddOptionalStringField("file_path", "Path to the file to read").
+		AddOptionalStringField("path", "Path to the file to read").
 		AddOptionalIntField("start_line", "Starting line number (1-based)", 1, 0).
 		AddOptionalIntField("end_line", "Ending line number (1-based)", 1, 0)
 
@@ -57,7 +71,15 @@ func (t *FileReadTool) Validate(args map[string]interface{}) error {
 }
 
 func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	filePath := args["file_path"].(string)
+	// 支持两种参数名称：file_path 和 path
+	var filePath string
+	if path, ok := args["file_path"]; ok && path != nil {
+		filePath = path.(string)
+	} else if path, ok := args["path"]; ok && path != nil {
+		filePath = path.(string)
+	} else {
+		return nil, fmt.Errorf("missing required parameter: file_path or path")
+	}
 	
 	// 解析路径（处理相对路径）
 	resolver := GetPathResolverFromContext(ctx)
@@ -1117,4 +1139,116 @@ func getFileIcon(ext string) string {
 	default:
 		return "📄"
 	}
+}
+
+// FileWriteTool implements file writing functionality (creates or overwrites files)
+type FileWriteTool struct{}
+
+func CreateFileWriteTool() *FileWriteTool {
+	return &FileWriteTool{}
+}
+
+func (t *FileWriteTool) Name() string {
+	return "file_write"
+}
+
+func (t *FileWriteTool) Description() string {
+	return "Write content to a file. Creates new files or overwrites existing ones."
+}
+
+func (t *FileWriteTool) Parameters() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"file_path": map[string]interface{}{
+				"type":        "string",
+				"description": "Path to the file to write",
+			},
+			"content": map[string]interface{}{
+				"type":        "string",
+				"description": "Content to write to the file",
+			},
+			"create_dirs": map[string]interface{}{
+				"type":        "boolean",
+				"description": "Create parent directories if they don't exist",
+				"default":     false,
+			},
+			"backup": map[string]interface{}{
+				"type":        "boolean",
+				"description": "Create backup before overwriting (filename.bak)",
+				"default":     false,
+			},
+		},
+		"required": []string{"file_path", "content"},
+	}
+}
+
+func (t *FileWriteTool) Validate(args map[string]interface{}) error {
+	validator := NewValidationFramework().
+		AddStringField("file_path", "Path to the file to write").
+		AddStringField("content", "Content to write to the file").
+		AddBoolField("create_dirs", "Create parent directories if they don't exist", false).
+		AddBoolField("backup", "Create backup before overwriting", false)
+
+	return validator.Validate(args)
+}
+
+func (t *FileWriteTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	filePath := args["file_path"].(string)
+	content := args["content"].(string)
+	
+	// 解析路径（处理相对路径）
+	resolver := GetPathResolverFromContext(ctx)
+	resolvedPath := resolver.ResolvePath(filePath)
+
+	createDirs := false
+	if createDirsArg, ok := args["create_dirs"]; ok {
+		createDirs, _ = createDirsArg.(bool)
+	}
+
+	backup := false
+	if backupArg, ok := args["backup"]; ok {
+		backup, _ = backupArg.(bool)
+	}
+
+	// Create parent directories if requested
+	if createDirs {
+		dir := filepath.Dir(resolvedPath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create directories: %w", err)
+		}
+	}
+
+	// Create backup if requested and file exists
+	if backup {
+		if _, err := os.Stat(resolvedPath); err == nil {
+			backupPath := resolvedPath + ".bak"
+			if existingData, err := os.ReadFile(resolvedPath); err == nil {
+				if err := os.WriteFile(backupPath, existingData, 0644); err != nil {
+					return nil, fmt.Errorf("failed to create backup: %w", err)
+				}
+			}
+		}
+	}
+
+	// Write the content to the file
+	err := os.WriteFile(resolvedPath, []byte(content), 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write file: %w", err)
+	}
+
+	// Get file info after writing
+	fileInfo, _ := os.Stat(resolvedPath)
+
+	return &ToolResult{
+		Content: fmt.Sprintf("Successfully wrote %d bytes to %s", len(content), filePath),
+		Files:   []string{resolvedPath},
+		Data: map[string]interface{}{
+			"file_path":     filePath,
+			"resolved_path": resolvedPath,
+			"bytes_written": len(content),
+			"lines_total":   len(strings.Split(content, "\n")),
+			"modified":      fileInfo.ModTime().Unix(),
+		},
+	}, nil
 }

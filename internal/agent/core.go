@@ -133,17 +133,19 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 		choice := response.Choices[0]
 		step.Thought = strings.TrimSpace(choice.Message.Content)
-
-		// 添加assistant消息到对话历史
+		// 有工具调用时，添加assistant消息到对话历史
 		messages = append(messages, choice.Message)
-
 		// 解析并执行工具调用
 		toolCalls := rc.agent.parseToolCalls(&choice.Message)
+		log.Printf("[DEBUG] ReactCore: Parsed %d tool calls from LLM response", len(toolCalls))
 		if len(toolCalls) > 0 {
+			log.Printf("[DEBUG] ReactCore: Starting tool execution for %d tools", len(toolCalls))
+			
 			step.Action = "tool_execution"
 			step.ToolCall = toolCalls[0] // 记录第一个工具调用
 
 			if isStreaming {
+				log.Printf("[DEBUG] ReactCore: Sending tool_start stream chunk")
 				streamCallback(StreamChunk{
 					Type:     "tool_start",
 					Content:  fmt.Sprintf("⚡ Executing %d tool(s): %s", len(toolCalls), rc.formatToolNames(toolCalls)),
@@ -151,12 +153,14 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			}
 
 			// 执行工具调用
+			log.Printf("[DEBUG] ReactCore: About to execute tools, isStreaming: %v", isStreaming)
 			var toolResult *types.ReactToolResult
 			if isStreaming {
 				toolResult = rc.agent.executeParallelToolsStream(ctx, toolCalls, streamCallback)
 			} else {
 				toolResult = rc.agent.executeParallelTools(ctx, toolCalls)
 			}
+			log.Printf("[DEBUG] ReactCore: Tool execution completed, result success: %v", toolResult != nil && toolResult.Success)
 
 			step.Result = toolResult
 
@@ -192,7 +196,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 				}
 			}
 		} else {
-			// 无工具调用，可能是直接答案
 			finalAnswer := choice.Message.Content
 
 			if isStreaming {

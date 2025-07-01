@@ -71,8 +71,13 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 	originalMessages := req.Messages
 	if sessionID != "" {
 		req.Messages = c.cacheManager.GetOptimizedMessages(sessionID, req.Messages)
-		log.Printf("[DEBUG] HTTPLLMClient: Message optimization - Original: %d, Optimized: %d", 
-			len(originalMessages), len(req.Messages))
+		
+		// Enhanced logging with cache operation tracking
+		c.cacheManager.LogCacheOperation("optimization", sessionID, map[string]interface{}{
+			"timestamp":       time.Now().Format("15:04:05"),
+			"original_count":  len(originalMessages),
+			"optimized_count": len(req.Messages),
+		})
 	}
 
 	// Get model configuration for this request
@@ -180,6 +185,15 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 		}
 		
 		c.cacheManager.UpdateCache(sessionID, newMessages, tokensUsed)
+		
+		// Log cache update operation with safe access
+		cache := c.cacheManager.GetOrCreateCache(sessionID)
+		c.cacheManager.LogCacheOperation("update", sessionID, map[string]interface{}{
+			"timestamp":     time.Now().Format("15:04:05"),
+			"message_count": len(cache.Messages),
+			"tokens":        cache.TokensUsed,
+			"requests":      cache.RequestCount,
+		})
 	}
 
 	return &chatResp, nil
@@ -202,9 +216,26 @@ func (c *HTTPLLMClient) GetHTTPClient() *http.Client {
 	return c.httpClient
 }
 
+// ContextKey type for session ID to avoid conflicts
+type ContextKey string
+
+const SessionIDKey ContextKey = "session_id"
+
+// ExtractSessionID extracts session ID from context or request (public method)
+func (c *HTTPLLMClient) ExtractSessionID(ctx context.Context, req *ChatRequest) string {
+	return c.extractSessionID(ctx, req)
+}
+
 // extractSessionID extracts session ID from context or request
 func (c *HTTPLLMClient) extractSessionID(ctx context.Context, req *ChatRequest) string {
-	// Try to get session ID from context
+	// Try to get session ID from context using typed key
+	if sessionID := ctx.Value(SessionIDKey); sessionID != nil {
+		if id, ok := sessionID.(string); ok {
+			return id
+		}
+	}
+	
+	// Also try with string key for backward compatibility
 	if sessionID := ctx.Value("session_id"); sessionID != nil {
 		if id, ok := sessionID.(string); ok {
 			return id
