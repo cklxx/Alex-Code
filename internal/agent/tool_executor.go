@@ -24,11 +24,11 @@ func NewToolExecutor(agent *ReactAgent) *ToolExecutor {
 	return &ToolExecutor{agent: agent}
 }
 
-// parseToolCalls - 解析 OpenAI 标准工具调用格式
+// parseToolCalls - 解析 OpenAI 标准工具调用格式和文本格式工具调用
 func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolCall {
 	var toolCalls []*types.ReactToolCall
 
-	// 解析 tool_calls 格式
+	// 首先尝试解析标准 tool_calls 格式
 	for _, tc := range message.ToolCalls {
 		var args map[string]interface{}
 		if tc.Function.Arguments != "" {
@@ -45,7 +45,106 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 		})
 	}
 
+	// 如果没有标准工具调用，尝试解析文本格式的工具调用
+	if len(toolCalls) == 0 && message.Content != "" {
+		textToolCalls := te.parseTextToolCalls(message.Content)
+		toolCalls = append(toolCalls, textToolCalls...)
+	}
+
 	return toolCalls
+}
+
+// parseTextToolCalls - 解析文本格式的工具调用
+func (te *ToolExecutor) parseTextToolCalls(content string) []*types.ReactToolCall {
+	var toolCalls []*types.ReactToolCall
+	
+	// 处理 <｜tool▁calls▁begin｜> 格式
+	if strings.Contains(content, "<｜tool▁calls▁begin｜>") {
+		// 提取工具调用部分
+		startIdx := strings.Index(content, "<｜tool▁calls▁begin｜>")
+		endIdx := strings.Index(content, "<｜tool▁calls▁end｜>")
+		
+		if startIdx != -1 && endIdx != -1 && endIdx > startIdx {
+			toolSection := content[startIdx:endIdx+len("<｜tool▁calls▁end｜>")]
+			
+			// 解析每个工具调用
+			calls := strings.Split(toolSection, "<｜tool▁call▁begin｜>")
+			for i, call := range calls {
+				if i == 0 || call == "" {
+					continue // 跳过第一个空部分
+				}
+				
+				// 查找工具调用结束标记
+				endCallIdx := strings.Index(call, "<｜tool▁call▁end｜>")
+				if endCallIdx == -1 {
+					continue
+				}
+				
+				callContent := call[:endCallIdx]
+				if toolCall := te.parseIndividualTextToolCall(callContent); toolCall != nil {
+					toolCalls = append(toolCalls, toolCall)
+				}
+			}
+		}
+	}
+	
+	log.Printf("[DEBUG] Parsed %d text tool calls from content", len(toolCalls))
+	return toolCalls
+}
+
+// parseIndividualTextToolCall - 解析单个文本工具调用
+func (te *ToolExecutor) parseIndividualTextToolCall(callContent string) *types.ReactToolCall {
+	// 格式: function<｜tool▁sep｜>tool_name\n```json\n{args}\n```
+	parts := strings.Split(callContent, "<｜tool▁sep｜>")
+	if len(parts) < 2 {
+		return nil
+	}
+	
+	if strings.TrimSpace(parts[0]) != "function" {
+		return nil
+	}
+	
+	remainder := parts[1]
+	lines := strings.Split(remainder, "\n")
+	if len(lines) == 0 {
+		return nil
+	}
+	
+	toolName := strings.TrimSpace(lines[0])
+	if toolName == "" {
+		return nil
+	}
+	
+	// 寻找JSON参数
+	var jsonStart, jsonEnd int = -1, -1
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "```json" {
+			jsonStart = i + 1
+		} else if trimmed == "```" && jsonStart != -1 {
+			jsonEnd = i
+			break
+		}
+	}
+	
+	var args map[string]interface{}
+	if jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart {
+		jsonContent := strings.Join(lines[jsonStart:jsonEnd], "\n")
+		if err := json.Unmarshal([]byte(jsonContent), &args); err != nil {
+			log.Printf("[WARN] Failed to parse JSON args for tool %s: %v", toolName, err)
+			// 继续执行，使用空参数
+			args = make(map[string]interface{})
+		}
+	} else {
+		args = make(map[string]interface{})
+	}
+	
+	log.Printf("[DEBUG] Parsed text tool call: %s with %d args", toolName, len(args))
+	return &types.ReactToolCall{
+		Name:      toolName,
+		Arguments: args,
+		CallID:    fmt.Sprintf("text_%d", time.Now().UnixNano()),
+	}
 }
 
 // executeParallelTools - 并行执行工具调用

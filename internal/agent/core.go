@@ -13,7 +13,8 @@ import (
 
 // ReactCore - 使用工具调用流程的ReactCore核心实现
 type ReactCore struct {
-	agent *ReactAgent
+	agent          *ReactAgent
+	streamCallback StreamCallback // 当前流回调
 }
 
 // NewReactCore - 创建ReAct核心实例
@@ -23,6 +24,9 @@ func NewReactCore(agent *ReactAgent) *ReactCore {
 
 // SolveTask - 使用工具调用流程的简化任务解决方法
 func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback StreamCallback) (*types.ReactTaskResult, error) {
+	// 设置流回调
+	rc.streamCallback = streamCallback
+
 	// 生成任务ID
 	taskID := generateTaskID()
 
@@ -38,6 +42,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	// 使用简化的系统消息，避免token过多导致API错误
 	messages := []llm.Message{
 		{Role: "system", Content: rc.buildToolDrivenTaskPrompt(task)},
+		{Role: "system", Content: rc.agent.contextMgr.CompressContext(taskCtx)},
 		{Role: "user", Content: task},
 	}
 
@@ -129,64 +134,61 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		choice := response.Choices[0]
 		step.Thought = strings.TrimSpace(choice.Message.Content)
 
-		// 添加assistant消息到对话历史,暂时不需要
-		// messages = append(messages, choice.Message)
+		// 添加assistant消息到对话历史
+		messages = append(messages, choice.Message)
 
-		// 检查是否有工具调用
-		if len(choice.Message.ToolCalls) > 0 {
-			// 解析并执行工具调用
-			toolCalls := rc.agent.parseToolCalls(&choice.Message)
-			if len(toolCalls) > 0 {
-				step.Action = "tool_execution"
-				step.ToolCall = toolCalls[0] // 记录第一个工具调用
+		// 解析并执行工具调用
+		toolCalls := rc.agent.parseToolCalls(&choice.Message)
+		if len(toolCalls) > 0 {
+			step.Action = "tool_execution"
+			step.ToolCall = toolCalls[0] // 记录第一个工具调用
+
+			if isStreaming {
+				streamCallback(StreamChunk{
+					Type:     "tool_start",
+					Content:  fmt.Sprintf("⚡ Executing %d tool(s): %s", len(toolCalls), rc.formatToolNames(toolCalls)),
+					Metadata: map[string]interface{}{"iteration": iteration, "tools": rc.formatToolNames(toolCalls)}})
+			}
+
+			// 执行工具调用
+			var toolResult *types.ReactToolResult
+			if isStreaming {
+				toolResult = rc.agent.executeParallelToolsStream(ctx, toolCalls, streamCallback)
+			} else {
+				toolResult = rc.agent.executeParallelTools(ctx, toolCalls)
+			}
+
+			step.Result = toolResult
+
+			// 将工具结果添加到对话历史
+			if toolResult != nil {
+				toolMessages := rc.buildToolMessages(toolResult)
+				messages = append(messages, toolMessages...)
+
+				step.Observation = rc.generateObservation(toolResult, iteration)
 
 				if isStreaming {
 					streamCallback(StreamChunk{
-						Type:     "tool_start",
-						Content:  fmt.Sprintf("⚡ Executing %d tool(s): %s", len(toolCalls), rc.formatToolNames(toolCalls)),
-						Metadata: map[string]interface{}{"iteration": iteration, "tools": rc.formatToolNames(toolCalls)}})
+						Type:     "tool_result",
+						Content:  step.Observation,
+						Metadata: map[string]interface{}{"iteration": iteration, "success": toolResult.Success}})
 				}
 
-				// 执行工具调用
-				var toolResult *types.ReactToolResult
-				if isStreaming {
-					toolResult = rc.agent.executeParallelToolsStream(ctx, toolCalls, streamCallback)
-				} else {
-					toolResult = rc.agent.executeParallelTools(ctx, toolCalls)
-				}
-
-				step.Result = toolResult
-
-				// 将工具结果添加到对话历史
-				if toolResult != nil {
-					toolMessages := rc.buildToolMessages(toolResult)
-					messages = append(messages, toolMessages...)
-
-					step.Observation = rc.generateObservation(toolResult, iteration)
-
+				// 检查是否是think工具的结果，并评估是否需要继续
+				if rc.isThinkToolResult(toolResult) && rc.shouldContinueAfterThinking(toolResult.Content) {
+					// Think工具执行完成，继续下一轮
+					log.Printf("[DEBUG] Think tool completed, continuing to next iteration")
+				} else if rc.isTaskCompleteFromResult(toolResult, step.Thought) {
+					// 任务完成
 					if isStreaming {
-						streamCallback(StreamChunk{
-							Type:     "tool_result",
-							Content:  step.Observation,
-							Metadata: map[string]interface{}{"iteration": iteration, "success": toolResult.Success}})
+						streamCallback(StreamChunk{Type: "complete", Content: "✅ Task completed successfully"})
 					}
 
-					// 检查是否是think工具的结果，并评估是否需要继续
-					if rc.isThinkToolResult(toolResult) && rc.shouldContinueAfterThinking(toolResult.Content) {
-						// Think工具执行完成，继续下一轮
-						log.Printf("[DEBUG] Think tool completed, continuing to next iteration")
-					} else if rc.isTaskCompleteFromResult(toolResult, step.Thought) {
-						// 任务完成
-						if isStreaming {
-							streamCallback(StreamChunk{Type: "complete", Content: "✅ Task completed successfully"})
-						}
+					step.Duration = time.Since(step.Timestamp)
+					taskCtx.History = append(taskCtx.History, step)
 
-						step.Duration = time.Since(step.Timestamp)
-						taskCtx.History = append(taskCtx.History, step)
-
-						finalAnswer := rc.extractFinalAnswer(toolResult, step.Thought)
-						return rc.buildFinalResult(taskCtx, finalAnswer, 0.9, true), nil
-					}
+					finalAnswer := rc.extractFinalAnswer(toolResult, step.Thought)
+					return rc.buildFinalResult(taskCtx, finalAnswer, 0.9, true), nil
 				}
 			}
 		} else {
@@ -480,32 +482,52 @@ func (rc *ReactCore) validateLLMRequest(request *llm.ChatRequest) error {
 	return nil
 }
 
-// callLLMWithRetry - 带重试机制的LLM调用
+// callLLMWithRetry - 带重试机制的流式LLM调用
 func (rc *ReactCore) callLLMWithRetry(ctx context.Context, client llm.Client, request *llm.ChatRequest, maxRetries int) (*llm.ChatResponse, error) {
 	var lastErr error
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		log.Printf("[DEBUG] ReactCore: LLM call attempt %d/%d", attempt, maxRetries)
+		log.Printf("[DEBUG] ReactCore: LLM streaming call attempt %d/%d", attempt, maxRetries)
 		log.Printf("[DEBUG] ReactCore: Messages count: %d", len(request.Messages))
 
-		response, err := client.Chat(ctx, request)
+		// 使用流式调用
+		streamChan, err := client.ChatStream(ctx, request)
+		if err != nil {
+			lastErr = err
+			log.Printf("[WARN] ReactCore: Stream initialization failed (attempt %d): %v", attempt, err)
+
+			// 检查是否是500错误，如果是，说明请求格式可能有问题，不要重试
+			if strings.Contains(err.Error(), "500") {
+				log.Printf("[ERROR] ReactCore: Server error 500, not retrying: %v", err)
+				return nil, fmt.Errorf("server error 500 - request format issue: %w", err)
+			}
+
+			if attempt < maxRetries {
+				backoffDuration := time.Duration(attempt*2) * time.Second
+				log.Printf("[WARN] ReactCore: Retrying in %v", backoffDuration)
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(backoffDuration):
+					continue
+				}
+			}
+			continue
+		}
+
+		// 处理流式响应并重构为完整响应
+		response, err := rc.collectStreamingResponse(ctx, streamChan)
 		if err == nil && response != nil {
+			log.Printf("[DEBUG] ReactCore: Successfully collected streaming response")
 			return response, nil
 		}
 
 		lastErr = err
-
-		// 检查是否是500错误，如果是，说明请求格式可能有问题，不要重试
-		if err != nil && strings.Contains(err.Error(), "500") {
-			log.Printf("[ERROR] ReactCore: Server error 500, not retrying: %v", err)
-			return nil, fmt.Errorf("server error 500 - request format issue: %w", err)
-		}
+		log.Printf("[WARN] ReactCore: Failed to collect streaming response (attempt %d): %v", attempt, err)
 
 		if attempt < maxRetries {
-			// 指数退避重试
 			backoffDuration := time.Duration(attempt*2) * time.Second
-			log.Printf("[WARN] ReactCore: LLM call failed (attempt %d), retrying in %v: %v", attempt, backoffDuration, err)
-
+			log.Printf("[WARN] ReactCore: Retrying in %v", backoffDuration)
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
@@ -515,7 +537,112 @@ func (rc *ReactCore) callLLMWithRetry(ctx context.Context, client llm.Client, re
 		}
 	}
 
-	return nil, fmt.Errorf("LLM call failed after %d attempts: %w", maxRetries, lastErr)
+	return nil, fmt.Errorf("streaming LLM call failed after %d attempts: %w", maxRetries, lastErr)
+}
+
+// collectStreamingResponse - 收集流式响应并重构为完整响应
+func (rc *ReactCore) collectStreamingResponse(ctx context.Context, streamChan <-chan llm.StreamDelta) (*llm.ChatResponse, error) {
+	var response *llm.ChatResponse
+	var contentBuilder strings.Builder
+	var toolCalls []llm.ToolCall
+	var currentToolCall *llm.ToolCall
+
+	// 检查是否有流回调需要通知
+	hasStreamCallback := rc.streamCallback != nil
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case delta, ok := <-streamChan:
+			if !ok {
+				// 流结束，构建最终响应
+				if response == nil {
+					return nil, fmt.Errorf("no response received from stream")
+				}
+
+				// 设置最终的消息内容
+				if len(response.Choices) > 0 {
+					response.Choices[0].Message.Content = contentBuilder.String()
+					if len(toolCalls) > 0 {
+						response.Choices[0].Message.ToolCalls = toolCalls
+					}
+				}
+
+				log.Printf("[DEBUG] ReactCore: Collected complete response with %d chars, %d tool calls",
+					contentBuilder.Len(), len(toolCalls))
+				return response, nil
+			}
+
+			// 初始化响应对象
+			if response == nil {
+				response = &llm.ChatResponse{
+					ID:      delta.ID,
+					Object:  delta.Object,
+					Created: delta.Created,
+					Model:   delta.Model,
+					Choices: make([]llm.Choice, 1),
+				}
+				response.Choices[0] = llm.Choice{
+					Index: 0,
+					Message: llm.Message{
+						Role: "assistant",
+					},
+				}
+			}
+
+			// 处理每个delta中的choice
+			if len(delta.Choices) > 0 {
+				choice := delta.Choices[0]
+
+				// 处理内容增量
+				if choice.Delta.Content != "" {
+					contentBuilder.WriteString(choice.Delta.Content)
+
+					// 如果启用流式，实时显示LLM输出内容
+					if hasStreamCallback {
+						rc.streamCallback(StreamChunk{
+							Type:     "llm_content",
+							Content:  choice.Delta.Content,
+							Metadata: map[string]interface{}{"streaming": true},
+						})
+					}
+				}
+
+				// 处理工具调用增量
+				if len(choice.Delta.ToolCalls) > 0 {
+					for _, deltaToolCall := range choice.Delta.ToolCalls {
+						if deltaToolCall.ID != "" {
+							// 新的工具调用
+							newToolCall := llm.ToolCall{
+								ID:   deltaToolCall.ID,
+								Type: deltaToolCall.Type,
+								Function: llm.Function{
+									Name:      deltaToolCall.Function.Name,
+									Arguments: deltaToolCall.Function.Arguments,
+								},
+							}
+							toolCalls = append(toolCalls, newToolCall)
+							currentToolCall = &toolCalls[len(toolCalls)-1]
+						} else if currentToolCall != nil {
+							// 继续现有工具调用
+							if deltaToolCall.Function.Name != "" {
+								currentToolCall.Function.Name += deltaToolCall.Function.Name
+							}
+							if deltaToolCall.Function.Arguments != "" {
+								currentToolCall.Function.Arguments += deltaToolCall.Function.Arguments
+							}
+						}
+					}
+				}
+
+				// 检查完成原因
+				if choice.FinishReason != "" {
+					response.Choices[0].FinishReason = choice.FinishReason
+				}
+			}
+		}
+	}
 }
 
 // cleanToolOutput - 清理工具输出，只保留工具调用格式

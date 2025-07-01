@@ -334,6 +334,9 @@ func runInteractive(agentInstance *agent.ReactAgent, configManager *config.Manag
 				fmt.Printf("\n%s\n", chunk.Content)
 			case "content":
 				fmt.Print(chunk.Content)
+			case "llm_content":
+				// Real-time LLM response content streaming
+				fmt.Print(chunk.Content)
 			case "tool_start":
 				fmt.Printf("\n🔧 %s\n", chunk.Content)
 				if verbose || debug {
@@ -459,6 +462,9 @@ func runSinglePrompt(agentInstance *agent.ReactAgent, configManager *config.Mana
 		case "max_iterations":
 			fmt.Printf("\n%s\n", chunk.Content)
 		case "content":
+			fmt.Print(chunk.Content)
+		case "llm_content":
+			// Real-time LLM response content streaming
 			fmt.Print(chunk.Content)
 		case "tool_start":
 			if verbose || debug {

@@ -58,11 +58,11 @@ func GetLLMInstance(modelType ModelType) (Client, error) {
 		return client, nil
 	}
 
-	log.Printf("[DEBUG] LLMInstanceCache: Creating HTTP client for %s", modelType)
-	// Create HTTP client (non-streaming by default)
-	client, err := NewHTTPClient()
+	log.Printf("[DEBUG] LLMInstanceCache: Creating streaming client for %s", modelType)
+	// Create streaming client for better user experience
+	client, err := NewStreamingClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create LLM client for %s: %w", modelType, err)
+		return nil, fmt.Errorf("failed to create streaming LLM client for %s: %w", modelType, err)
 	}
 
 	// Cache the client

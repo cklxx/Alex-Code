@@ -134,7 +134,7 @@ func (r *ReactAgent) StartSession(sessionID string) (*session.Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 会话已经自动记录了工作目录（在session manager中）
 	r.mu.Lock()
 	r.currentSession = session
@@ -176,8 +176,11 @@ func (r *ReactAgent) ProcessMessage(ctx context.Context, userMessage string, con
 	}
 	currentSession.AddMessage(userMsg)
 
+	// Add session ID to context for caching
+	ctxWithSession := context.WithValue(ctx, "session_id", currentSession.ID)
+
 	// 执行统一的ReAct循环（非流式）
-	result, err := r.reactCore.SolveTask(ctx, userMessage, nil)
+	result, err := r.reactCore.SolveTask(ctxWithSession, userMessage, nil)
 	if err != nil {
 		return nil, fmt.Errorf("task solving failed: %w", err)
 	}
@@ -233,8 +236,11 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 	}
 	currentSession.AddMessage(userMsg)
 
+	// Add session ID to context for caching
+	ctxWithSession := context.WithValue(ctx, "session_id", currentSession.ID)
+
 	// 执行统一的ReAct循环（流式）
-	result, err := r.reactCore.SolveTask(ctx, userMessage, callback)
+	result, err := r.reactCore.SolveTask(ctxWithSession, userMessage, callback)
 	if err != nil {
 		return fmt.Errorf("streaming task solving failed: %w", err)
 	}
@@ -328,7 +334,7 @@ func (cm *LightContextManager) CompressContext(context *types.ReactTaskContext) 
 	}
 
 	var contextParts []string
-	
+
 	// 添加目录上下文信息
 	contextParts = append(contextParts, cm.formatDirectoryContext(context))
 	contextParts = append(contextParts, fmt.Sprintf("Goal: %s", context.Goal))
@@ -345,7 +351,7 @@ func (cm *LightContextManager) CompressContext(context *types.ReactTaskContext) 
 
 func (cm *LightContextManager) formatFullContext(context *types.ReactTaskContext) string {
 	var parts []string
-	
+
 	// 添加目录上下文信息
 	parts = append(parts, cm.formatDirectoryContext(context))
 	parts = append(parts, fmt.Sprintf("Goal: %s", context.Goal))
@@ -361,20 +367,20 @@ func (cm *LightContextManager) formatFullContext(context *types.ReactTaskContext
 // formatDirectoryContext 格式化目录上下文信息
 func (cm *LightContextManager) formatDirectoryContext(context *types.ReactTaskContext) string {
 	var contextLines []string
-	
+
 	// 当前时间
 	contextLines = append(contextLines, fmt.Sprintf("Current Time: %s", time.Now().Format(time.RFC3339)))
-	
+
 	// 工作目录
 	if context.WorkingDir != "" {
 		contextLines = append(contextLines, fmt.Sprintf("Working Directory: %s", context.WorkingDir))
 	}
-	
+
 	// 目录信息
 	if context.DirectoryInfo != nil {
 		info := context.DirectoryInfo
 		contextLines = append(contextLines, fmt.Sprintf("Directory Context: %s", info.Description))
-		
+
 		if len(info.TopFiles) > 0 {
 			contextLines = append(contextLines, "Key Files:")
 			for _, file := range info.TopFiles[:min(5, len(info.TopFiles))] {
@@ -386,7 +392,7 @@ func (cm *LightContextManager) formatDirectoryContext(context *types.ReactTaskCo
 			}
 		}
 	}
-	
+
 	return strings.Join(contextLines, "\n")
 }
 
