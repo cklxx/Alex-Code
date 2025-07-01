@@ -1,8 +1,20 @@
 package builtin
 
+import "deep-coding-agent/internal/config"
+
 // GetAllBuiltinTools returns a list of all builtin tools
 func GetAllBuiltinTools() []Tool {
+	// Create a config manager for tools that need it
+	configManager, _ := config.NewManager()
+
 	return []Tool{
+		// Thinking and reasoning tools
+		NewThinkTool(configManager),
+
+		// Task management tools  
+		NewTodoUpdateTool(configManager),
+		NewTodoReadTool(configManager),
+
 		// File tools
 		CreateFileReadTool(),
 		CreateFileUpdateTool(),
@@ -29,7 +41,15 @@ func GetAllBuiltinTools() []Tool {
 
 // GetToolByName creates a tool instance by name
 func GetToolByName(name string) Tool {
+	configManager, _ := config.NewManager()
+
 	switch name {
+	case "think":
+		return NewThinkTool(configManager)
+	case "todo_update":
+		return NewTodoUpdateTool(configManager)
+	case "todo_read":
+		return NewTodoReadTool(configManager)
 	case "file_read":
 		return CreateFileReadTool()
 	case "file_update":
@@ -65,7 +85,16 @@ func GetToolByName(name string) Tool {
 
 // GetToolsByCategory returns tools grouped by category
 func GetToolsByCategory() map[string][]Tool {
+	configManager, _ := config.NewManager()
+
 	return map[string][]Tool{
+		"reasoning": {
+			NewThinkTool(configManager),
+		},
+		"task_management": {
+			NewTodoUpdateTool(configManager),
+			NewTodoReadTool(configManager),
+		},
 		"file": {
 			CreateFileReadTool(),
 			CreateFileUpdateTool(),

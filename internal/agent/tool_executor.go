@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
 	"deep-coding-agent/internal/llm"
+	"deep-coding-agent/internal/tools/builtin"
 	"deep-coding-agent/pkg/types"
 )
 
@@ -23,37 +25,23 @@ func NewToolExecutor(agent *ReactAgent) *ToolExecutor {
 }
 
 // parseToolCalls - 解析 OpenAI 标准工具调用格式
-func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.LightToolCall {
-	var toolCalls []*types.LightToolCall
+func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolCall {
+	var toolCalls []*types.ReactToolCall
 
-	// 解析 tool_calls 格式（推荐）
-	if len(message.ToolCalls) > 0 {
-		for _, tc := range message.ToolCalls {
-			var args map[string]interface{}
-			if tc.Function.Arguments != "" {
-				json.Unmarshal([]byte(tc.Function.Arguments), &args)
-			}
-
-			toolCalls = append(toolCalls, &types.LightToolCall{
-				Name:      tc.Function.Name,
-				Arguments: args,
-				CallID:    tc.ID,
-			})
-		}
-		return toolCalls
-	}
-
-	// 解析 function_call 格式（兼容）
-	if message.FunctionCall != nil {
+	// 解析 tool_calls 格式
+	for _, tc := range message.ToolCalls {
 		var args map[string]interface{}
-		if message.FunctionCall.Arguments != "" {
-			json.Unmarshal([]byte(message.FunctionCall.Arguments), &args)
+		if tc.Function.Arguments != "" {
+			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+				log.Printf("[ERROR] Failed to parse tool arguments: %v", err)
+				continue
+			}
 		}
 
-		toolCalls = append(toolCalls, &types.LightToolCall{
-			Name:      message.FunctionCall.Name,
+		toolCalls = append(toolCalls, &types.ReactToolCall{
+			Name:      tc.Function.Name,
 			Arguments: args,
-			CallID:    generateCallID(),
+			CallID:    tc.ID,
 		})
 	}
 
@@ -61,9 +49,9 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.LightToolC
 }
 
 // executeParallelTools - 并行执行工具调用
-func (te *ToolExecutor) executeParallelTools(ctx context.Context, toolCalls []*types.LightToolCall) *types.LightToolResult {
+func (te *ToolExecutor) executeParallelTools(ctx context.Context, toolCalls []*types.ReactToolCall) *types.ReactToolResult {
 	if len(toolCalls) == 0 {
-		return &types.LightToolResult{
+		return &types.ReactToolResult{
 			Success: false,
 			Error:   "no tool calls provided",
 		}
@@ -72,7 +60,7 @@ func (te *ToolExecutor) executeParallelTools(ctx context.Context, toolCalls []*t
 	// 并行执行工具调用（统一处理一个或多个）
 	type toolResult struct {
 		name   string
-		result *types.LightToolResult
+		result *types.ReactToolResult
 		err    error
 	}
 
@@ -80,7 +68,7 @@ func (te *ToolExecutor) executeParallelTools(ctx context.Context, toolCalls []*t
 
 	// 启动goroutines并行执行
 	for _, tc := range toolCalls {
-		go func(toolCall *types.LightToolCall) {
+		go func(toolCall *types.ReactToolCall) {
 			result, err := te.executeTool(ctx, toolCall.Name, toolCall.Arguments)
 			resultChan <- toolResult{
 				name:   toolCall.Name,
@@ -116,7 +104,7 @@ func (te *ToolExecutor) executeParallelTools(ctx context.Context, toolCalls []*t
 	}
 
 	// 组合结果
-	combinedResult := &types.LightToolResult{
+	combinedResult := &types.ReactToolResult{
 		Success: overallSuccess,
 	}
 
@@ -146,9 +134,9 @@ func (te *ToolExecutor) executeParallelTools(ctx context.Context, toolCalls []*t
 }
 
 // executeParallelToolsStream - 并行执行工具调用（流式版本）
-func (te *ToolExecutor) executeParallelToolsStream(ctx context.Context, toolCalls []*types.LightToolCall, callback StreamCallback) *types.LightToolResult {
+func (te *ToolExecutor) executeParallelToolsStream(ctx context.Context, toolCalls []*types.ReactToolCall, callback StreamCallback) *types.ReactToolResult {
 	if len(toolCalls) == 0 {
-		return &types.LightToolResult{
+		return &types.ReactToolResult{
 			Success: false,
 			Error:   "no tool calls provided",
 		}
@@ -157,9 +145,9 @@ func (te *ToolExecutor) executeParallelToolsStream(ctx context.Context, toolCall
 	// 并行执行工具调用（统一处理一个或多个）
 	type toolResult struct {
 		name   string
-		result *types.LightToolResult
+		result *types.ReactToolResult
 		err    error
-		call   *types.LightToolCall
+		call   *types.ReactToolCall
 	}
 
 	resultChan := make(chan toolResult, len(toolCalls))
@@ -170,7 +158,7 @@ func (te *ToolExecutor) executeParallelToolsStream(ctx context.Context, toolCall
 		toolCallStr := te.formatToolCallForDisplay(tc.Name, tc.Arguments)
 		callback(StreamChunk{Type: "tool_start", Content: toolCallStr})
 
-		go func(toolCall *types.LightToolCall) {
+		go func(toolCall *types.ReactToolCall) {
 			result, err := te.executeTool(ctx, toolCall.Name, toolCall.Arguments)
 			resultChan <- toolResult{
 				name:   toolCall.Name,
@@ -210,7 +198,7 @@ func (te *ToolExecutor) executeParallelToolsStream(ctx context.Context, toolCall
 	}
 
 	// 组合结果
-	combinedResult := &types.LightToolResult{
+	combinedResult := &types.ReactToolResult{
 		Success: overallSuccess,
 	}
 
@@ -280,19 +268,22 @@ func (te *ToolExecutor) formatToolCallForDisplay(toolName string, args map[strin
 }
 
 // executeTool - 执行工具
-func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args map[string]interface{}) (*types.LightToolResult, error) {
+func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args map[string]interface{}) (*types.ReactToolResult, error) {
 	tool, exists := te.agent.tools[toolName]
 	if !exists {
 		return nil, fmt.Errorf("tool %s not found", toolName)
 	}
 
+	// 注入工作目录上下文给文件相关工具
+	contextWithWorkingDir := te.injectWorkingDirContext(ctx)
+
 	start := time.Now()
-	result, err := tool.Execute(ctx, args)
+	result, err := tool.Execute(contextWithWorkingDir, args)
 	duration := time.Since(start)
 
 	if err != nil {
 		log.Printf("[ERROR] ToolExecutor: Tool %s execution failed: %v", toolName, err)
-		return &types.LightToolResult{
+		return &types.ReactToolResult{
 			Success:  false,
 			Error:    err.Error(),
 			Duration: duration,
@@ -301,7 +292,7 @@ func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args m
 		}, nil
 	}
 
-	return &types.LightToolResult{
+	return &types.ReactToolResult{
 		Success:  true,
 		Content:  result.Content,
 		Data:     result.Data,
@@ -309,4 +300,29 @@ func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args m
 		ToolName: toolName,
 		ToolArgs: args,
 	}, nil
+}
+
+// injectWorkingDirContext - 注入工作目录上下文
+func (te *ToolExecutor) injectWorkingDirContext(ctx context.Context) context.Context {
+	// 尝试从当前会话获取工作目录
+	te.agent.mu.RLock()
+	currentSession := te.agent.currentSession
+	te.agent.mu.RUnlock()
+	
+	var workingDir string
+	
+	// 如果有当前会话，从会话的WorkingDir字段获取工作目录
+	if currentSession != nil && currentSession.WorkingDir != "" {
+		workingDir = currentSession.WorkingDir
+	}
+	
+	// 如果没有找到工作目录，使用当前工作目录
+	if workingDir == "" {
+		if wd, err := os.Getwd(); err == nil {
+			workingDir = wd
+		}
+	}
+	
+	// 将工作目录注入到context中
+	return builtin.WithWorkingDir(ctx, workingDir)
 }

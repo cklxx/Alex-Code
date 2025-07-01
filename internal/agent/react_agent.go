@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +16,11 @@ import (
 	"deep-coding-agent/pkg/types"
 )
 
+// ReactCoreInterface - ReAct核心接口
+type ReactCoreInterface interface {
+	SolveTask(ctx context.Context, task string, streamCallback StreamCallback) (*types.ReactTaskResult, error)
+}
+
 // ReactAgent - 轻量化ReAct引擎
 // Think-Act-Observe循环的智能代理实现
 type ReactAgent struct {
@@ -24,17 +28,16 @@ type ReactAgent struct {
 	configManager  *config.Manager
 	sessionManager *session.Manager
 	tools          map[string]builtin.Tool
-	config         *types.LightConfig
+	config         *types.ReactConfig
 	llmConfig      *llm.Config
 	promptBuilder  *LightPromptBuilder
 	contextMgr     *LightContextManager
 	codeExecutor   *CodeActExecutor
 	currentSession *session.Session
-	// 新增组件
-	reactCore      *ReactCore
-	thinkingEngine *ThinkingEngine
-	toolExecutor   *ToolExecutor
-	mu             sync.RWMutex
+	// 核心组件
+	reactCore    ReactCoreInterface
+	toolExecutor *ToolExecutor
+	mu           sync.RWMutex
 }
 
 // LightPromptBuilder - 轻量化prompt构建器
@@ -52,7 +55,7 @@ type LightContextManager struct {
 // Response - 响应格式
 type Response struct {
 	Message     *session.Message        `json:"message"`
-	ToolResults []types.LightToolResult `json:"toolResults"`
+	ToolResults []types.ReactToolResult `json:"toolResults"`
 	SessionID   string                  `json:"sessionId"`
 	Complete    bool                    `json:"complete"`
 }
@@ -99,7 +102,7 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	}
 
 	// 创建轻量化配置
-	lightConfig := types.NewLightConfig()
+	lightConfig := types.NewReactConfig()
 
 	// 创建组件
 	promptBuilder := NewLightPromptBuilder()
@@ -118,9 +121,8 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 		codeExecutor:   codeExecutor,
 	}
 
-	// 初始化组件
+	// 初始化核心组件
 	agent.reactCore = NewReactCore(agent)
-	agent.thinkingEngine = NewThinkingEngine(agent)
 	agent.toolExecutor = NewToolExecutor(agent)
 
 	return agent, nil
@@ -132,6 +134,8 @@ func (r *ReactAgent) StartSession(sessionID string) (*session.Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	
+	// 会话已经自动记录了工作目录（在session manager中）
 	r.mu.Lock()
 	r.currentSession = session
 	r.mu.Unlock()
@@ -192,7 +196,7 @@ func (r *ReactAgent) ProcessMessage(ctx context.Context, userMessage string, con
 	currentSession.AddMessage(assistantMsg)
 
 	// 转换结果为兼容格式
-	toolResults := make([]types.LightToolResult, 0)
+	toolResults := make([]types.ReactToolResult, 0)
 	for _, step := range result.Steps {
 		if step.Result != nil {
 			toolResults = append(toolResults, *step.Result)
@@ -257,73 +261,17 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 	return nil
 }
 
-func (r *ReactAgent) thinkWithConversation(ctx context.Context, messages []llm.Message, taskCtx *types.LightTaskContext) (*llm.ChatResponse, string, float64, int, error) {
-	return r.thinkingEngine.thinkWithConversation(ctx, messages, taskCtx)
-}
-
-func (r *ReactAgent) canProvideDirectAnswer(thought string, confidence float64) bool {
-	return r.thinkingEngine.canProvideDirectAnswer(thought, confidence)
-}
-
-func (r *ReactAgent) isTaskComplete(observation string, confidence float64) bool {
-	return r.thinkingEngine.isTaskComplete(observation, confidence)
-}
-
 // 代理方法 - 委托给 ToolExecutor
-func (r *ReactAgent) parseToolCalls(message *llm.Message) []*types.LightToolCall {
+func (r *ReactAgent) parseToolCalls(message *llm.Message) []*types.ReactToolCall {
 	return r.toolExecutor.parseToolCalls(message)
 }
 
-func (r *ReactAgent) executeParallelTools(ctx context.Context, toolCalls []*types.LightToolCall) *types.LightToolResult {
+func (r *ReactAgent) executeParallelTools(ctx context.Context, toolCalls []*types.ReactToolCall) *types.ReactToolResult {
 	return r.toolExecutor.executeParallelTools(ctx, toolCalls)
 }
 
-func (r *ReactAgent) executeParallelToolsStream(ctx context.Context, toolCalls []*types.LightToolCall, callback StreamCallback) *types.LightToolResult {
+func (r *ReactAgent) executeParallelToolsStream(ctx context.Context, toolCalls []*types.ReactToolCall, callback StreamCallback) *types.ReactToolResult {
 	return r.toolExecutor.executeParallelToolsStream(ctx, toolCalls, callback)
-}
-
-func (r *ReactAgent) parseCodeBlock(thought string) *CodeBlock {
-	// 解析代码块格式：```language\ncode\n```
-	re := regexp.MustCompile("```(\\w+)\\n([\\s\\S]*?)\\n```")
-	matches := re.FindStringSubmatch(thought)
-
-	if len(matches) >= 3 {
-		return &CodeBlock{
-			Language: matches[1],
-			Code:     matches[2],
-		}
-	}
-
-	return nil
-}
-
-func (r *ReactAgent) observe(result *types.LightToolResult, confidence float64) string {
-	if result == nil {
-		return "No action executed, continuing with reasoning."
-	}
-
-	// Try to use the observation prompt from prompts loader
-	if r.promptBuilder.promptLoader != nil {
-		toolResults := ""
-		if result.Success {
-			toolResults = fmt.Sprintf("SUCCESS: %s", result.Content)
-		} else {
-			toolResults = fmt.Sprintf("FAILED: %s", result.Error)
-		}
-
-		observationPrompt, err := r.promptBuilder.promptLoader.GetReActObservationPrompt("", toolResults)
-		if err == nil && observationPrompt != "" {
-			// Use the structured observation prompt
-			return observationPrompt
-		}
-	}
-
-	// Fallback to simple observation
-	if result.Success {
-		return fmt.Sprintf("Action execution successful: %s", result.Content)
-	} else {
-		return fmt.Sprintf("Action execution failed: %s", result.Error)
-	}
 }
 
 // 公共接口方法
@@ -366,50 +314,23 @@ func NewLightPromptBuilder() *LightPromptBuilder {
 	}
 }
 
-func (pb *LightPromptBuilder) BuildTaskPrompt(task string, context *types.LightTaskContext) string {
-	if pb.promptLoader == nil {
-		// Fallback to basic template if prompt loader failed
-		return fmt.Sprintf("Task: %s\n\nAnalyze and complete this task using available tools.", task)
-	}
-
-	// Use react_thinking prompt as the main template
-	template, err := pb.promptLoader.GetReActThinkingPrompt()
-	if err != nil {
-		log.Printf("[ERROR] LightPromptBuilder: Failed to get ReAct thinking prompt, trying fallback: %v", err)
-
-		// Try fallback thinking prompt
-		fallbackTemplate, fallbackErr := pb.promptLoader.GetFallbackThinkingPrompt()
-		if fallbackErr != nil {
-			log.Printf("[ERROR] LightPromptBuilder: Failed to get fallback thinking prompt: %v", fallbackErr)
-			// Final fallback to task description
-			return fmt.Sprintf("Task: %s\n\nAnalyze and complete this task using available tools.", task)
-		}
-		template = fallbackTemplate
-	}
-
-	// Build context variables
-	availableTools := "file_read, file_write, file_list, directory_create, bash, grep"
-	compressedContext := fmt.Sprintf("Goal: %s\nSteps completed: %d", context.Goal, len(context.History))
-
-	// The template contains the full ReAct instructions, so we prepend the specific task
-	return fmt.Sprintf("Current Task: %s\n\nAvailable Tools: %s\nContext: %s\n\n%s",
-		task, availableTools, compressedContext, template)
-}
-
 func NewLightContextManager() *LightContextManager {
 	return &LightContextManager{
-		maxContextSize:   types.DefaultMaxContextSize,
-		compressionRatio: types.DefaultCompressionRatio,
+		maxContextSize:   types.ReactDefaultMaxContextSize,
+		compressionRatio: types.ReactDefaultCompressionRatio,
 		keyStepThreshold: 0.8,
 	}
 }
 
-func (cm *LightContextManager) CompressContext(context *types.LightTaskContext) string {
+func (cm *LightContextManager) CompressContext(context *types.ReactTaskContext) string {
 	if len(context.History) <= cm.maxContextSize {
 		return cm.formatFullContext(context)
 	}
 
 	var contextParts []string
+	
+	// 添加目录上下文信息
+	contextParts = append(contextParts, cm.formatDirectoryContext(context))
 	contextParts = append(contextParts, fmt.Sprintf("Goal: %s", context.Goal))
 
 	// 保留最后几个步骤
@@ -422,8 +343,11 @@ func (cm *LightContextManager) CompressContext(context *types.LightTaskContext) 
 	return strings.Join(contextParts, "\n")
 }
 
-func (cm *LightContextManager) formatFullContext(context *types.LightTaskContext) string {
+func (cm *LightContextManager) formatFullContext(context *types.ReactTaskContext) string {
 	var parts []string
+	
+	// 添加目录上下文信息
+	parts = append(parts, cm.formatDirectoryContext(context))
 	parts = append(parts, fmt.Sprintf("Goal: %s", context.Goal))
 
 	for _, step := range context.History {
@@ -434,17 +358,52 @@ func (cm *LightContextManager) formatFullContext(context *types.LightTaskContext
 	return strings.Join(parts, "\n")
 }
 
+// formatDirectoryContext 格式化目录上下文信息
+func (cm *LightContextManager) formatDirectoryContext(context *types.ReactTaskContext) string {
+	var contextLines []string
+	
+	// 当前时间
+	contextLines = append(contextLines, fmt.Sprintf("Current Time: %s", time.Now().Format(time.RFC3339)))
+	
+	// 工作目录
+	if context.WorkingDir != "" {
+		contextLines = append(contextLines, fmt.Sprintf("Working Directory: %s", context.WorkingDir))
+	}
+	
+	// 目录信息
+	if context.DirectoryInfo != nil {
+		info := context.DirectoryInfo
+		contextLines = append(contextLines, fmt.Sprintf("Directory Context: %s", info.Description))
+		
+		if len(info.TopFiles) > 0 {
+			contextLines = append(contextLines, "Key Files:")
+			for _, file := range info.TopFiles[:min(5, len(info.TopFiles))] {
+				if file.IsDir {
+					contextLines = append(contextLines, fmt.Sprintf("  📁 %s/", file.Name))
+				} else {
+					contextLines = append(contextLines, fmt.Sprintf("  📄 %s (%s)", file.Name, file.Type))
+				}
+			}
+		}
+	}
+	
+	return strings.Join(contextLines, "\n")
+}
+
 // 辅助函数
 func generateTaskID() string {
 	return fmt.Sprintf("task_%d", time.Now().UnixNano())
 }
 
-func generateCallID() string {
-	return fmt.Sprintf("call_%d", time.Now().UnixNano())
-}
-
 func max(a, b int) int {
 	if a > b {
+		return a
+	}
+	return b
+}
+
+func min(a, b int) int {
+	if a < b {
 		return a
 	}
 	return b

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -85,6 +86,14 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
+	// 调试日志：记录请求数据
+	if len(jsonData) < 2000 {
+		log.Printf("[DEBUG] HTTPLLMClient: Request JSON: %s", string(jsonData))
+	} else {
+		log.Printf("[DEBUG] HTTPLLMClient: Request JSON (first 1000 chars): %s...", string(jsonData[:1000]))
+	}
+	log.Printf("[DEBUG] HTTPLLMClient: Request URL: %s/chat/completions", baseURL)
+
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
@@ -101,12 +110,33 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		log.Printf("[ERROR] HTTPLLMClient: HTTP error %d: %s", resp.StatusCode, string(body))
 		return nil, fmt.Errorf("HTTP error %d: %s", resp.StatusCode, string(body))
 	}
 
+	// 先读取原始响应体用于调试
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// 调试日志：记录原始响应
+	if len(body) < 1000 {
+		log.Printf("[DEBUG] HTTPLLMClient: Raw API response: %s", string(body))
+	} else {
+		log.Printf("[DEBUG] HTTPLLMClient: Raw API response (first 500 chars): %s...", string(body[:500]))
+	}
+
 	var chatResp ChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&chatResp); err != nil {
+	if err := json.Unmarshal(body, &chatResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	// 调试日志：记录解析后的结构
+	log.Printf("[DEBUG] HTTPLLMClient: Parsed response - Choices count: %d", len(chatResp.Choices))
+	if len(chatResp.Choices) > 0 {
+		log.Printf("[DEBUG] HTTPLLMClient: First choice - Role: %s, Content length: %d", 
+			chatResp.Choices[0].Message.Role, len(chatResp.Choices[0].Message.Content))
 	}
 
 	return &chatResp, nil

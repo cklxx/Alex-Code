@@ -58,14 +58,18 @@ func (t *FileReadTool) Validate(args map[string]interface{}) error {
 
 func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	filePath := args["file_path"].(string)
+	
+	// 解析路径（处理相对路径）
+	resolver := GetPathResolverFromContext(ctx)
+	resolvedPath := resolver.ResolvePath(filePath)
 
 	// Check if file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("file does not exist: %s", filePath)
 	}
 
 	// Read file content
-	content, err := os.ReadFile(filePath)
+	content, err := os.ReadFile(resolvedPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
@@ -89,9 +93,10 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 			return &ToolResult{
 				Content: "",
 				Data: map[string]interface{}{
-					"file_path":   filePath,
-					"total_lines": len(lines),
-					"error":       "start_line exceeds file length",
+					"file_path":     filePath,
+					"resolved_path": resolvedPath,
+					"total_lines":   len(lines),
+					"error":         "start_line exceeds file length",
 				},
 			}, nil
 		}
@@ -108,15 +113,16 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 	}
 
 	// Get file info
-	fileInfo, _ := os.Stat(filePath)
+	fileInfo, _ := os.Stat(resolvedPath)
 
 	return &ToolResult{
 		Content: contentStr,
 		Data: map[string]interface{}{
-			"file_path": filePath,
-			"file_size": len(content),
-			"lines":     len(strings.Split(string(content), "\n")),
-			"modified":  fileInfo.ModTime().Unix(),
+			"file_path":     filePath,
+			"resolved_path": resolvedPath,
+			"file_size":     len(content),
+			"lines":         len(strings.Split(string(content), "\n")),
+			"modified":      fileInfo.ModTime().Unix(),
 		},
 	}, nil
 }
@@ -215,6 +221,10 @@ func (t *FileUpdateTool) Validate(args map[string]interface{}) error {
 func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	filePath := args["file_path"].(string)
 	content := args["content"].(string)
+	
+	// 解析路径（处理相对路径）
+	resolver := GetPathResolverFromContext(ctx)
+	resolvedPath := resolver.ResolvePath(filePath)
 
 	mode := "append"
 	if modeArg, ok := args["mode"]; ok {
@@ -233,7 +243,7 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{
 
 	// Create parent directories if requested
 	if createDirs {
-		dir := filepath.Dir(filePath)
+		dir := filepath.Dir(resolvedPath)
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create directories: %w", err)
 		}
@@ -245,7 +255,7 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{
 	switch mode {
 	case "create":
 		// Check if file already exists
-		if _, err := os.Stat(filePath); err == nil {
+		if _, err := os.Stat(resolvedPath); err == nil {
 			return nil, fmt.Errorf("file already exists: %s", filePath)
 		}
 		finalContent = content
@@ -253,7 +263,7 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{
 
 	case "append":
 		existingContent := ""
-		if data, err := os.ReadFile(filePath); err == nil {
+		if data, err := os.ReadFile(resolvedPath); err == nil {
 			existingContent = string(data)
 		}
 		finalContent = existingContent + content
@@ -261,7 +271,7 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{
 
 	case "prepend":
 		existingContent := ""
-		if data, err := os.ReadFile(filePath); err == nil {
+		if data, err := os.ReadFile(resolvedPath); err == nil {
 			existingContent = string(data)
 		}
 		finalContent = content + existingContent
@@ -269,7 +279,7 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{
 
 	case "insert":
 		existingContent := ""
-		if data, err := os.ReadFile(filePath); err == nil {
+		if data, err := os.ReadFile(resolvedPath); err == nil {
 			existingContent = string(data)
 		}
 
@@ -301,8 +311,8 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{
 
 	// Create backup if requested
 	if backup && mode != "create" {
-		backupPath := filePath + ".bak"
-		if existingData, err := os.ReadFile(filePath); err == nil {
+		backupPath := resolvedPath + ".bak"
+		if existingData, err := os.ReadFile(resolvedPath); err == nil {
 			if err := os.WriteFile(backupPath, existingData, 0644); err != nil {
 				return nil, fmt.Errorf("failed to create backup: %w", err)
 			}
@@ -310,19 +320,20 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{
 	}
 
 	// Write the final content
-	err := os.WriteFile(filePath, []byte(finalContent), 0644)
+	err := os.WriteFile(resolvedPath, []byte(finalContent), 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update file: %w", err)
 	}
 
 	// Get file info after writing
-	fileInfo, _ := os.Stat(filePath)
+	fileInfo, _ := os.Stat(resolvedPath)
 
 	return &ToolResult{
 		Content: fmt.Sprintf("Successfully %s content to %s (%d bytes)", operation, filePath, len(finalContent)),
-		Files:   []string{filePath},
+		Files:   []string{resolvedPath},
 		Data: map[string]interface{}{
 			"file_path":     filePath,
+			"resolved_path": resolvedPath,
 			"operation":     operation,
 			"bytes_written": len(finalContent),
 			"lines_total":   len(strings.Split(finalContent, "\n")),
@@ -436,6 +447,10 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 	filePath := args["file_path"].(string)
 	search := args["search"].(string)
 	replace := args["replace"].(string)
+	
+	// 解析路径（处理相对路径）
+	resolver := GetPathResolverFromContext(ctx)
+	resolvedPath := resolver.ResolvePath(filePath)
 
 	mode := "text"
 	if modeArg, ok := args["mode"]; ok {
@@ -463,12 +478,12 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 	}
 
 	// Check if file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("file does not exist: %s", filePath)
 	}
 
 	// Read file content
-	content, err := os.ReadFile(filePath)
+	content, err := os.ReadFile(resolvedPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
@@ -559,6 +574,7 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 		Content: fmt.Sprintf("File %s: %s of '%s' with '%s'", filePath, operation, search, replace),
 		Data: map[string]interface{}{
 			"file_path":         filePath,
+			"resolved_path":     resolvedPath,
 			"search_pattern":    search,
 			"replacement":       replace,
 			"mode":              mode,
@@ -584,7 +600,7 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 
 	// Create backup if requested
 	if backup {
-		backupPath := filePath + ".bak"
+		backupPath := resolvedPath + ".bak"
 		if err := os.WriteFile(backupPath, content, 0644); err != nil {
 			return nil, fmt.Errorf("failed to create backup: %w", err)
 		}
@@ -592,14 +608,14 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 	}
 
 	// Write the modified content
-	err = os.WriteFile(filePath, []byte(finalContent), 0644)
+	err = os.WriteFile(resolvedPath, []byte(finalContent), 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write file: %w", err)
 	}
 
 	// Get file info after writing
-	fileInfo, _ := os.Stat(filePath)
-	result.Files = []string{filePath}
+	fileInfo, _ := os.Stat(resolvedPath)
+	result.Files = []string{resolvedPath}
 	result.Data["bytes_written"] = len(finalContent)
 	result.Data["modified"] = fileInfo.ModTime().Unix()
 
@@ -673,6 +689,10 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 	if pathArg, ok := args["path"]; ok {
 		path = pathArg.(string)
 	}
+	
+	// 解析路径（处理相对路径）
+	resolver := GetPathResolverFromContext(ctx)
+	resolvedPath := resolver.ResolvePath(path)
 
 	recursive := false
 	if recursiveArg, ok := args["recursive"]; ok {
@@ -711,12 +731,12 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 	var totalSize int64
 
 	if recursive {
-		basePath, err := filepath.Abs(path)
+		basePath, err := filepath.Abs(resolvedPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get absolute path: %w", err)
 		}
 
-		err = filepath.WalkDir(path, func(currentPath string, d fs.DirEntry, err error) error {
+		err = filepath.WalkDir(resolvedPath, func(currentPath string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -754,7 +774,7 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 			}
 
 			// Skip hidden files if not requested (but not the root directory itself)
-			if !showHidden && strings.HasPrefix(d.Name(), ".") && currentPath != path {
+			if !showHidden && strings.HasPrefix(d.Name(), ".") && currentPath != resolvedPath {
 				if d.IsDir() {
 					return filepath.SkipDir
 				}
@@ -804,7 +824,7 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 			return nil, fmt.Errorf("failed to walk directory: %w", err)
 		}
 	} else {
-		entries, err := os.ReadDir(path)
+		entries, err := os.ReadDir(resolvedPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read directory: %w", err)
 		}
@@ -837,7 +857,7 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 
 			fileInfo := map[string]interface{}{
 				"name":     entry.Name(),
-				"path":     filepath.Join(path, entry.Name()),
+				"path":     filepath.Join(resolvedPath, entry.Name()),
 				"rel_path": entry.Name(),
 				"is_dir":   entry.IsDir(),
 				"size":     info.Size(),
@@ -932,13 +952,14 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 	return &ToolResult{
 		Content: contentBuilder.String(),
 		Data: map[string]interface{}{
-			"path":       path,
-			"files":      files,
-			"file_count": fileCount,
-			"dir_count":  dirCount,
-			"total_size": totalSize,
-			"recursive":  recursive,
-			"depth":      depth,
+			"path":          path,
+			"resolved_path": resolvedPath,
+			"files":         files,
+			"file_count":    fileCount,
+			"dir_count":     dirCount,
+			"total_size":    totalSize,
+			"recursive":     recursive,
+			"depth":         depth,
 		},
 	}, nil
 }
@@ -986,6 +1007,11 @@ func (t *DirectoryCreateTool) Validate(args map[string]interface{}) error {
 
 func (t *DirectoryCreateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	path := args["path"].(string)
+	
+	// 解析路径（处理相对路径）
+	resolver := GetPathResolverFromContext(ctx)
+	resolvedPath := resolver.ResolvePath(path)
+	
 	permissions := os.FileMode(0755) // Default permissions
 
 	if permStr, ok := args["permissions"].(string); ok {
@@ -1001,13 +1027,13 @@ func (t *DirectoryCreateTool) Execute(ctx context.Context, args map[string]inter
 	}
 
 	// Create the directory with all parent directories
-	err := os.MkdirAll(path, permissions)
+	err := os.MkdirAll(resolvedPath, permissions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	// Get directory info
-	dirInfo, err := os.Stat(path)
+	dirInfo, err := os.Stat(resolvedPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat created directory: %w", err)
 	}
@@ -1015,9 +1041,10 @@ func (t *DirectoryCreateTool) Execute(ctx context.Context, args map[string]inter
 	return &ToolResult{
 		Content: fmt.Sprintf("Successfully created directory: %s", path),
 		Data: map[string]interface{}{
-			"path":        path,
-			"permissions": dirInfo.Mode().String(),
-			"created":     dirInfo.ModTime().Unix(),
+			"path":          path,
+			"resolved_path": resolvedPath,
+			"permissions":   dirInfo.Mode().String(),
+			"created":       dirInfo.ModTime().Unix(),
 		},
 	}, nil
 }

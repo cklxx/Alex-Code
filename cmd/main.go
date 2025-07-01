@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -23,7 +24,11 @@ var debugMode bool
 
 // Initialize logging
 func init() {
-	cliLogger = log.New(os.Stdout, "[CLI] ", log.LstdFlags|log.Lshortfile)
+	if os.Getenv("DEBUG") == "true" {
+		cliLogger = log.New(os.Stdout, "[CLI] ", log.LstdFlags|log.Lshortfile)
+	} else {
+		cliLogger = log.New(os.Stdout, "[CLI] ", log.LstdFlags)
+	}
 }
 
 // CLIConfig contains only essential configuration
@@ -198,7 +203,14 @@ EXAMPLES:
 
 // runInteractive runs interactive mode
 func runInteractive(agentInstance *agent.ReactAgent, configManager *config.Manager, cliConfig *CLIConfig, verbose, debug bool) {
+	// Get current working directory for display
+	currentDir, err := os.Getwd()
+	if err != nil {
+		currentDir = "unknown"
+	}
+
 	fmt.Printf("🤖 Deep Coding Agent %s\n", version)
+	fmt.Printf("📂 Working Directory: %s\n", currentDir)
 	fmt.Println("Type your questions or 'exit' to quit.")
 	fmt.Println()
 
@@ -218,7 +230,12 @@ func runInteractive(agentInstance *agent.ReactAgent, configManager *config.Manag
 	// Interactive loop
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		fmt.Print("\n> ")
+		// Show current directory in prompt
+		if dir, err := os.Getwd(); err == nil {
+			fmt.Printf("\n📂 %s > ", filepath.Base(dir))
+		} else {
+			fmt.Print("\n> ")
+		}
 
 		if !scanner.Scan() {
 			break
@@ -444,12 +461,10 @@ func runSinglePrompt(agentInstance *agent.ReactAgent, configManager *config.Mana
 		case "content":
 			fmt.Print(chunk.Content)
 		case "tool_start":
-			fmt.Printf("\n🔧 %s\n", chunk.Content)
 			if verbose || debug {
 				cliLogger.Printf("🔧 Tool execution started: %s", chunk.Content)
 			}
 		case "tool_result":
-			fmt.Printf("✅ %s\n", chunk.Content)
 			if verbose || debug {
 				cliLogger.Printf("✅ Tool execution completed: %s", chunk.Content)
 			}
@@ -508,52 +523,4 @@ func listAvailableSessions() {
 			fmt.Printf("  %s\n", sessionID)
 		}
 	}
-}
-
-// truncateContent truncates content to specified length
-func truncateContent(content string, maxLen int) string {
-	if len(content) <= maxLen {
-		return content
-	}
-	return content[:maxLen-3] + "..."
-}
-
-// formatToolCall formats a tool call display as "tool_name(args)"
-func formatToolCall(toolName string, args map[string]interface{}) string {
-	if len(args) == 0 {
-		return fmt.Sprintf("%s()", toolName)
-	}
-
-	// Build arguments string
-	var argParts []string
-	for key, value := range args {
-		var valueStr string
-		switch v := value.(type) {
-		case string:
-			// Truncate long strings and add quotes
-			if len(v) > 50 {
-				valueStr = fmt.Sprintf(`"%s..."`, v[:47])
-			} else {
-				valueStr = fmt.Sprintf(`"%s"`, v)
-			}
-		case int, int64, float64, bool:
-			valueStr = fmt.Sprintf("%v", v)
-		default:
-			// For complex types, convert to string and truncate
-			str := fmt.Sprintf("%v", v)
-			if len(str) > 30 {
-				valueStr = str[:27] + "..."
-			} else {
-				valueStr = str
-			}
-		}
-		argParts = append(argParts, fmt.Sprintf("%s=%s", key, valueStr))
-	}
-
-	argsStr := strings.Join(argParts, ", ")
-	if len(argsStr) > 100 {
-		argsStr = argsStr[:97] + "..."
-	}
-
-	return fmt.Sprintf("%s(%s)", toolName, argsStr)
 }

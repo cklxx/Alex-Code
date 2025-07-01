@@ -1,13 +1,15 @@
 # Deep Coding Agent v1.0
 
-A high-performance conversational AI coding assistant featuring dual-architecture design with both legacy and modern ReAct (Reasoning and Acting) agent systems. Built in Go for maximum performance, it provides a natural language interface for code analysis, file operations, and development tasks through an intelligent agent architecture with advanced tool calling capabilities, comprehensive security, and streaming responses.
+A high-performance conversational AI coding assistant featuring streamlined ReAct (Reasoning and Acting) agent architecture. Built in Go for maximum performance, it provides a natural language interface for code analysis, file operations, and development tasks through an intelligent agent architecture with advanced tool calling capabilities, comprehensive security, and streaming responses.
+
+> **Latest Update (2025-01-01)**: Major architecture simplification - removed over-engineered components, centralized prompt system, and streamlined type definitions for better maintainability and performance.
 
 ## 🚀 Key Features
 
-### 🧠 **Dual Agent Architecture**
-- **ReAct Agent (Default)**: Modern Think-Act-Observe cycle with intelligent reasoning
-- **Legacy Agent**: Stable fallback system with proven reliability
-- **Automatic Selection**: Environment-based agent switching with graceful fallback
+### 🧠 **Streamlined ReAct Architecture**
+- **ReAct Agent**: Modern Think-Act-Observe cycle with intelligent reasoning
+- **Unified Design**: Simplified architecture focused on essential functionality
+- **Multi-Model LLM**: Factory pattern supporting multiple AI providers
 - **40-100x Performance**: Significant improvement over TypeScript predecessor
 
 ### 🛠️ **Advanced Tool System**
@@ -30,11 +32,11 @@ A high-performance conversational AI coding assistant featuring dual-architectur
 - **Tool Integration**: Seamless tool execution within conversations
 - **Multiple Modes**: Interactive, single-prompt, and batch processing
 
-### 📝 **Template-Based Prompt System**
-- **Markdown Templates**: Organized prompt templates in `/internal/prompts/templates/`
-- **Variable Substitution**: Dynamic content generation with `{{variable}}` syntax
-- **Section-Based Organization**: Modular prompt construction
-- **Backward Compatibility**: Maintains legacy prompt support
+### 📝 **Centralized Prompt System**
+- **Markdown Templates**: Unified prompt templates in `/internal/prompts/`
+- **Centralized Loading**: Single prompt loader with fallback support
+- **Template-Based**: ReAct thinking template with embedded instructions
+- **Reliability**: Multiple fallback layers for robust operation
 
 ## 📋 **Available Tools**
 
@@ -236,39 +238,60 @@ export RESTRICTED_TOOLS="file_delete,directory_delete"
 
 ```
 deep-coding/
-├── cmd/main.go                     # Primary CLI executable
-├── internal/                       # Core implementation modules
-│   ├── core/                      # Domain-driven core components
-│   │   ├── agent/                 # Dual agent architecture
-│   │   │   ├── react_agent.go     # ReAct agent implementation
-│   │   │   ├── agent.go           # Legacy agent implementation
-│   │   │   └── factory.go         # Agent factory and configuration
-│   │   ├── reasoning/             # ReAct reasoning engine
-│   │   ├── planning/              # Action planning and execution
-│   │   └── observation/           # Result analysis and learning
+├── cmd/                           # CLI application entry points
+│   ├── main.go                    # Primary CLI executable
+│   └── config.go                  # Configuration management commands
+├── internal/                      # Core implementation modules
+│   ├── agent/                     # Simplified agent architecture
+│   │   ├── react_agent.go         # ReAct agent implementation
+│   │   ├── core.go                # Core agent functionality
+│   │   ├── code_executor.go       # Code execution engine
+│   │   └── tool_executor.go       # Tool execution management
+│   ├── llm/                       # LLM integration layer
+│   │   ├── factory.go             # Multi-model LLM factory
+│   │   ├── http_client.go         # HTTP-based LLM client
+│   │   ├── streaming_client.go    # Streaming response client
+│   │   ├── interfaces.go          # LLM interfaces
+│   │   └── types.go               # LLM type definitions
 │   ├── tools/                     # Advanced tool system
 │   │   ├── registry/              # Tool registry with metrics
-│   │   ├── builtin/               # Core tool implementations
-│   │   └── execution/             # Tool execution engine
-│   ├── security/                  # Multi-layered security system
-│   │   └── manager.go             # Security management and policies
-│   ├── prompts/                   # Template-based prompt system
-│   │   ├── renderer.go            # Prompt rendering engine
-│   │   ├── builder.go             # High-level prompt builder
-│   │   └── templates/             # Markdown prompt templates
-│   ├── config/                    # Unified configuration management
-│   ├── session/                   # Session management and persistence
-│   ├── memory/                    # Memory and context management
-│   ├── ai/                        # AI provider abstraction layer
-│   └── cli/                       # CLI interface components
+│   │   │   ├── registry.go        # Core registry implementation
+│   │   │   └── configurator.go    # Tool configuration management
+│   │   └── builtin/               # Built-in tool implementations
+│   │       ├── file_operations.go # File I/O operations
+│   │       ├── shell_tools.go     # Shell command execution
+│   │       ├── search_tools.go    # Search and grep tools
+│   │       ├── todo_tools.go      # Task management tools
+│   │       ├── think_tools.go     # Thinking and reasoning tools
+│   │       └── web_search_tools.go# Web search integration
+│   ├── prompts/                   # Centralized prompt system
+│   │   ├── loader.go              # Prompt loading and management
+│   │   └── react_thinking.md      # ReAct thinking template
+│   ├── config/                    # Configuration management
+│   │   └── manager.go             # Unified config manager
+│   └── session/                   # Session management
+│       └── session.go             # Persistent session storage
 ├── pkg/                           # Shared interfaces and types
-│   ├── interfaces/                # Clean interface definitions
-│   └── types/                     # Comprehensive type system
-├── docs/                          # Extensive documentation
-│   └── architecture/              # Architecture documentation
+│   └── types/                     # Core type definitions
+│       ├── types.go               # Primary type system
+│       └── core.go                # Core domain types
+├── docs/                          # Comprehensive documentation
+│   ├── guides/                    # User guides and tutorials
+│   ├── reference/                 # API reference documentation
+│   ├── research/                  # Architecture research and analysis
+│   └── codeact/                   # CodeAct implementation docs
 ├── scripts/                       # Development automation scripts
-├── tests/                         # Integration tests
-├── benchmarks/                    # Performance benchmarking
+│   ├── dev.sh                     # Development workflow
+│   ├── test.sh                    # Testing automation
+│   ├── run.sh                     # Hot reload development
+│   └── docker.sh                  # Docker workflow management
+├── benchmarks/                    # Performance benchmarking framework
+│   ├── human-eval/                # HumanEval benchmark integration
+│   ├── evalplus/                  # EvalPlus benchmark suite
+│   └── google-research/           # Google Research benchmarks
+├── changelog/                     # Structured project evolution tracking
+│   ├── 001-changelog-system-setup.md    # Changelog system establishment
+│   └── 002-prompt-templates-documentation-update.md # Prompt system updates
 └── CLAUDE.md                      # Development guidance for Claude Code
 ```
 
@@ -280,10 +303,11 @@ deep-coding/
 go test ./...
 
 # Test specific components
-go test ./internal/core/agent/     # Core agent tests
+go test ./internal/agent/          # Agent system tests
+go test ./internal/llm/            # LLM integration tests
 go test ./internal/tools/          # Tool system tests
-go test ./internal/security/       # Security tests
 go test ./internal/prompts/        # Prompt system tests
+go test ./internal/config/         # Configuration tests
 
 # Coverage testing
 go test -coverprofile=coverage.out ./...
@@ -314,13 +338,19 @@ go tool pprof mem.prof
 
 ## 📊 **Performance Characteristics**
 
-### Optimizations
+### Recent Optimizations (2025-01-01)
+- **Simplified Architecture**: Removed over-engineered components, focused on essential functionality  
+- **Centralized Prompts**: Unified prompt system with markdown templates in `/internal/prompts/`
+- **Streamlined Types**: Consolidated type system, removed unused complexity
+- **Enhanced LLM Integration**: Multi-model factory pattern with streaming support
+
+### Core Optimizations
 - **Zero Dependencies**: Core functionality uses only Go standard library
 - **Concurrent Execution**: Parallel tool execution where safe (max 10 workers)
 - **Memory Management**: Automatic session cleanup and message trimming
 - **Caching**: Tool result caching and context preservation
 
-### Metrics
+### Performance Metrics
 - **Target Performance**: Sub-30ms execution times for most operations
 - **Performance Improvement**: 40-100x faster than TypeScript predecessor
 - **Concurrency**: Configurable limits (default: 5 concurrent tools)
@@ -343,14 +373,15 @@ go tool pprof mem.prof
 ## 📚 **Documentation**
 
 ### Architecture Documentation
-- [ReAct Agent Implementation](docs/architecture/REACT_AGENT_IMPLEMENTATION.md) - Detailed implementation guide
-- [System Architecture Analysis](docs/architecture/ARCHITECTURE_ANALYSIS_FINAL.md) - System design overview
-- [Prompt System Design](docs/architecture/SYSTEM_PROMPTS_DESIGN.md) - Prompt engineering guide
+- [Architecture Overview](docs/01-architecture-overview.md) - System design overview
+- [ReAct Agent Design](docs/02-react-agent-design.md) - ReAct implementation guide
+- [Prompt System](docs/03-prompt-system.md) - Prompt management and templates
+- [CodeAct Research](docs/deep-research-code-act-best-practices-2025.md) - Latest research on code generation
 
 ### User Guides
-- [Quick Start Guide](docs/QUICKSTART.md) - Getting started with the agent
-- [Tool Development Guide](docs/TOOL_DEVELOPMENT_GUIDE.md) - Creating custom tools
-- [API Reference](docs/API_REFERENCE.md) - Complete API documentation
+- [Quick Start Guide](docs/guides/quickstart.md) - Getting started with the agent
+- [Tool Development Guide](docs/guides/tool-development.md) - Creating custom tools
+- [API Reference](docs/reference/api-reference.md) - Complete API documentation
 
 ## 🤝 **Contributing**
 

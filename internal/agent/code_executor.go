@@ -8,9 +8,18 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-
-	"deep-coding-agent/pkg/types"
 )
+
+// CodeActResult - 代码执行结果
+type CodeActResult struct {
+	Success       bool          `json:"success"`        // 是否成功
+	Output        string        `json:"output"`         // 标准输出
+	Error         string        `json:"error"`          // 错误输出
+	ExitCode      int           `json:"exit_code"`      // 退出码
+	ExecutionTime time.Duration `json:"execution_time"` // 执行时间
+	Language      string        `json:"language"`       // 编程语言
+	Code          string        `json:"code"`           // 执行的代码
+}
 
 // CodeActExecutor - CodeAct执行器（支持代码作为主要行动语言）
 type CodeActExecutor struct {
@@ -41,13 +50,13 @@ func NewCodeActExecutor() *CodeActExecutor {
 }
 
 // ExecuteCode - 执行代码
-func (ce *CodeActExecutor) ExecuteCode(ctx context.Context, language, code string) (*types.CodeActResult, error) {
+func (ce *CodeActExecutor) ExecuteCode(ctx context.Context, language, code string) (*CodeActResult, error) {
 	ce.mu.Lock()
 	defer ce.mu.Unlock()
 
 	_, exists := ce.supportedLanguages[language]
 	if !exists {
-		return &types.CodeActResult{
+		return &CodeActResult{
 			Success:  false,
 			Error:    fmt.Sprintf("unsupported language: %s", language),
 			Language: language,
@@ -75,7 +84,7 @@ func (ce *CodeActExecutor) ExecuteCode(ctx context.Context, language, code strin
 
 	// 写入代码
 	if err := os.WriteFile(tempFile, []byte(code), 0644); err != nil {
-		return &types.CodeActResult{
+		return &CodeActResult{
 			Success:  false,
 			Error:    fmt.Sprintf("failed to write code file: %v", err),
 			Language: language,
@@ -103,7 +112,7 @@ func (ce *CodeActExecutor) ExecuteCode(ctx context.Context, language, code strin
 	output, err := cmd.CombinedOutput()
 	executionTime := time.Since(start)
 
-	result := &types.CodeActResult{
+	result := &CodeActResult{
 		Language:      language,
 		Code:          code,
 		ExecutionTime: executionTime,

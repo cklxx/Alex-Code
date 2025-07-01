@@ -8,12 +8,11 @@ import (
 
 // Message represents a chat message
 type Message struct {
-	Role         string        `json:"role"`
-	Content      string        `json:"content,omitempty"`
-	ToolCalls    []ToolCall    `json:"tool_calls,omitempty"`
-	ToolCallId   string        `json:"tool_call_id,omitempty"`
-	Name         string        `json:"name,omitempty"`
-	FunctionCall *FunctionCall `json:"function_call,omitempty"`
+	Role       string     `json:"role"`
+	Content    string     `json:"content,omitempty"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallId string     `json:"tool_call_id,omitempty"`
+	Name       string     `json:"name,omitempty"`
 }
 
 // ChatRequest represents a request to the LLM
@@ -25,10 +24,8 @@ type ChatRequest struct {
 	Stream      bool      `json:"stream,omitempty"`
 
 	// Tool calling support
-	Tools        []Tool     `json:"tools,omitempty"`
-	ToolChoice   string     `json:"tool_choice,omitempty"`
-	Functions    []Function `json:"functions,omitempty"`
-	FunctionCall string     `json:"function_call,omitempty"`
+	Tools      []Tool `json:"tools,omitempty"`
+	ToolChoice string `json:"tool_choice,omitempty"`
 
 	// Model type selection for multi-model configurations
 	ModelType ModelType `json:"model_type,omitempty"`
@@ -130,11 +127,6 @@ type ToolCall struct {
 	Function Function `json:"function"`
 }
 
-// FunctionCall represents a function call (legacy format)
-type FunctionCall struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
-}
 
 // Function represents a function definition or call
 type Function struct {

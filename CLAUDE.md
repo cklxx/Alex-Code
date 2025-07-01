@@ -291,6 +291,12 @@ internal/tools/
 - `benchmarks/`: Performance benchmarking framework
 - `tests/`: Integration and end-to-end testing infrastructure
 
+**Changelog Management** (`changelog/`)
+- Structured changelog system for tracking project evolution
+- Sequential numbering system (001, 002, 003...)
+- Each changelog entry includes modification timestamp
+- Standardized format for consistent documentation
+
 ## Key Technical Patterns
 
 ### Interface-Driven Design
@@ -345,10 +351,7 @@ internal/tools/
 - **Reliable**: Multiple fallback layers for prompt loading failures
 
 #### Prompt Templates Available:
-- `react_thinking.md`: Main ReAct reasoning instructions
-- `fallback_thinking.md`: Simplified fallback instructions  
-- `react_observation.md`: Observation phase guidance
-- `user_context.md`: User context formatting
+- `react_thinking.md`: Main ReAct reasoning instructions with tool execution strategy and task handling guidelines
 
 #### Benefits of Unified System:
 - **Maintainability**: Prompts managed as separate markdown files
