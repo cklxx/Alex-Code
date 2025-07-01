@@ -1,61 +1,13 @@
 package types
 
-import "time"
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
 
-// UnifiedConfig consolidates all configuration into a single structure
-type UnifiedConfig struct {
-	AI     AIConfig     `json:"ai"`
-	Agent  AgentConfig  `json:"agent"`
-	Tools  ToolsConfig  `json:"tools"`
-	Memory MemoryConfig `json:"memory"`
-}
-
-// AIConfig contains AI provider configuration
-type AIConfig struct {
-	Provider    string       `json:"provider"`
-	MaxTokens   int          `json:"maxTokens"`
-	Temperature float64      `json:"temperature"`
-	OpenAI      OpenAIConfig `json:"openai"`
-}
-
-// OpenAIConfig contains OpenAI specific configuration
-type OpenAIConfig struct {
-	APIKey  string `json:"apiKey"`
-	Model   string `json:"model"`
-	BaseURL string `json:"baseUrl"`
-}
-
-// AgentConfig contains agent configuration
-type AgentConfig struct {
-	UseReActAgent       bool          `json:"useReActAgent"`
-	StreamResponse      bool          `json:"streamResponse"`
-	MaxTurns            int           `json:"maxTurns"`
-	ConfidenceThreshold float64       `json:"confidenceThreshold"`
-	TimeoutPerTurn      time.Duration `json:"timeoutPerTurn"`
-	Strategy            string        `json:"strategy"`
-	EnableFallback      bool          `json:"enableFallback"`
-	LogLevel            string        `json:"logLevel"`
-}
-
-// ToolsConfig contains tools configuration
-type ToolsConfig struct {
-	AllowedTools    []string `json:"allowedTools"`
-	MaxConcurrency  int      `json:"maxConcurrency"`
-	Timeout         int      `json:"timeout"`
-	RestrictedPaths []string `json:"restrictedPaths"`
-	SecurityLevel   string   `json:"securityLevel"`
-	LogLevel        string   `json:"logLevel"`
-}
-
-// MemoryConfig contains memory configuration
-type MemoryConfig struct {
-	MaxItems           int    `json:"maxItems"`
-	RetentionDays      int    `json:"retentionDays"`
-	StorageType        string `json:"storageType"`
-	StoragePath        string `json:"storagePath"`
-	CompressionEnabled bool   `json:"compressionEnabled"`
-	BackupEnabled      bool   `json:"backupEnabled"`
-}
 
 // StreamChunk represents a streaming response chunk
 type StreamChunk struct {
@@ -64,79 +16,6 @@ type StreamChunk struct {
 	Done    bool   `json:"done,omitempty"`
 }
 
-// AnalysisResult represents the result of code analysis
-type AnalysisResult struct {
-	FileCount   int            `json:"fileCount"`
-	LinesOfCode int            `json:"linesOfCode"`
-	Complexity  int            `json:"complexity"`
-	Patterns    []Pattern      `json:"patterns"`
-	Suggestions []string       `json:"suggestions"`
-	Files       []FileAnalysis `json:"files,omitempty"`
-}
-
-// FileAnalysis represents analysis of a single file
-type FileAnalysis struct {
-	Path       string   `json:"path"`
-	Size       int64    `json:"size"`
-	Lines      int      `json:"lines"`
-	Functions  int      `json:"functions"`
-	Classes    int      `json:"classes"`
-	Imports    []string `json:"imports"`
-	Complexity int      `json:"complexity"`
-	Language   string   `json:"language"`
-}
-
-// Pattern represents a detected code pattern
-type Pattern struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Occurrences int    `json:"occurrences"`
-}
-
-// RefactorResult represents the result of refactoring
-type RefactorResult struct {
-	Summary string   `json:"summary"`
-	Changes []Change `json:"changes"`
-}
-
-// Change represents a single refactoring change
-type Change struct {
-	Type        string `json:"type"`
-	Description string `json:"description"`
-	LineNumber  *int   `json:"lineNumber,omitempty"`
-	Before      string `json:"before,omitempty"`
-	After       string `json:"after,omitempty"`
-}
-
-// GenerationResult represents the result of code generation
-type GenerationResult struct {
-	Code        string `json:"code"`
-	Language    string `json:"language"`
-	Explanation string `json:"explanation,omitempty"`
-}
-
-// AIRequest represents a request to AI provider
-type AIRequest struct {
-	Prompt      string  `json:"prompt"`
-	Context     string  `json:"context,omitempty"`
-	Temperature float64 `json:"temperature,omitempty"`
-	MaxTokens   int     `json:"maxTokens,omitempty"`
-}
-
-// AIResponse represents a response from AI provider
-type AIResponse struct {
-	Content    string     `json:"content"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
-	Confidence float64    `json:"confidence,omitempty"`
-	Usage      *AIUsage   `json:"usage,omitempty"`
-}
-
-// AIUsage represents token usage information
-type AIUsage struct {
-	PromptTokens     int `json:"promptTokens"`
-	CompletionTokens int `json:"completionTokens"`
-	TotalTokens      int `json:"totalTokens"`
-}
 
 // TodoItem represents a single todo task
 type TodoItem struct {
@@ -205,33 +84,6 @@ type Config struct {
 	LastUpdated    time.Time         `yaml:"lastUpdated" json:"lastUpdated" mapstructure:"lastUpdated"`
 }
 
-// AnalyzeOptions represents options for code analysis
-type AnalyzeOptions struct {
-	Depth      int
-	Format     string
-	UseAI      bool
-	AIType     string
-	Language   string
-	Concurrent bool
-}
-
-// GenerateOptions represents options for code generation
-type GenerateOptions struct {
-	Language string
-	Output   string
-	UseAI    bool
-	Style    string
-	Template string
-}
-
-// RefactorOptions represents options for code refactoring
-type RefactorOptions struct {
-	Pattern        string
-	Backup         bool
-	UseAI          bool
-	DryRun         bool
-	PreserveFormat bool
-}
 
 // SupportedLanguages contains the list of supported programming languages
 var SupportedLanguages = map[string]string{
@@ -252,17 +104,6 @@ var SupportedLanguages = map[string]string{
 	".swift": "swift",
 }
 
-// ChangeTypes contains valid refactoring change types
-var ChangeTypes = []string{
-	"rename", "extract", "inline", "format",
-	"optimize", "modernize", "security",
-}
-
-// AIAnalysisTypes contains valid AI analysis types
-var AIAnalysisTypes = []string{
-	"general", "performance", "security",
-	"structure", "suggestions", "quality",
-}
 
 // FunctionCall represents a standard OpenAI-style function call
 type FunctionCall struct {
@@ -306,4 +147,305 @@ type FunctionDefinition struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description"`
 	Parameters  map[string]interface{} `json:"parameters"`
+}
+
+// DirectoryContextInfo - 目录上下文信息
+type DirectoryContextInfo struct {
+	Path          string    `json:"path"`           // 完整路径
+	FileCount     int       `json:"file_count"`     // 文件数量
+	DirCount      int       `json:"dir_count"`      // 目录数量
+	TotalSize     int64     `json:"total_size"`     // 总大小
+	LastModified  time.Time `json:"last_modified"`  // 最后修改时间
+	TopFiles      []FileInfo `json:"top_files"`     // 主要文件列表
+	ProjectType   string    `json:"project_type"`   // 项目类型（Go、Python等）
+	Description   string    `json:"description"`    // 目录简要描述
+}
+
+// FileInfo - 文件信息
+type FileInfo struct {
+	Name      string    `json:"name"`       // 文件名
+	Path      string    `json:"path"`       // 相对路径
+	Size      int64     `json:"size"`       // 文件大小
+	Modified  time.Time `json:"modified"`   // 修改时间
+	Type      string    `json:"type"`       // 文件类型
+	IsDir     bool      `json:"is_dir"`     // 是否为目录
+}
+
+// ReactTaskContext - ReAct任务上下文
+type ReactTaskContext struct {
+	TaskID       string                  `json:"task_id"`       // 任务ID
+	Goal         string                  `json:"goal"`          // 任务目标
+	History      []ReactExecutionStep    `json:"history"`       // 执行历史
+	Memory       map[string]interface{}  `json:"memory"`        // 任务内存
+	StartTime    time.Time               `json:"start_time"`    // 开始时间
+	LastUpdate   time.Time               `json:"last_update"`   // 最后更新时间
+	TokensUsed   int                     `json:"tokens_used"`   // 已使用token数
+	Metadata     map[string]interface{}  `json:"metadata"`      // 元数据
+	// Directory context information
+	WorkingDir   string                  `json:"working_dir"`   // 对话发起时的工作目录
+	DirectoryInfo *DirectoryContextInfo  `json:"directory_info,omitempty"` // 目录信息
+}
+
+// ReactExecutionStep - ReAct执行步骤
+type ReactExecutionStep struct {
+	Number      int              `json:"number"`              // 步骤编号
+	Thought     string           `json:"thought"`             // 思考内容
+	Analysis    string           `json:"analysis"`            // 分析结果
+	Action      string           `json:"action"`              // 执行动作
+	ToolCall    *ReactToolCall   `json:"tool_call,omitempty"` // 工具调用
+	Result      *ReactToolResult `json:"result,omitempty"`    // 执行结果
+	Observation string           `json:"observation"`         // 观察结果
+	Confidence  float64          `json:"confidence"`          // 置信度 0.0-1.0
+	Duration    time.Duration    `json:"duration"`            // 执行时长
+	Timestamp   time.Time        `json:"timestamp"`           // 时间戳
+	Error       string           `json:"error,omitempty"`     // 错误信息
+	TokensUsed  int              `json:"tokens_used"`         // 本步骤使用的token数
+}
+
+// ReactTaskResult - ReAct任务执行结果
+type ReactTaskResult struct {
+	Success    bool                   `json:"success"`            // 是否成功
+	Answer     string                 `json:"answer"`             // 答案内容
+	Confidence float64                `json:"confidence"`         // 整体置信度
+	Steps      []ReactExecutionStep   `json:"steps"`              // 执行步骤
+	Duration   time.Duration          `json:"duration"`           // 总耗时
+	TokensUsed int                    `json:"tokens_used"`        // 总token使用量
+	Metadata   map[string]interface{} `json:"metadata,omitempty"` // 额外元数据
+	Error      string                 `json:"error,omitempty"`    // 错误信息
+}
+
+// ReactToolCall - ReAct工具调用
+type ReactToolCall struct {
+	Name      string                 `json:"name"`      // 工具名称
+	Arguments map[string]interface{} `json:"arguments"` // 调用参数
+	CallID    string                 `json:"call_id"`   // 调用ID
+}
+
+// ReactToolResult - ReAct工具执行结果
+type ReactToolResult struct {
+	Success   bool                   `json:"success"`              // 是否成功
+	Content   string                 `json:"content"`              // 结果内容
+	Data      map[string]interface{} `json:"data,omitempty"`       // 结构化数据
+	Error     string                 `json:"error,omitempty"`      // 错误信息
+	Duration  time.Duration          `json:"duration"`             // 执行时长
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`   // 元数据
+	ToolName  string                 `json:"tool_name,omitempty"`  // 工具名称
+	ToolArgs  map[string]interface{} `json:"tool_args,omitempty"`  // 工具参数
+	ToolCalls []*ReactToolCall       `json:"tool_calls,omitempty"` // 多个工具调用（并行执行时）
+}
+
+// ReactConfig - ReAct代理配置
+type ReactConfig struct {
+	MaxIterations       int           `json:"max_iterations"`       // 最大迭代次数，默认5
+	ConfidenceThreshold float64       `json:"confidence_threshold"` // 置信度阈值，默认0.7
+	TaskTimeout         time.Duration `json:"task_timeout"`         // 任务超时时间
+	EnableAsync         bool          `json:"enable_async"`         // 启用异步执行
+	ContextCompression  bool          `json:"context_compression"`  // 启用上下文压缩
+	StreamingMode       bool          `json:"streaming_mode"`       // 流式模式
+	LogLevel            string        `json:"log_level"`            // 日志级别
+	Temperature         float64       `json:"temperature"`          // LLM温度参数
+	MaxTokens           int           `json:"max_tokens"`           // 最大token数
+}
+
+// ReactConfig默认配置常量
+const (
+	ReactDefaultMaxIterations       = 5
+	ReactDefaultConfidenceThreshold = 0.7
+	ReactDefaultTaskTimeout         = 5 * time.Minute
+	ReactDefaultMaxTokens           = 2000
+	ReactDefaultTemperature         = 0.7
+	ReactDefaultLogLevel            = "info"
+	ReactDefaultMaxContextSize      = 10
+	ReactDefaultCompressionRatio    = 0.6
+	ReactDefaultMemorySlots         = 5
+)
+
+// NewReactConfig 创建默认的ReAct配置
+func NewReactConfig() *ReactConfig {
+	return &ReactConfig{
+		MaxIterations:       ReactDefaultMaxIterations,
+		ConfidenceThreshold: ReactDefaultConfidenceThreshold,
+		TaskTimeout:         ReactDefaultTaskTimeout,
+		EnableAsync:         true,
+		ContextCompression:  true,
+		StreamingMode:       true,
+		LogLevel:            ReactDefaultLogLevel,
+		Temperature:         ReactDefaultTemperature,
+		MaxTokens:           ReactDefaultMaxTokens,
+	}
+}
+
+// NewReactTaskContext 创建新的ReAct任务上下文
+func NewReactTaskContext(taskID, goal string) *ReactTaskContext {
+	workingDir, _ := getCurrentWorkingDir()
+	directoryInfo := gatherDirectoryInfo(workingDir)
+	
+	return &ReactTaskContext{
+		TaskID:        taskID,
+		Goal:          goal,
+		History:       make([]ReactExecutionStep, 0),
+		Memory:        make(map[string]interface{}),
+		StartTime:     time.Now(),
+		LastUpdate:    time.Now(),
+		TokensUsed:    0,
+		Metadata:      make(map[string]interface{}),
+		WorkingDir:    workingDir,
+		DirectoryInfo: directoryInfo,
+	}
+}
+
+// getCurrentWorkingDir 获取当前工作目录
+func getCurrentWorkingDir() (string, error) {
+	return os.Getwd()
+}
+
+// gatherDirectoryInfo 收集目录信息
+func gatherDirectoryInfo(dirPath string) *DirectoryContextInfo {
+	if dirPath == "" {
+		return nil
+	}
+
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return &DirectoryContextInfo{
+			Path:        dirPath,
+			Description: "Unable to read directory",
+		}
+	}
+
+	var fileCount, dirCount int
+	var totalSize int64
+	var lastModified time.Time
+	var topFiles []FileInfo
+	projectType := "Unknown"
+
+	// 分析文件
+	for _, entry := range entries {
+		// 跳过隐藏文件
+		if strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		if entry.IsDir() {
+			dirCount++
+		} else {
+			fileCount++
+			totalSize += info.Size()
+			
+			// 检测项目类型
+			ext := strings.ToLower(filepath.Ext(entry.Name()))
+			switch ext {
+			case ".go":
+				if projectType == "Unknown" {
+					projectType = "Go"
+				}
+			case ".py":
+				if projectType == "Unknown" || projectType == "Go" {
+					projectType = "Python"
+				}
+			case ".js", ".ts", ".jsx", ".tsx":
+				if projectType == "Unknown" {
+					projectType = "JavaScript/TypeScript"
+				}
+			case ".java":
+				if projectType == "Unknown" {
+					projectType = "Java"
+				}
+			case ".rs":
+				if projectType == "Unknown" {
+					projectType = "Rust"
+				}
+			}
+		}
+
+		// 更新最后修改时间
+		if info.ModTime().After(lastModified) {
+			lastModified = info.ModTime()
+		}
+
+		// 收集主要文件（限制数量）
+		if len(topFiles) < 10 {
+			fileType := "file"
+			if entry.IsDir() {
+				fileType = "directory"
+			} else {
+				ext := filepath.Ext(entry.Name())
+				if ext != "" {
+					fileType = ext[1:] // 去掉点号
+				}
+			}
+
+			topFiles = append(topFiles, FileInfo{
+				Name:     entry.Name(),
+				Path:     entry.Name(),
+				Size:     info.Size(),
+				Modified: info.ModTime(),
+				Type:     fileType,
+				IsDir:    entry.IsDir(),
+			})
+		}
+	}
+
+	// 生成描述
+	description := generateDirectoryDescription(dirPath, fileCount, dirCount, projectType)
+
+	return &DirectoryContextInfo{
+		Path:         dirPath,
+		FileCount:    fileCount,
+		DirCount:     dirCount,
+		TotalSize:    totalSize,
+		LastModified: lastModified,
+		TopFiles:     topFiles,
+		ProjectType:  projectType,
+		Description:  description,
+	}
+}
+
+// generateDirectoryDescription 生成目录描述
+func generateDirectoryDescription(dirPath string, fileCount, dirCount int, projectType string) string {
+	baseName := filepath.Base(dirPath)
+	if baseName == "." || baseName == "/" {
+		baseName = "current directory"
+	}
+
+	var desc strings.Builder
+	desc.WriteString("Working in ")
+	desc.WriteString(baseName)
+	
+	if projectType != "Unknown" {
+		desc.WriteString(" (")
+		desc.WriteString(projectType)
+		desc.WriteString(" project)")
+	}
+	
+	desc.WriteString(" containing ")
+	if fileCount > 0 {
+		desc.WriteString(formatCount(fileCount, "file"))
+	}
+	if dirCount > 0 {
+		if fileCount > 0 {
+			desc.WriteString(" and ")
+		}
+		desc.WriteString(formatCount(dirCount, "directory", "directories"))
+	}
+
+	return desc.String()
+}
+
+// formatCount 格式化计数文本
+func formatCount(count int, singular string, plural ...string) string {
+	pluralForm := singular + "s"
+	if len(plural) > 0 {
+		pluralForm = plural[0]
+	}
+	
+	if count == 1 {
+		return "1 " + singular
+	}
+	return fmt.Sprintf("%d %s", count, pluralForm)
 }

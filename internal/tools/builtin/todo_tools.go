@@ -27,7 +27,7 @@ func (t *TodoUpdateTool) Name() string {
 }
 
 func (t *TodoUpdateTool) Description() string {
-	return "Manage todo items: create, update status, mark complete, or delete tasks. Enforces single in-progress task rule."
+	return "Advanced todo management: create, batch create, update, complete, delete tasks. Supports intelligent task breakdown and progress tracking with single in-progress task enforcement."
 }
 
 func (t *TodoUpdateTool) Parameters() map[string]interface{} {
@@ -483,7 +483,7 @@ func (t *TodoReadTool) Name() string {
 }
 
 func (t *TodoReadTool) Description() string {
-	return "Read and list current todo items with filtering options"
+	return "Read and list current todo items with advanced filtering, status grouping, and progress statistics. Essential for tracking task progress and planning next steps."
 }
 
 func (t *TodoReadTool) Parameters() map[string]interface{} {

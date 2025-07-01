@@ -103,11 +103,6 @@ func (p *PromptLoader) GetReActThinkingPrompt() (string, error) {
 	return p.RenderPrompt("react_thinking", nil)
 }
 
-// GetFallbackThinkingPrompt returns the fallback thinking prompt
-func (p *PromptLoader) GetFallbackThinkingPrompt() (string, error) {
-	return p.RenderPrompt("fallback_thinking", nil)
-}
-
 // GetReActObservationPrompt returns the observation phase prompt with variables
 func (p *PromptLoader) GetReActObservationPrompt(originalThought, toolResults string) (string, error) {
 	variables := map[string]string{
