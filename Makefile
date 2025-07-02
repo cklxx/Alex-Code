@@ -1,7 +1,7 @@
-# Deep Coding Agent Makefile
+# Alex - Software Engineering Assistant Makefile
 
 # Variables
-BINARY_NAME=deep-coding-agent
+BINARY_NAME=alex
 SOURCE_MAIN=./cmd
 BUILD_DIR=build
 VERSION?=v0

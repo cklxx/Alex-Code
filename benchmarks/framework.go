@@ -81,7 +81,7 @@ func loadConfig(path string) (BenchmarkConfig, error) {
 
 	// Default configuration
 	config = BenchmarkConfig{
-		AgentPath:     "../deep-coding-agent",
+		AgentPath:     "../alex",
 		MaxProblems:   3,
 		OutputDir:     "results",
 		Timeout:       60,

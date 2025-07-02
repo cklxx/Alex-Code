@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"deep-coding-agent/internal/config"
-	"deep-coding-agent/pkg/types"
+	"alex/internal/config"
+	"alex/pkg/types"
 )
 
 // TodoUpdateTool handles todo management operations (create, update, complete, delete)

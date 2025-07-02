@@ -98,13 +98,6 @@ func (cm *CacheManager) UpdateCache(sessionID string, newMessages []Message, tok
 		cm.compressMessages(cache)
 	}
 
-	// Use enhanced logging
-	cm.LogCacheOperation("update", sessionID, map[string]interface{}{
-		"timestamp":     time.Now().Format("15:04:05"),
-		"message_count": len(cache.Messages),
-		"tokens":        cache.TokensUsed,
-		"requests":      cache.RequestCount,
-	})
 }
 
 // GetOptimizedMessages returns optimized message list for API call
@@ -145,13 +138,6 @@ func (cm *CacheManager) GetOptimizedMessages(sessionID string, newMessages []Mes
 
 		// Add new messages
 		optimized = append(optimized, newMessages...)
-
-		// Use enhanced logging
-		cm.LogCacheOperation("optimization", sessionID, map[string]interface{}{
-			"timestamp":       time.Now().Format("15:04:05"),
-			"original_count":  len(cache.Messages) + len(newMessages),
-			"optimized_count": len(optimized),
-		})
 
 		return optimized
 	}

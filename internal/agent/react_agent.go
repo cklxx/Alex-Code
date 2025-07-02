@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"deep-coding-agent/internal/config"
-	"deep-coding-agent/internal/llm"
-	"deep-coding-agent/internal/prompts"
-	"deep-coding-agent/internal/session"
-	"deep-coding-agent/internal/tools/builtin"
-	"deep-coding-agent/pkg/types"
+	"alex/internal/config"
+	"alex/internal/llm"
+	"alex/internal/prompts"
+	"alex/internal/session"
+	"alex/internal/tools/builtin"
+	"alex/pkg/types"
 )
 
 // ContextKey 用于在context中存储值，避免类型冲突
@@ -278,8 +278,8 @@ func (r *ReactAgent) parseToolCalls(message *llm.Message) []*types.ReactToolCall
 	return r.toolExecutor.parseToolCalls(message)
 }
 
-func (r *ReactAgent) executeParallelToolsStream(ctx context.Context, toolCalls []*types.ReactToolCall, callback StreamCallback) []*types.ReactToolResult {
-	return r.toolExecutor.executeParallelToolsStream(ctx, toolCalls, callback)
+func (r *ReactAgent) executeSerialToolsStream(ctx context.Context, toolCalls []*types.ReactToolCall, callback StreamCallback) []*types.ReactToolResult {
+	return r.toolExecutor.executeSerialToolsStream(ctx, toolCalls, callback)
 }
 
 // 公共接口方法

@@ -71,13 +71,6 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 	originalMessages := req.Messages
 	if sessionID != "" {
 		req.Messages = c.cacheManager.GetOptimizedMessages(sessionID, req.Messages)
-
-		// Enhanced logging with cache operation tracking
-		c.cacheManager.LogCacheOperation("optimization", sessionID, map[string]interface{}{
-			"timestamp":       time.Now().Format("15:04:05"),
-			"original_count":  len(originalMessages),
-			"optimized_count": len(req.Messages),
-		})
 	}
 
 	// Get model configuration for this request
@@ -164,14 +157,6 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 
 		c.cacheManager.UpdateCache(sessionID, newMessages, tokensUsed)
 
-		// Log cache update operation with safe access
-		cache := c.cacheManager.GetOrCreateCache(sessionID)
-		c.cacheManager.LogCacheOperation("update", sessionID, map[string]interface{}{
-			"timestamp":     time.Now().Format("15:04:05"),
-			"message_count": len(cache.Messages),
-			"tokens":        cache.TokensUsed,
-			"requests":      cache.RequestCount,
-		})
 	}
 
 	return &chatResp, nil

@@ -115,25 +115,25 @@ func TestSQLiteStorage_BatchOperations(t *testing.T) {
 	// 准备测试文档
 	docs := []Document{
 		{
-			ID:      "batch-doc-1",
-			Title:   "批量文档1",
-			Content: "批量测试内容1",
+			ID:       "batch-doc-1",
+			Title:    "批量文档1",
+			Content:  "批量测试内容1",
 			Metadata: map[string]string{"batch": "1"},
-			Created: time.Now(),
+			Created:  time.Now(),
 		},
 		{
-			ID:      "batch-doc-2",
-			Title:   "批量文档2",
-			Content: "批量测试内容2",
+			ID:       "batch-doc-2",
+			Title:    "批量文档2",
+			Content:  "批量测试内容2",
 			Metadata: map[string]string{"batch": "2"},
-			Created: time.Now(),
+			Created:  time.Now(),
 		},
 		{
-			ID:      "batch-doc-3",
-			Title:   "批量文档3",
-			Content: "批量测试内容3",
+			ID:       "batch-doc-3",
+			Title:    "批量文档3",
+			Content:  "批量测试内容3",
 			Metadata: map[string]string{"batch": "3"},
-			Created: time.Now(),
+			Created:  time.Now(),
 		},
 	}
 
@@ -424,7 +424,7 @@ func TestSQLiteStorage_ConcurrentAccess(t *testing.T) {
 	const docsPerGoroutine = 10
 
 	errChan := make(chan error, goroutines)
-	
+
 	for g := 0; g < goroutines; g++ {
 		go func(goroutineID int) {
 			for i := 0; i < docsPerGoroutine; i++ {
@@ -464,4 +464,3 @@ func TestSQLiteStorage_ConcurrentAccess(t *testing.T) {
 
 	t.Logf("Successfully stored %d documents concurrently", count)
 }
-

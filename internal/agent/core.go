@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"deep-coding-agent/internal/llm"
-	"deep-coding-agent/pkg/types"
+	"alex/internal/llm"
+	"alex/pkg/types"
 )
 
 // ReactCore - 使用工具调用流程的ReactCore核心实现
@@ -36,12 +36,12 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	// 决定是否使用流式处理
 	isStreaming := streamCallback != nil
 	if isStreaming {
-		streamCallback(StreamChunk{Type: "status", Content: "🧠 Starting tool-driven ReAct process...", Metadata: map[string]interface{}{"phase": "initialization"}})
+		streamCallback(StreamChunk{Type: "status", Content: "🧠 Starting tool-driven ReAct process...", Metadata: map[string]any{"phase": "initialization"}})
 	}
 
 	// 使用简化的系统消息，避免token过多导致API错误
 	messages := []llm.Message{
-		{Role: "system", Content: rc.buildToolDrivenTaskPrompt(task)},
+		{Role: "system", Content: rc.buildToolDrivenTaskPrompt()},
 		{Role: "system", Content: rc.agent.contextMgr.CompressContext(taskCtx)},
 		{Role: "user", Content: task + "\n\n think about the task and break it down into a list of todos and then call the todo_update tool to create the todos"},
 	}
@@ -59,7 +59,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			streamCallback(StreamChunk{
 				Type:     "iteration",
 				Content:  fmt.Sprintf("🔄 Iteration %d: Processing with tool-driven approach...", iteration),
-				Metadata: map[string]interface{}{"iteration": iteration, "phase": "tool_driven_processing"}})
+				Metadata: map[string]any{"iteration": iteration, "phase": "tool_driven_processing"}})
 		}
 
 		// 构建可用工具列表 - 每轮都包含工具定义以确保模型能调用工具
@@ -137,11 +137,11 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 				streamCallback(StreamChunk{
 					Type:     "tool_start",
 					Content:  fmt.Sprintf("⚡ Executing %d tool(s): %s", len(toolCalls), rc.formatToolNames(toolCalls)),
-					Metadata: map[string]interface{}{"iteration": iteration, "tools": rc.formatToolNames(toolCalls)}})
+					Metadata: map[string]any{"iteration": iteration, "tools": rc.formatToolNames(toolCalls)}})
 			}
 
 			// 执行工具调用
-			toolResult := rc.agent.executeParallelToolsStream(ctx, toolCalls, streamCallback)
+			toolResult := rc.agent.executeSerialToolsStream(ctx, toolCalls, streamCallback)
 
 			step.Result = toolResult
 
@@ -150,7 +150,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 				toolMessages := rc.buildToolMessages(toolResult)
 				messages = append(messages, toolMessages...)
 
-				step.Observation = rc.generateObservation(toolResult, iteration)
+				step.Observation = rc.generateObservation(toolResult)
 			}
 		} else {
 			finalAnswer := choice.Message.Content
@@ -159,7 +159,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 				streamCallback(StreamChunk{
 					Type:     "final_answer",
 					Content:  finalAnswer,
-					Metadata: map[string]interface{}{"iteration": iteration}})
+					Metadata: map[string]any{"iteration": iteration}})
 				streamCallback(StreamChunk{Type: "complete", Content: "✅ Task completed"})
 			}
 
@@ -182,7 +182,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		streamCallback(StreamChunk{
 			Type:     "max_iterations",
 			Content:  fmt.Sprintf("⚠️ Reached maximum iterations (%d)", maxIterations),
-			Metadata: map[string]interface{}{"max_iterations": maxIterations}})
+			Metadata: map[string]any{"max_iterations": maxIterations}})
 		streamCallback(StreamChunk{Type: "complete", Content: "⚠️ Maximum iterations reached"})
 	}
 
@@ -190,7 +190,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 }
 
 // buildToolDrivenTaskPrompt - 构建工具驱动的任务提示
-func (rc *ReactCore) buildToolDrivenTaskPrompt(task string) string {
+func (rc *ReactCore) buildToolDrivenTaskPrompt() string {
 	// 使用项目内的prompt builder
 	if rc.agent.promptBuilder != nil && rc.agent.promptBuilder.promptLoader != nil {
 		// 尝试使用React thinking prompt作为基础模板
@@ -204,11 +204,11 @@ func (rc *ReactCore) buildToolDrivenTaskPrompt(task string) string {
 
 	// Fallback to hardcoded prompt if prompt builder is not available
 	log.Printf("[WARN] ReactCore: Prompt builder not available, using hardcoded prompt")
-	return rc.buildHardcodedTaskPrompt(task)
+	return rc.buildHardcodedTaskPrompt()
 }
 
 // buildHardcodedTaskPrompt - 构建硬编码的任务提示（fallback）
-func (rc *ReactCore) buildHardcodedTaskPrompt(task string) string {
+func (rc *ReactCore) buildHardcodedTaskPrompt() string {
 
 	return fmt.Sprintf(`You are an intelligent agent with access to powerful tools. Your goal is to complete this task efficiently:
 
@@ -269,11 +269,19 @@ func (rc *ReactCore) buildToolMessages(actionResult []*types.ReactToolResult) []
 		if !result.Success {
 			content = result.Error
 		}
+
+		// Ensure CallID is not empty - generate one if missing
+		callID := result.CallID
+		if callID == "" {
+			callID = fmt.Sprintf("tool_%d", time.Now().UnixNano())
+			log.Printf("[WARN] buildToolMessages: Missing CallID for tool %s, generated: %s", result.ToolName, callID)
+		}
+
 		toolMessages = append(toolMessages, llm.Message{
 			Role:       "tool",
 			Content:    content,
 			Name:       result.ToolName,
-			ToolCallId: result.CallID,
+			ToolCallId: callID,
 		})
 	}
 
@@ -281,7 +289,7 @@ func (rc *ReactCore) buildToolMessages(actionResult []*types.ReactToolResult) []
 }
 
 // generateObservation - 生成观察结果
-func (rc *ReactCore) generateObservation(toolResult []*types.ReactToolResult, iteration int) string {
+func (rc *ReactCore) generateObservation(toolResult []*types.ReactToolResult) string {
 	if toolResult == nil {
 		return "No tool execution result to observe"
 	}
@@ -484,7 +492,7 @@ func (rc *ReactCore) collectStreamingResponse(ctx context.Context, streamChan <-
 						rc.streamCallback(StreamChunk{
 							Type:     "llm_content",
 							Content:  choice.Delta.Content,
-							Metadata: map[string]interface{}{"streaming": true},
+							Metadata: map[string]any{"streaming": true},
 						})
 					}
 				}

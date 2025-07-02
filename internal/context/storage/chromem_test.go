@@ -108,25 +108,25 @@ func TestChromemStorage_BatchOperations(t *testing.T) {
 	// 准备测试文档
 	docs := []Document{
 		{
-			ID:      "ai-doc-1",
-			Title:   "机器学习基础",
-			Content: "机器学习是人工智能的子领域。监督学习无监督学习强化学习算法模型训练",
+			ID:       "ai-doc-1",
+			Title:    "机器学习基础",
+			Content:  "机器学习是人工智能的子领域。监督学习无监督学习强化学习算法模型训练",
 			Metadata: map[string]string{"category": "ML"},
-			Created: time.Now(),
+			Created:  time.Now(),
 		},
 		{
-			ID:      "ai-doc-2",
-			Title:   "深度学习入门",
-			Content: "深度学习基于神经网络。卷积神经网络循环神经网络Transformer架构",
+			ID:       "ai-doc-2",
+			Title:    "深度学习入门",
+			Content:  "深度学习基于神经网络。卷积神经网络循环神经网络Transformer架构",
 			Metadata: map[string]string{"category": "DL"},
-			Created: time.Now(),
+			Created:  time.Now(),
 		},
 		{
-			ID:      "ai-doc-3",
-			Title:   "自然语言处理",
-			Content: "自然语言处理研究计算机与人类语言交互。词嵌入语言模型文本分析情感分析",
+			ID:       "ai-doc-3",
+			Title:    "自然语言处理",
+			Content:  "自然语言处理研究计算机与人类语言交互。词嵌入语言模型文本分析情感分析",
 			Metadata: map[string]string{"category": "NLP"},
-			Created: time.Now(),
+			Created:  time.Now(),
 		},
 	}
 
@@ -190,39 +190,39 @@ func TestChromemStorage_SemanticSearch(t *testing.T) {
 	// 添加多种类型的技术文档
 	docs := []Document{
 		{
-			ID:      "ai-ml",
-			Title:   "机器学习与人工智能",
-			Content: "机器学习是人工智能的核心技术。深度学习神经网络算法模型训练数据分析",
+			ID:       "ai-ml",
+			Title:    "机器学习与人工智能",
+			Content:  "机器学习是人工智能的核心技术。深度学习神经网络算法模型训练数据分析",
 			Metadata: map[string]string{"domain": "AI"},
-			Created: time.Now(),
+			Created:  time.Now(),
 		},
 		{
-			ID:      "web-dev",
-			Title:   "Web开发技术栈",
-			Content: "前端开发后端开发JavaScript React Vue.js Node.js API设计数据库",
+			ID:       "web-dev",
+			Title:    "Web开发技术栈",
+			Content:  "前端开发后端开发JavaScript React Vue.js Node.js API设计数据库",
 			Metadata: map[string]string{"domain": "Web"},
-			Created: time.Now(),
+			Created:  time.Now(),
 		},
 		{
-			ID:      "data-science",
-			Title:   "数据科学实践",
-			Content: "数据科学结合统计学机器学习编程。数据清洗特征工程模型评估可视化",
+			ID:       "data-science",
+			Title:    "数据科学实践",
+			Content:  "数据科学结合统计学机器学习编程。数据清洗特征工程模型评估可视化",
 			Metadata: map[string]string{"domain": "DataScience"},
-			Created: time.Now(),
+			Created:  time.Now(),
 		},
 		{
-			ID:      "cloud-computing",
-			Title:   "云计算架构",
-			Content: "云计算提供弹性计算资源。AWS Azure GCP微服务容器Kubernetes DevOps",
+			ID:       "cloud-computing",
+			Title:    "云计算架构",
+			Content:  "云计算提供弹性计算资源。AWS Azure GCP微服务容器Kubernetes DevOps",
 			Metadata: map[string]string{"domain": "Cloud"},
-			Created: time.Now(),
+			Created:  time.Now(),
 		},
 		{
-			ID:      "mobile-dev",
-			Title:   "移动应用开发",
-			Content: "移动开发包括原生开发跨平台开发。iOS Android React Native Flutter应用发布",
+			ID:       "mobile-dev",
+			Title:    "移动应用开发",
+			Content:  "移动开发包括原生开发跨平台开发。iOS Android React Native Flutter应用发布",
 			Metadata: map[string]string{"domain": "Mobile"},
-			Created: time.Now(),
+			Created:  time.Now(),
 		},
 	}
 
@@ -262,7 +262,7 @@ func TestChromemStorage_SemanticSearch(t *testing.T) {
 
 			t.Logf("Query: '%s'", test.query)
 			for i, result := range results {
-				t.Logf("  %d. %s (similarity: %.3f)", 
+				t.Logf("  %d. %s (similarity: %.3f)",
 					i+1, result.Document.Title, result.Similarity)
 			}
 
@@ -276,7 +276,7 @@ func TestChromemStorage_SemanticSearch(t *testing.T) {
 			// 验证结果是按相似度排序的
 			for i := 1; i < len(results); i++ {
 				if results[i-1].Similarity < results[i].Similarity {
-					t.Errorf("Results not sorted by similarity: %.3f < %.3f", 
+					t.Errorf("Results not sorted by similarity: %.3f < %.3f",
 						results[i-1].Similarity, results[i].Similarity)
 				}
 			}

@@ -21,7 +21,7 @@ go.work
 build/
 
 # Deep Coding Agent binary
-deep-coding-agent
+alex
 
 # Configuration files (may contain sensitive information)
 .deep-coding-config.json

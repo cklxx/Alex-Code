@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"deep-coding-agent/internal/tools"
+	"alex/internal/tools"
 )
 
 // BashTool implements shell command execution functionality

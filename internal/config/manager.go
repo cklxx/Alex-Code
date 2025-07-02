@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"deep-coding-agent/internal/llm"
-	"deep-coding-agent/pkg/types"
+	"alex/internal/llm"
+	"alex/pkg/types"
 )
 
 // Config holds application configuration with multi-model support

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Deep Coding Agent v1.0** is a high-performance conversational AI coding assistant featuring dual-architecture design with both legacy and modern ReAct (Reasoning and Acting) agent systems. Built in Go for maximum performance, it provides a natural language interface for code analysis, file operations, and development tasks through an intelligent agent architecture with advanced tool calling capabilities, comprehensive security, and streaming responses.
+**Alex - 高性能普惠的软件工程助手 v1.0** is a high-performance, universally accessible AI software engineering assistant featuring advanced dual-architecture design with both legacy and modern ReAct (Reasoning and Acting) agent systems. Built in Go for maximum performance and designed for developers at all skill levels, Alex provides an intuitive natural language interface for code analysis, file operations, and development tasks through an intelligent agent architecture with advanced tool calling capabilities, comprehensive security, and streaming responses.
 
 ## Essential Development Commands
 
@@ -12,8 +12,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Building and Testing
 ```bash
-# Build the agent
-make build                    # Builds ./deep-coding-agent binary
+# Build Alex
+make build                    # Builds ./alex binary
 
 # Development workflow
 make dev                      # Format, vet, build, and test functionality
@@ -27,29 +27,29 @@ make vet                      # Run go vet
 ./scripts/run.sh dev          # Hot reload development with Air
 ```
 
-### Agent Usage
+### Alex Usage
 ```bash
 # Interactive conversational mode (ReAct agent by default)
-./deep-coding-agent -i
+./alex -i
 
 # Single prompt mode
-./deep-coding-agent "Analyze the current directory structure"
+./alex "Analyze the current directory structure"
 
 # With streaming responses (default)
-./deep-coding-agent -stream "List all Go files"
+./alex -stream "List all Go files"
 
 # Configure model parameters
-./deep-coding-agent -tokens 4000 -temp 0.8 "Complex analysis task"
+./alex -tokens 4000 -temp 0.8 "Complex analysis task"
 
 # Session management
-./deep-coding-agent -r session_id -i       # Resume specific session
-./deep-coding-agent -ls                    # List all sessions
+./alex -r session_id -i       # Resume specific session
+./alex -ls                    # List all sessions
 
 # Configuration management
-./deep-coding-agent config show            # Show current configuration
-./deep-coding-agent config set api_key sk-... # Set API key
-./deep-coding-agent config list            # List configuration keys
-./deep-coding-agent config validate        # Validate configuration
+./alex config show            # Show current configuration
+./alex config set api_key sk-... # Set API key
+./alex config list            # List configuration keys
+./alex config validate        # Validate configuration
 ```
 
 ### Testing Individual Components
@@ -136,7 +136,7 @@ User Input → Think Phase → Act Phase → Observe Phase → [Loop until compl
 
 **Key Features:**
 - **Multi-Model Support**: Different configurations for BasicModel and ReasoningModel
-- **File-based Storage**: Configuration stored in `~/.deep-coding-config.json`
+- **File-based Storage**: Configuration stored in `~/.alex-config.json`
 - **Backward Compatibility**: Legacy single-model configuration support
 - **Environment Integration**: Environment variable overrides
 - **Validation System**: Configuration validation with sensible defaults
@@ -216,7 +216,7 @@ internal/tools/
 **Unified Configuration System:**
 - **Legacy Manager**: Traditional key-value configuration
 - **Unified Manager**: ReAct, tools, memory, and context configuration
-- **JSON-based Storage**: `~/.deep-coding-config.json`
+- **JSON-based Storage**: `~/.alex-config.json`
 - **Environment Integration**: Override support for API keys and tool restrictions
 - **Default Fallbacks**: Sensible defaults for all configuration options
 
@@ -230,7 +230,7 @@ internal/tools/
 ### Session Management (`internal/session/`)
 
 **Persistent Session System:**
-- **File-based Storage**: `~/.deep-coding-sessions/`
+- **File-based Storage**: `~/.alex-sessions/`
 - **JSON Serialization**: Full conversation history preservation
 - **Memory Management**: Automatic cleanup and message trimming
 - **Context Preservation**: Working directory and session metadata
@@ -454,7 +454,7 @@ go test ./...                      # All tests
 
 Performance is critical - all operations target sub-30ms execution times. The codebase was migrated from TypeScript to achieve 40-100x performance improvements through Go's compiled nature and concurrent processing capabilities.
 
-Configuration is managed through `~/.deep-coding-config.json` with the config manager handling persistence automatically. AI provider switching is seamless through the interface abstraction.
+Configuration is managed through `~/.alex-config.json` with the config manager handling persistence automatically. AI provider switching is seamless through the interface abstraction.
 
 ## Code Principles
 

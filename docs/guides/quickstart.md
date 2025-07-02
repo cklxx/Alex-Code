@@ -1,8 +1,8 @@
-# Deep Coding Agent - Quick Start Guide
+# Alex - Quick Start Guide
 
 ## Overview
 
-Deep Coding Agent is a high-performance AI coding assistant that uses a unified ReAct (Reasoning and Acting) architecture with powerful tool calling capabilities. This guide will get you up and running quickly.
+Alex (高性能普惠的软件工程助手) is a high-performance, universally accessible AI software engineering assistant that uses advanced ReAct (Reasoning and Acting) architecture with powerful tool calling capabilities. This guide will get you up and running quickly.
 
 ## Installation
 
@@ -16,14 +16,14 @@ Deep Coding Agent is a high-performance AI coding assistant that uses a unified 
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/deep-coding-agent.git
-cd deep-coding-agent
+git clone https://github.com/your-org/alex.git
+cd alex
 
 # Build the agent
 make build
 
 # Or build manually
-go build -o deep-coding-agent ./cmd/main.go
+go build -o alex ./cmd/main.go
 ```
 
 ### Using Install Script
@@ -45,10 +45,10 @@ go build -o deep-coding-agent ./cmd/main.go
 
 ```bash
 # Initialize with default configuration
-./deep-coding-agent --init
+./alex --init
 
 # Or manually configure
-./deep-coding-agent config --init
+./alex config --init
 ```
 
 ### AI Provider Configuration
@@ -57,32 +57,32 @@ Configure your AI provider (OpenAI or compatible):
 
 ```bash
 # Set OpenAI API key
-./deep-coding-agent config --set openaiApiKey=your-api-key-here
+./alex config --set openaiApiKey=your-api-key-here
 
 # Or set ARK API key (ByteDance alternative)
-./deep-coding-agent config --set arkApiKey=your-ark-key-here
+./alex config --set arkApiKey=your-ark-key-here
 
 # Set custom API endpoint (optional)
-./deep-coding-agent config --set apiBaseURL=https://your-custom-endpoint.com
+./alex config --set apiBaseURL=https://your-custom-endpoint.com
 
 # Set model (optional)
-./deep-coding-agent config --set apiModel=gpt-4-turbo
+./alex config --set apiModel=gpt-4-turbo
 ```
 
 ### Basic Configuration Options
 
 ```bash
 # Enable ReAct mode (recommended)
-./deep-coding-agent config --set reactMode=true
+./alex config --set reactMode=true
 
 # Set max iterations for complex tasks
-./deep-coding-agent config --set reactMaxIterations=10
+./alex config --set reactMaxIterations=10
 
 # Enable thinking process display
-./deep-coding-agent config --set reactThinkingEnabled=true
+./alex config --set reactThinkingEnabled=true
 
 # Configure allowed tools
-./deep-coding-agent config --set allowedTools=file_read,file_write,file_list,bash
+./alex config --set allowedTools=file_read,file_write,file_list,bash
 ```
 
 ## Basic Usage
@@ -93,7 +93,7 @@ Start an interactive session for conversational coding assistance:
 
 ```bash
 # Start interactive mode
-./deep-coding-agent -i
+./alex -i
 
 # In interactive mode, you can:
 # - Ask questions about your code
@@ -108,13 +108,13 @@ Execute one-off commands:
 
 ```bash
 # Analyze current directory
-./deep-coding-agent "Analyze the project structure and provide insights"
+./alex "Analyze the project structure and provide insights"
 
 # Read and explain a specific file
-./deep-coding-agent "Read main.go and explain what it does"
+./alex "Read main.go and explain what it does"
 
 # Get help with a specific task
-./deep-coding-agent "How can I optimize this Go code for better performance?"
+./alex "How can I optimize this Go code for better performance?"
 ```
 
 ### JSON Output
@@ -123,10 +123,10 @@ Get structured responses for integration with other tools:
 
 ```bash
 # JSON format output
-./deep-coding-agent --format json "List all Go files in this project"
+./alex --format json "List all Go files in this project"
 
 # Pipe to jq for processing
-./deep-coding-agent --format json "Analyze code quality" | jq '.data.metrics'
+./alex --format json "Analyze code quality" | jq '.data.metrics'
 ```
 
 ## Common Use Cases
@@ -135,7 +135,7 @@ Get structured responses for integration with other tools:
 
 ```bash
 # Analyze entire project structure
-./deep-coding-agent -i
+./alex -i
 > "Analyze this project's architecture and suggest improvements"
 
 # Check for code smells
@@ -205,7 +205,7 @@ ReAct (Reasoning and Acting) mode enables the agent to think through problems st
 
 ```bash
 # Enable ReAct mode with thinking display
-./deep-coding-agent config --set reactMode=true --set reactThinkingEnabled=true
+./alex config --set reactMode=true --set reactThinkingEnabled=true
 
 # The agent will show its thinking process:
 # 🤔 Thinking: The user wants to analyze the project structure...
@@ -220,30 +220,30 @@ Control which tools the agent can use for security:
 
 ```bash
 # Restrict to read-only operations
-ALLOWED_TOOLS="file_read,file_list" ./deep-coding-agent "Analyze the codebase"
+ALLOWED_TOOLS="file_read,file_list" ./alex "Analyze the codebase"
 
 # Allow file operations but not command execution
-ALLOWED_TOOLS="file_read,file_write,file_list" ./deep-coding-agent "Help me refactor this code"
+ALLOWED_TOOLS="file_read,file_write,file_list" ./alex "Help me refactor this code"
 ```
 
 ### Session Management
 
 ```bash
 # Start named session
-./deep-coding-agent --session-id myproject "Start working on the authentication feature"
+./alex --session-id myproject "Start working on the authentication feature"
 
 # Resume previous session
-./deep-coding-agent --session-id myproject "Continue with the authentication work"
+./alex --session-id myproject "Continue with the authentication work"
 
 # List active sessions
-./deep-coding-agent --list-sessions
+./alex --list-sessions
 ```
 
 ## Configuration Files
 
 ### Main Configuration
 
-Location: `~/.deep-coding-config.json`
+Location: `~/.alex-config.json`
 
 ```json
 {
@@ -298,13 +298,13 @@ make fmt
 1. **API Key Not Configured**
    ```bash
    Error: OpenAI API key not configured
-   Solution: ./deep-coding-agent config --set openaiApiKey=your-key
+   Solution: ./alex config --set openaiApiKey=your-key
    ```
 
 2. **Tool Execution Denied**
    ```bash
    Error: Tool 'bash' is restricted by security policy
-   Solution: ./deep-coding-agent config --set allowedTools=file_read,file_list,bash
+   Solution: ./alex config --set allowedTools=file_read,file_list,bash
    ```
 
 3. **File Permission Errors**
@@ -317,23 +317,23 @@ make fmt
 
 ```bash
 # Enable debug logging
-./deep-coding-agent --debug "Analyze this file"
+./alex --debug "Analyze this file"
 
 # Verbose output
-./deep-coding-agent --verbose "Run comprehensive analysis"
+./alex --verbose "Run comprehensive analysis"
 ```
 
 ### Check Configuration
 
 ```bash
 # View current configuration
-./deep-coding-agent config --show
+./alex config --show
 
 # Validate configuration
-./deep-coding-agent config --validate
+./alex config --validate
 
 # Reset to defaults
-./deep-coding-agent config --reset
+./alex config --reset
 ```
 
 ## Integration Examples
@@ -344,11 +344,11 @@ make fmt
 # GitHub Actions example
 - name: Code Analysis
   run: |
-    ./deep-coding-agent --format json "Analyze code quality and security" > analysis.json
+    ./alex --format json "Analyze code quality and security" > analysis.json
     
 - name: Generate Documentation
   run: |
-    ./deep-coding-agent "Generate API documentation" > docs/api.md
+    ./alex "Generate API documentation" > docs/api.md
 ```
 
 ### IDE Integration
@@ -358,7 +358,7 @@ make fmt
 {
   "label": "Deep Coding Analysis",
   "type": "shell",
-  "command": "./deep-coding-agent",
+  "command": "./alex",
   "args": ["Analyze current file and suggest improvements"],
   "group": "build"
 }
@@ -369,7 +369,7 @@ make fmt
 ```bash
 # Pre-commit hook
 #!/bin/sh
-./deep-coding-agent "Review staged changes for potential issues"
+./alex "Review staged changes for potential issues"
 ```
 
 ## Performance Tips
@@ -391,16 +391,16 @@ make fmt
 
 ```bash
 # Built-in help
-./deep-coding-agent --help
+./alex --help
 
 # Tool-specific help
-./deep-coding-agent tools --help
+./alex tools --help
 
 # Configuration help
-./deep-coding-agent config --help
+./alex config --help
 
 # Interactive help
-./deep-coding-agent -i
+./alex -i
 > "How do I configure the agent for my specific use case?"
 ```
 

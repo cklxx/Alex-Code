@@ -57,7 +57,7 @@ func (s *SQLiteStorage) initialize() error {
 			created_at DATETIME NOT NULL,
 			updated_at DATETIME NOT NULL
 		)`,
-		
+
 		// 向量表
 		`CREATE TABLE IF NOT EXISTS vectors (
 			id TEXT PRIMARY KEY,
@@ -66,7 +66,7 @@ func (s *SQLiteStorage) initialize() error {
 			created_at DATETIME NOT NULL,
 			FOREIGN KEY (id) REFERENCES documents(id) ON DELETE CASCADE
 		)`,
-		
+
 		// 索引表
 		`CREATE TABLE IF NOT EXISTS term_index (
 			term TEXT NOT NULL,
@@ -76,7 +76,7 @@ func (s *SQLiteStorage) initialize() error {
 			PRIMARY KEY (term, document_id),
 			FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
 		)`,
-		
+
 		// 索引优化
 		`CREATE INDEX IF NOT EXISTS idx_documents_created ON documents(created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_term_index_term ON term_index(term)`,
@@ -110,10 +110,10 @@ func (s *SQLiteStorage) Store(ctx context.Context, doc Document) error {
 		(id, title, content, metadata, created_at, updated_at) 
 		VALUES (?, ?, ?, ?, ?, ?)`
 
-	_, err = s.db.ExecContext(ctx, query, 
-		doc.ID, doc.Title, doc.Content, string(metadataJSON), 
+	_, err = s.db.ExecContext(ctx, query,
+		doc.ID, doc.Title, doc.Content, string(metadataJSON),
 		doc.Created, doc.Updated)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to store document: %w", err)
 	}
@@ -131,7 +131,7 @@ func (s *SQLiteStorage) Get(ctx context.Context, id string) (*Document, error) {
 
 	var doc Document
 	var metadataJSON string
-	err := row.Scan(&doc.ID, &doc.Title, &doc.Content, &metadataJSON, 
+	err := row.Scan(&doc.ID, &doc.Title, &doc.Content, &metadataJSON,
 		&doc.Created, &doc.Updated)
 
 	if err != nil {
@@ -216,7 +216,7 @@ func (s *SQLiteStorage) BatchStore(ctx context.Context, docs []Document) error {
 		}
 		doc.Updated = time.Now()
 
-		_, err = stmt.ExecContext(ctx, doc.ID, doc.Title, doc.Content, 
+		_, err = stmt.ExecContext(ctx, doc.ID, doc.Title, doc.Content,
 			string(metadataJSON), doc.Created, doc.Updated)
 		if err != nil {
 			return fmt.Errorf("failed to store document %s: %w", doc.ID, err)
@@ -435,7 +435,7 @@ func (s *SQLiteStorage) SearchSimilar(ctx context.Context, queryVector []float64
 		var vectorJSON []byte
 		var metadataJSON string
 
-		err := rows.Scan(&doc.ID, &vectorJSON, &doc.Title, &doc.Content, 
+		err := rows.Scan(&doc.ID, &vectorJSON, &doc.Title, &doc.Content,
 			&metadataJSON, &doc.Created, &doc.Updated)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan vector result: %w", err)
@@ -565,7 +565,7 @@ func (s *SQLiteStorage) Flush() error {
 // GetMetrics 获取存储指标
 func (s *SQLiteStorage) GetMetrics() StorageMetrics {
 	s.metrics.Uptime = time.Since(s.startTime)
-	
+
 	// 更新文档数量
 	if count, err := s.Count(context.Background()); err == nil {
 		s.metrics.DocumentCount = count
