@@ -56,7 +56,7 @@ func (t *FileReadTool) Validate(args map[string]interface{}) error {
 	if _, ok := args["path"]; ok {
 		hasFilePath = true
 	}
-	
+
 	if !hasFilePath {
 		return fmt.Errorf("missing required parameter: file_path or path")
 	}
@@ -80,7 +80,7 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 	} else {
 		return nil, fmt.Errorf("missing required parameter: file_path or path")
 	}
-	
+
 	// 解析路径（处理相对路径）
 	resolver := GetPathResolverFromContext(ctx)
 	resolvedPath := resolver.ResolvePath(filePath)
@@ -243,7 +243,7 @@ func (t *FileUpdateTool) Validate(args map[string]interface{}) error {
 func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	filePath := args["file_path"].(string)
 	content := args["content"].(string)
-	
+
 	// 解析路径（处理相对路径）
 	resolver := GetPathResolverFromContext(ctx)
 	resolvedPath := resolver.ResolvePath(filePath)
@@ -469,7 +469,7 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 	filePath := args["file_path"].(string)
 	search := args["search"].(string)
 	replace := args["replace"].(string)
-	
+
 	// 解析路径（处理相对路径）
 	resolver := GetPathResolverFromContext(ctx)
 	resolvedPath := resolver.ResolvePath(filePath)
@@ -711,7 +711,7 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 	if pathArg, ok := args["path"]; ok {
 		path = pathArg.(string)
 	}
-	
+
 	// 解析路径（处理相对路径）
 	resolver := GetPathResolverFromContext(ctx)
 	resolvedPath := resolver.ResolvePath(path)
@@ -1029,11 +1029,11 @@ func (t *DirectoryCreateTool) Validate(args map[string]interface{}) error {
 
 func (t *DirectoryCreateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	path := args["path"].(string)
-	
+
 	// 解析路径（处理相对路径）
 	resolver := GetPathResolverFromContext(ctx)
 	resolvedPath := resolver.ResolvePath(path)
-	
+
 	permissions := os.FileMode(0755) // Default permissions
 
 	if permStr, ok := args["permissions"].(string); ok {
@@ -1196,7 +1196,7 @@ func (t *FileWriteTool) Validate(args map[string]interface{}) error {
 func (t *FileWriteTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	filePath := args["file_path"].(string)
 	content := args["content"].(string)
-	
+
 	// 解析路径（处理相对路径）
 	resolver := GetPathResolverFromContext(ctx)
 	resolvedPath := resolver.ResolvePath(filePath)

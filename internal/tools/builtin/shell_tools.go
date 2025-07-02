@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"deep-coding-agent/internal/tools"
 )
 
 // BashTool implements shell command execution functionality
@@ -750,4 +752,113 @@ func parsePID(pidStr string) int {
 		return pid
 	}
 	return 0
+}
+
+// CodeExecutorTool implements the CodeActExecutor as a tool
+type CodeExecutorTool struct {
+	executor *tools.CodeActExecutor
+}
+
+func CreateCodeExecutorTool() *CodeExecutorTool {
+	return &CodeExecutorTool{
+		executor: tools.NewCodeActExecutor(),
+	}
+}
+
+func (t *CodeExecutorTool) Name() string {
+	return "code_execute"
+}
+
+func (t *CodeExecutorTool) Description() string {
+	return "Execute code in supported languages (Python, Go, JavaScript, Bash) in a sandboxed environment."
+}
+
+func (t *CodeExecutorTool) Parameters() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"language": map[string]interface{}{
+				"type":        "string",
+				"description": "Programming language to execute",
+				"enum":        []string{"python", "go", "javascript", "js", "bash"},
+			},
+			"code": map[string]interface{}{
+				"type":        "string",
+				"description": "Source code to execute",
+			},
+			"timeout": map[string]interface{}{
+				"type":        "integer",
+				"description": "Timeout in seconds (default: 30)",
+				"default":     30,
+				"minimum":     1,
+				"maximum":     300,
+			},
+		},
+		"required": []string{"language", "code"},
+	}
+}
+
+func (t *CodeExecutorTool) Validate(args map[string]interface{}) error {
+	validator := NewValidationFramework().
+		AddCustomValidator("language", "Programming language to execute", true, func(value interface{}) error {
+			language, ok := value.(string)
+			if !ok {
+				return fmt.Errorf("language must be a string")
+			}
+			supportedLangs := []string{"python", "go", "javascript", "js", "bash"}
+			for _, lang := range supportedLangs {
+				if language == lang {
+					return nil
+				}
+			}
+			return fmt.Errorf("unsupported language: %s", language)
+		}).
+		AddStringField("code", "Source code to execute").
+		AddOptionalIntField("timeout", "Timeout in seconds", 1, 300)
+
+	return validator.Validate(args)
+}
+
+func (t *CodeExecutorTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	language := args["language"].(string)
+	code := args["code"].(string)
+
+	// Set timeout if provided
+	if timeoutArg, ok := args["timeout"]; ok {
+		if timeoutFloat, ok := timeoutArg.(float64); ok {
+			timeout := time.Duration(timeoutFloat) * time.Second
+			t.executor.SetTimeout(timeout)
+		}
+	}
+
+	// Execute the code
+	result, err := t.executor.ExecuteCode(ctx, language, code)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute code: %w", err)
+	}
+
+	// Prepare content
+	var content string
+	if result.Success {
+		if result.Output != "" {
+			content = fmt.Sprintf("Code executed successfully in %v:\n\n%s", result.ExecutionTime, result.Output)
+		} else {
+			content = fmt.Sprintf("Code executed successfully in %v (no output)", result.ExecutionTime)
+		}
+	} else {
+		content = fmt.Sprintf("Code execution failed:\n\n%s", result.Error)
+	}
+
+	return &ToolResult{
+		Content: content,
+		Data: map[string]interface{}{
+			"success":        result.Success,
+			"output":         result.Output,
+			"error":          result.Error,
+			"exit_code":      result.ExitCode,
+			"execution_time": result.ExecutionTime.Milliseconds(),
+			"language":       result.Language,
+			"code":           result.Code,
+		},
+	}, nil
 }

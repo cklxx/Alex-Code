@@ -240,9 +240,6 @@ func (cm *CacheManager) compressMessages(cache *SessionCache) {
 	cache.Messages = make([]Message, 0, keepCount+1)
 	cache.Messages = append(cache.Messages, summaryMessage)
 	cache.Messages = append(cache.Messages, recentMessages...)
-
-	log.Printf("[DEBUG] CacheManager: Compressed messages for cache - Old count: %d, New count: %d",
-		len(oldMessages)+len(recentMessages), len(cache.Messages))
 }
 
 // cleanupIfNeeded removes expired or excess caches
@@ -250,8 +247,6 @@ func (cm *CacheManager) cleanupIfNeeded() {
 	if len(cm.caches) < cm.maxCacheSize {
 		return
 	}
-
-	log.Printf("[DEBUG] CacheManager: Starting cleanup - Current caches: %d", len(cm.caches))
 
 	now := time.Now()
 	var toDelete []string
@@ -304,9 +299,6 @@ func (cm *CacheManager) cleanupIfNeeded() {
 	for _, sessionID := range toDelete {
 		delete(cm.caches, sessionID)
 	}
-
-	log.Printf("[DEBUG] CacheManager: Cleanup completed - Removed: %d, Remaining: %d",
-		len(toDelete), len(cm.caches))
 }
 
 // GetCacheStats returns statistics about cache usage
@@ -365,7 +357,6 @@ func (cm *CacheManager) ClearCache(sessionID string) {
 	defer cm.mutex.Unlock()
 
 	delete(cm.caches, sessionID)
-	log.Printf("[DEBUG] CacheManager: Cleared cache for session: %s", sessionID)
 }
 
 // ClearAllCaches removes all caches

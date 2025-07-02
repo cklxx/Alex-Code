@@ -127,7 +127,6 @@ type ToolCall struct {
 	Function Function `json:"function"`
 }
 
-
 // Function represents a function definition or call
 type Function struct {
 	Name        string      `json:"name"`

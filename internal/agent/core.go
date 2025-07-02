@@ -143,8 +143,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			// 执行工具调用
 			toolResult := rc.agent.executeParallelToolsStream(ctx, toolCalls, streamCallback)
 
-			log.Printf("[DEBUG] ReactCore: Tool execution completed, result success: %v", toolResult != nil && toolResult[0].Success)
-
 			step.Result = toolResult
 
 			// 将工具结果添加到对话历史
@@ -376,9 +374,6 @@ func (rc *ReactCore) callLLMWithRetry(ctx context.Context, client llm.Client, re
 	var lastErr error
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		log.Printf("[DEBUG] ReactCore: LLM streaming call attempt %d/%d", attempt, maxRetries)
-		log.Printf("[DEBUG] ReactCore: Messages count: %d", len(request.Messages))
-
 		// 使用流式调用
 		streamChan, err := client.ChatStream(ctx, request)
 		if err != nil {
@@ -407,7 +402,6 @@ func (rc *ReactCore) callLLMWithRetry(ctx context.Context, client llm.Client, re
 		// 处理流式响应并重构为完整响应
 		response, err := rc.collectStreamingResponse(ctx, streamChan)
 		if err == nil && response != nil {
-			log.Printf("[DEBUG] ReactCore: Successfully collected streaming response")
 			return response, nil
 		}
 
@@ -457,9 +451,6 @@ func (rc *ReactCore) collectStreamingResponse(ctx context.Context, streamChan <-
 						response.Choices[0].Message.ToolCalls = toolCalls
 					}
 				}
-
-				log.Printf("[DEBUG] ReactCore: Collected complete response with %d chars, %d tool calls",
-					contentBuilder.Len(), len(toolCalls))
 				return response, nil
 			}
 

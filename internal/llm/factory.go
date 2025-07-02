@@ -2,7 +2,6 @@ package llm
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"time"
 )
@@ -57,8 +56,6 @@ func GetLLMInstance(modelType ModelType) (Client, error) {
 	if client, exists := globalCache.clients[cacheKey]; exists {
 		return client, nil
 	}
-
-	log.Printf("[DEBUG] LLMInstanceCache: Creating streaming client for %s", modelType)
 	// Create streaming client for better user experience
 	client, err := NewStreamingClient()
 	if err != nil {

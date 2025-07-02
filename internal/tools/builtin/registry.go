@@ -37,6 +37,7 @@ func GetAllBuiltinTools() []Tool {
 		CreateBashTool(),
 		CreateScriptRunnerTool(),
 		CreateProcessMonitorTool(),
+		CreateCodeExecutorTool(),
 	}
 }
 
@@ -81,6 +82,8 @@ func GetToolByName(name string) Tool {
 		return CreateScriptRunnerTool()
 	case "process_monitor":
 		return CreateProcessMonitorTool()
+	case "code_execute":
+		return CreateCodeExecutorTool()
 	default:
 		return nil
 	}
@@ -120,6 +123,7 @@ func GetToolsByCategory() map[string][]Tool {
 			CreateBashTool(),
 			CreateScriptRunnerTool(),
 			CreateProcessMonitorTool(),
+			CreateCodeExecutorTool(),
 		},
 	}
 }

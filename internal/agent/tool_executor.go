@@ -28,12 +28,8 @@ func NewToolExecutor(agent *ReactAgent) *ToolExecutor {
 func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolCall {
 	var toolCalls []*types.ReactToolCall
 
-	log.Printf("[DEBUG] ToolExecutor: Parsing message with %d standard tool calls, content length: %d",
-		len(message.ToolCalls), len(message.Content))
-
 	// 首先尝试解析标准 tool_calls 格式
 	for _, tc := range message.ToolCalls {
-		log.Printf("[DEBUG] ToolExecutor: Processing standard tool call: %s (ID: %s)", tc.Function.Name, tc.ID)
 		var args map[string]interface{}
 		if tc.Function.Arguments != "" {
 			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
@@ -47,7 +43,6 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 			Arguments: args,
 			CallID:    tc.ID,
 		}
-		log.Printf("[DEBUG] ToolExecutor: Created tool call: %s with %d args", toolCall.Name, len(toolCall.Arguments))
 		toolCalls = append(toolCalls, toolCall)
 	}
 
@@ -94,7 +89,6 @@ func (te *ToolExecutor) parseTextToolCalls(content string) []*types.ReactToolCal
 		}
 	}
 
-	log.Printf("[DEBUG] Parsed %d text tool calls from content", len(toolCalls))
 	return toolCalls
 }
 
@@ -145,7 +139,6 @@ func (te *ToolExecutor) parseIndividualTextToolCall(callContent string) *types.R
 		args = make(map[string]interface{})
 	}
 
-	log.Printf("[DEBUG] Parsed text tool call: %s with %d args", toolName, len(args))
 	return &types.ReactToolCall{
 		Name:      toolName,
 		Arguments: args,

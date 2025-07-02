@@ -51,6 +51,21 @@ func main() {
 		return
 	}
 
+	// Check for demo subcommands
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "demo":
+			runBubbleTeaTuiDemo()
+			return
+		case "db-demo":
+			runDatabaseDemo()
+			return
+		case "chromem-demo":
+			runChromemDemo()
+			return
+		}
+	}
+
 	// Parse essential flags only
 	var cliConfig CLIConfig
 	var resumeSession string
@@ -72,6 +87,7 @@ func main() {
 USAGE:
     deep-coding-agent [flags] [prompt]
     deep-coding-agent config <subcommand> [args]
+    deep-coding-agent demo
 
 FLAGS:
     -i               Interactive mode
@@ -89,6 +105,9 @@ CONFIG COMMANDS:
     config validate  Validate configuration
     config reset     Reset to defaults
 
+DEMO COMMAND:
+    demo             Launch TUI demo (Bubble Tea interface)
+
 EXAMPLES:
     deep-coding-agent -i                           # Interactive mode
     deep-coding-agent -i -v                       # Interactive mode with verbose logging
@@ -98,6 +117,7 @@ EXAMPLES:
     deep-coding-agent -r session_123 -i           # Resume session
     deep-coding-agent config show                  # Show config
     deep-coding-agent config set api_key sk-...   # Set API key
+    deep-coding-agent demo                         # Launch TUI demo
 
 `, version)
 	}

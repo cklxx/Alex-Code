@@ -96,7 +96,7 @@ func (m *Manager) Get(key string) (interface{}, error) {
 // getNestedValue handles nested key access like "models.basic.api_key"
 func (m *Manager) getNestedValue(key string) (interface{}, error) {
 	parts := strings.Split(key, ".")
-	
+
 	if len(parts) < 2 {
 		return nil, fmt.Errorf("invalid nested key format: %s", key)
 	}
@@ -106,20 +106,20 @@ func (m *Manager) getNestedValue(key string) (interface{}, error) {
 		if len(parts) < 3 {
 			return nil, fmt.Errorf("models key requires model type and field: %s", key)
 		}
-		
+
 		modelTypeStr := parts[1]
 		field := parts[2]
 		modelType := llm.ModelType(modelTypeStr)
-		
+
 		if m.config.Models == nil {
 			return nil, fmt.Errorf("models configuration not found")
 		}
-		
+
 		modelConfig, exists := m.config.Models[modelType]
 		if !exists {
 			return nil, fmt.Errorf("model type '%s' not found in configuration", modelTypeStr)
 		}
-		
+
 		switch field {
 		case "api_key":
 			return modelConfig.APIKey, nil
@@ -192,7 +192,7 @@ func (m *Manager) Set(key string, value interface{}) error {
 // setNestedValue handles nested key setting like "models.basic.api_key"
 func (m *Manager) setNestedValue(key string, value interface{}) error {
 	parts := strings.Split(key, ".")
-	
+
 	if len(parts) < 2 {
 		return fmt.Errorf("invalid nested key format: %s", key)
 	}
@@ -202,21 +202,21 @@ func (m *Manager) setNestedValue(key string, value interface{}) error {
 		if len(parts) < 3 {
 			return fmt.Errorf("models key requires model type and field: %s", key)
 		}
-		
+
 		modelTypeStr := parts[1]
 		field := parts[2]
 		modelType := llm.ModelType(modelTypeStr)
-		
+
 		// Initialize models map if it doesn't exist
 		if m.config.Models == nil {
 			m.config.Models = make(map[llm.ModelType]*llm.ModelConfig)
 		}
-		
+
 		// Initialize model config if it doesn't exist
 		if m.config.Models[modelType] == nil {
 			m.config.Models[modelType] = &llm.ModelConfig{}
 		}
-		
+
 		switch field {
 		case "api_key":
 			if str, ok := value.(string); ok {
@@ -251,7 +251,7 @@ func (m *Manager) setNestedValue(key string, value interface{}) error {
 		default:
 			return fmt.Errorf("unknown model config field: %s", field)
 		}
-		
+
 		return m.save()
 	default:
 		return fmt.Errorf("unknown nested config key: %s", key)

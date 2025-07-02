@@ -66,12 +66,12 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 
 	// Extract session ID from context or request metadata
 	sessionID := c.extractSessionID(ctx, req)
-	
+
 	// Optimize messages using cache
 	originalMessages := req.Messages
 	if sessionID != "" {
 		req.Messages = c.cacheManager.GetOptimizedMessages(sessionID, req.Messages)
-		
+
 		// Enhanced logging with cache operation tracking
 		c.cacheManager.LogCacheOperation("optimization", sessionID, map[string]interface{}{
 			"timestamp":       time.Now().Format("15:04:05"),
@@ -105,14 +105,6 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// 调试日志：记录请求数据
-	if len(jsonData) < 2000 {
-		log.Printf("[DEBUG] HTTPLLMClient: Request JSON: %s", string(jsonData))
-	} else {
-		log.Printf("[DEBUG] HTTPLLMClient: Request JSON (first 1000 chars): %s...", string(jsonData[:1000]))
-	}
-	log.Printf("[DEBUG] HTTPLLMClient: Request URL: %s/chat/completions", baseURL)
-
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
@@ -139,40 +131,26 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// 调试日志：记录原始响应
-	if len(body) < 1000 {
-		log.Printf("[DEBUG] HTTPLLMClient: Raw API response: %s", string(body))
-	} else {
-		log.Printf("[DEBUG] HTTPLLMClient: Raw API response (first 500 chars): %s...", string(body[:500]))
-	}
-
 	var chatResp ChatResponse
 	if err := json.Unmarshal(body, &chatResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	// 调试日志：记录解析后的结构
-	log.Printf("[DEBUG] HTTPLLMClient: Parsed response - Choices count: %d", len(chatResp.Choices))
-	if len(chatResp.Choices) > 0 {
-		log.Printf("[DEBUG] HTTPLLMClient: First choice - Role: %s, Content length: %d", 
-			chatResp.Choices[0].Message.Role, len(chatResp.Choices[0].Message.Content))
 	}
 
 	// Update cache with the new conversation
 	if sessionID != "" && len(chatResp.Choices) > 0 {
 		// Prepare messages to cache (original user messages + assistant response)
 		newMessages := make([]Message, 0, len(originalMessages)+1)
-		
+
 		// Add original user messages (the ones that weren't already cached)
 		for _, msg := range originalMessages {
 			if msg.Role == "user" {
 				newMessages = append(newMessages, msg)
 			}
 		}
-		
+
 		// Add assistant response
 		newMessages = append(newMessages, chatResp.Choices[0].Message)
-		
+
 		// Calculate approximate token usage
 		tokensUsed := 0
 		if chatResp.Usage.TotalTokens > 0 {
@@ -183,9 +161,9 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 				tokensUsed += len(msg.Content) / 4
 			}
 		}
-		
+
 		c.cacheManager.UpdateCache(sessionID, newMessages, tokensUsed)
-		
+
 		// Log cache update operation with safe access
 		cache := c.cacheManager.GetOrCreateCache(sessionID)
 		c.cacheManager.LogCacheOperation("update", sessionID, map[string]interface{}{
@@ -234,14 +212,14 @@ func (c *HTTPLLMClient) extractSessionID(ctx context.Context, req *ChatRequest) 
 			return id
 		}
 	}
-	
+
 	// Also try with string key for backward compatibility
 	if sessionID := ctx.Value("session_id"); sessionID != nil {
 		if id, ok := sessionID.(string); ok {
 			return id
 		}
 	}
-	
+
 	// Try to get from request metadata
 	for _, msg := range req.Messages {
 		if msg.Role == "system" && len(msg.Content) > 0 {
@@ -258,7 +236,7 @@ func (c *HTTPLLMClient) extractSessionID(ctx context.Context, req *ChatRequest) 
 			}
 		}
 	}
-	
+
 	return ""
 }
 
