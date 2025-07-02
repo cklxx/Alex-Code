@@ -19,16 +19,16 @@ type ChromemStorage struct {
 	// chromem核心
 	db         *chromem.DB
 	collection *chromem.Collection
-	
+
 	// 配置和状态
-	config     StorageConfig
-	metrics    StorageMetrics
-	startTime  time.Time
-	mu         sync.RWMutex
-	
+	config    StorageConfig
+	metrics   StorageMetrics
+	startTime time.Time
+	mu        sync.RWMutex
+
 	// 文档存储 (chromem专注向量，文档数据需要额外存储)
-	documents  map[string]Document
-	docMu      sync.RWMutex
+	documents map[string]Document
+	docMu     sync.RWMutex
 }
 
 // createOfflineEmbeddingFunc 创建离线嵌入函数，避免外部API调用
@@ -36,15 +36,15 @@ func createOfflineEmbeddingFunc() chromem.EmbeddingFunc {
 	return func(ctx context.Context, text string) ([]float32, error) {
 		// 使用哈希算法生成固定维度的向量 (384维，与chromem默认一致)
 		const dimensions = 384
-		
+
 		// 结合SHA256和FNV哈希以增加向量的多样性
 		sha256Hash := sha256.Sum256([]byte(text))
 		fnvHash := fnv.New64a()
 		fnvHash.Write([]byte(text))
 		fnvHashValue := fnvHash.Sum64()
-		
+
 		embedding := make([]float32, dimensions)
-		
+
 		// 使用哈希值生成归一化的向量
 		for i := 0; i < dimensions; i++ {
 			// 交替使用不同的哈希源以增加向量复杂度
@@ -54,11 +54,11 @@ func createOfflineEmbeddingFunc() chromem.EmbeddingFunc {
 			} else {
 				hashByte = byte((fnvHashValue >> (i % 64)) & 0xFF)
 			}
-			
+
 			// 将字节值转换为 [-1, 1] 范围的浮点数
-			embedding[i] = (float32(hashByte)/127.5) - 1.0
+			embedding[i] = (float32(hashByte) / 127.5) - 1.0
 		}
-		
+
 		// 简单的L2归一化，确保向量长度为1
 		var norm float32
 		for _, val := range embedding {
@@ -70,7 +70,7 @@ func createOfflineEmbeddingFunc() chromem.EmbeddingFunc {
 				embedding[i] *= norm
 			}
 		}
-		
+
 		return embedding, nil
 	}
 }
@@ -79,7 +79,7 @@ func createOfflineEmbeddingFunc() chromem.EmbeddingFunc {
 func NewChromemStorage(config StorageConfig) (*ChromemStorage, error) {
 	// 创建chromem数据库
 	db := chromem.NewDB()
-	
+
 	// 配置集合名称
 	collectionName := "documents"
 	if config.Options != nil {
@@ -87,16 +87,16 @@ func NewChromemStorage(config StorageConfig) (*ChromemStorage, error) {
 			collectionName = name
 		}
 	}
-	
+
 	// 创建本地嵌入函数以避免外部API调用
 	embeddingFunc := createOfflineEmbeddingFunc()
-	
+
 	// 创建或获取集合，使用本地嵌入函数
 	collection, err := db.GetOrCreateCollection(collectionName, nil, embeddingFunc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create collection: %w", err)
 	}
-	
+
 	storage := &ChromemStorage{
 		db:         db,
 		collection: collection,
@@ -104,7 +104,7 @@ func NewChromemStorage(config StorageConfig) (*ChromemStorage, error) {
 		startTime:  time.Now(),
 		documents:  make(map[string]Document),
 	}
-	
+
 	// 如果有持久化路径，尝试加载
 	if config.Path != "" && config.Path != ":memory:" {
 		if err := storage.loadFromDisk(); err != nil {
@@ -112,7 +112,7 @@ func NewChromemStorage(config StorageConfig) (*ChromemStorage, error) {
 			fmt.Printf("Warning: failed to load from disk: %v\n", err)
 		}
 	}
-	
+
 	return storage, nil
 }
 
@@ -122,20 +122,20 @@ func NewChromemStorage(config StorageConfig) (*ChromemStorage, error) {
 func (c *ChromemStorage) Store(ctx context.Context, doc Document) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	if doc.Created.IsZero() {
 		doc.Created = time.Now()
 	}
 	doc.Updated = time.Now()
-	
+
 	// 存储文档元数据
 	c.docMu.Lock()
 	c.documents[doc.ID] = doc
 	c.docMu.Unlock()
-	
+
 	// 生成文档的文本内容用于向量化
 	content := doc.Title + " " + doc.Content
-	
+
 	// 准备元数据
 	metadata := make(map[string]string)
 	if doc.Metadata != nil {
@@ -146,14 +146,14 @@ func (c *ChromemStorage) Store(ctx context.Context, doc Document) error {
 	metadata["title"] = doc.Title
 	metadata["created"] = doc.Created.Format(time.RFC3339)
 	metadata["updated"] = doc.Updated.Format(time.RFC3339)
-	
+
 	// 使用chromem添加文档 (会自动生成向量)
 	err := c.collection.AddDocument(ctx, chromem.Document{
 		ID:       doc.ID,
 		Content:  content,
 		Metadata: metadata,
 	})
-	
+
 	if err != nil {
 		// 如果chromem存储失败，回滚文档存储
 		c.docMu.Lock()
@@ -161,10 +161,10 @@ func (c *ChromemStorage) Store(ctx context.Context, doc Document) error {
 		c.docMu.Unlock()
 		return fmt.Errorf("failed to store in chromem: %w", err)
 	}
-	
+
 	c.metrics.WriteOps++
 	c.metrics.DocumentCount = uint64(len(c.documents))
-	
+
 	return nil
 }
 
@@ -173,11 +173,11 @@ func (c *ChromemStorage) Get(ctx context.Context, id string) (*Document, error) 
 	c.docMu.RLock()
 	doc, exists := c.documents[id]
 	c.docMu.RUnlock()
-	
+
 	if !exists {
 		return nil, fmt.Errorf("document not found: %s", id)
 	}
-	
+
 	c.metrics.ReadOps++
 	return &doc, nil
 }
@@ -186,21 +186,21 @@ func (c *ChromemStorage) Get(ctx context.Context, id string) (*Document, error) 
 func (c *ChromemStorage) Delete(ctx context.Context, id string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// 从chromem删除
 	err := c.collection.Delete(ctx, nil, nil, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete from chromem: %w", err)
 	}
-	
+
 	// 从文档存储删除
 	c.docMu.Lock()
 	delete(c.documents, id)
 	c.docMu.Unlock()
-	
+
 	c.metrics.WriteOps++
 	c.metrics.DocumentCount = uint64(len(c.documents))
-	
+
 	return nil
 }
 
@@ -209,7 +209,7 @@ func (c *ChromemStorage) Exists(ctx context.Context, id string) (bool, error) {
 	c.docMu.RLock()
 	_, exists := c.documents[id]
 	c.docMu.RUnlock()
-	
+
 	return exists, nil
 }
 
@@ -217,17 +217,17 @@ func (c *ChromemStorage) Exists(ctx context.Context, id string) (bool, error) {
 func (c *ChromemStorage) BatchStore(ctx context.Context, docs []Document) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	chromemDocs := make([]chromem.Document, 0, len(docs))
 	storedDocs := make([]Document, 0, len(docs))
-	
+
 	// 准备所有文档
 	for _, doc := range docs {
 		if doc.Created.IsZero() {
 			doc.Created = time.Now()
 		}
 		doc.Updated = time.Now()
-		
+
 		// 准备chromem文档
 		content := doc.Title + " " + doc.Content
 		metadata := make(map[string]string)
@@ -239,7 +239,7 @@ func (c *ChromemStorage) BatchStore(ctx context.Context, docs []Document) error 
 		metadata["title"] = doc.Title
 		metadata["created"] = doc.Created.Format(time.RFC3339)
 		metadata["updated"] = doc.Updated.Format(time.RFC3339)
-		
+
 		chromemDocs = append(chromemDocs, chromem.Document{
 			ID:       doc.ID,
 			Content:  content,
@@ -247,23 +247,23 @@ func (c *ChromemStorage) BatchStore(ctx context.Context, docs []Document) error 
 		})
 		storedDocs = append(storedDocs, doc)
 	}
-	
+
 	// 批量添加到chromem
 	err := c.collection.AddDocuments(ctx, chromemDocs, 1)
 	if err != nil {
 		return fmt.Errorf("failed to batch store in chromem: %w", err)
 	}
-	
+
 	// 更新文档存储
 	c.docMu.Lock()
 	for _, doc := range storedDocs {
 		c.documents[doc.ID] = doc
 	}
 	c.docMu.Unlock()
-	
+
 	c.metrics.WriteOps += uint64(len(docs))
 	c.metrics.DocumentCount = uint64(len(c.documents))
-	
+
 	return nil
 }
 
@@ -271,14 +271,14 @@ func (c *ChromemStorage) BatchStore(ctx context.Context, docs []Document) error 
 func (c *ChromemStorage) BatchGet(ctx context.Context, ids []string) ([]Document, error) {
 	c.docMu.RLock()
 	defer c.docMu.RUnlock()
-	
+
 	docs := make([]Document, 0, len(ids))
 	for _, id := range ids {
 		if doc, exists := c.documents[id]; exists {
 			docs = append(docs, doc)
 		}
 	}
-	
+
 	c.metrics.ReadOps += uint64(len(docs))
 	return docs, nil
 }
@@ -287,7 +287,7 @@ func (c *ChromemStorage) BatchGet(ctx context.Context, ids []string) ([]Document
 func (c *ChromemStorage) BatchDelete(ctx context.Context, ids []string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// 从chromem批量删除
 	for _, id := range ids {
 		err := c.collection.Delete(ctx, map[string]string{"id": id}, nil)
@@ -296,17 +296,17 @@ func (c *ChromemStorage) BatchDelete(ctx context.Context, ids []string) error {
 			fmt.Printf("Warning: failed to delete %s from chromem: %v\n", id, err)
 		}
 	}
-	
+
 	// 从文档存储删除
 	c.docMu.Lock()
 	for _, id := range ids {
 		delete(c.documents, id)
 	}
 	c.docMu.Unlock()
-	
+
 	c.metrics.WriteOps += uint64(len(ids))
 	c.metrics.DocumentCount = uint64(len(c.documents))
-	
+
 	return nil
 }
 
@@ -314,13 +314,13 @@ func (c *ChromemStorage) BatchDelete(ctx context.Context, ids []string) error {
 func (c *ChromemStorage) List(ctx context.Context, limit, offset int) ([]Document, error) {
 	c.docMu.RLock()
 	defer c.docMu.RUnlock()
-	
+
 	// 将map转为slice进行分页
 	allDocs := make([]Document, 0, len(c.documents))
 	for _, doc := range c.documents {
 		allDocs = append(allDocs, doc)
 	}
-	
+
 	// 简单排序 (按创建时间降序)
 	for i := 0; i < len(allDocs)-1; i++ {
 		for j := i + 1; j < len(allDocs); j++ {
@@ -329,21 +329,21 @@ func (c *ChromemStorage) List(ctx context.Context, limit, offset int) ([]Documen
 			}
 		}
 	}
-	
+
 	// 应用分页
 	start := offset
 	if start >= len(allDocs) {
 		return []Document{}, nil
 	}
-	
+
 	end := start + limit
 	if end > len(allDocs) {
 		end = len(allDocs)
 	}
-	
+
 	result := allDocs[start:end]
 	c.metrics.ReadOps += uint64(len(result))
-	
+
 	return result, nil
 }
 
@@ -352,7 +352,7 @@ func (c *ChromemStorage) Count(ctx context.Context) (uint64, error) {
 	c.docMu.RLock()
 	count := uint64(len(c.documents))
 	c.docMu.RUnlock()
-	
+
 	c.metrics.DocumentCount = count
 	return count, nil
 }
@@ -373,7 +373,7 @@ func (c *ChromemStorage) GetVector(ctx context.Context, id string) ([]float64, e
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 返回一个标识向量 (实际向量由chromem内部管理)
 	return make([]float64, 384), nil // chromem默认384维
 }
@@ -393,14 +393,14 @@ func (c *ChromemStorage) SearchSimilar(ctx context.Context, queryVector []float6
 func (c *ChromemStorage) SearchByText(ctx context.Context, query string, limit int) ([]VectorResult, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	if query == "" {
 		// 如果查询为空，返回最近的文档
 		docs, err := c.List(ctx, limit, 0)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		results := make([]VectorResult, len(docs))
 		for i, doc := range docs {
 			results[i] = VectorResult{
@@ -411,15 +411,15 @@ func (c *ChromemStorage) SearchByText(ctx context.Context, query string, limit i
 		}
 		return results, nil
 	}
-	
+
 	// 使用chromem进行语义搜索
 	chromemResults, err := c.collection.Query(ctx, query, limit, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("chromem query failed: %w", err)
 	}
-	
+
 	results := make([]VectorResult, 0, len(chromemResults))
-	
+
 	c.docMu.RLock()
 	for _, result := range chromemResults {
 		if doc, exists := c.documents[result.ID]; exists {
@@ -431,7 +431,7 @@ func (c *ChromemStorage) SearchByText(ctx context.Context, query string, limit i
 		}
 	}
 	c.docMu.RUnlock()
-	
+
 	return results, nil
 }
 
@@ -442,14 +442,14 @@ func (c *ChromemStorage) SearchByThreshold(ctx context.Context, queryVector []fl
 	if err != nil {
 		return nil, err
 	}
-	
+
 	filtered := make([]VectorResult, 0)
 	for _, result := range results {
 		if result.Similarity >= threshold {
 			filtered = append(filtered, result)
 		}
 	}
-	
+
 	return filtered, nil
 }
 
@@ -483,19 +483,19 @@ func (c *ChromemStorage) GetVectorCount() uint64 {
 func (c *ChromemStorage) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// 如果有持久化路径，保存数据
 	if c.config.Path != "" && c.config.Path != ":memory:" {
 		if err := c.saveToDisk(); err != nil {
 			fmt.Printf("Warning: failed to save to disk: %v\n", err)
 		}
 	}
-	
+
 	// chromem没有显式的Close方法，清理资源
 	c.documents = nil
 	c.collection = nil
 	c.db = nil
-	
+
 	return nil
 }
 
@@ -512,10 +512,10 @@ func (c *ChromemStorage) Flush() error {
 func (c *ChromemStorage) GetMetrics() StorageMetrics {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	c.metrics.Uptime = time.Since(c.startTime)
 	c.metrics.DocumentCount = uint64(len(c.documents))
-	
+
 	return c.metrics
 }
 
@@ -526,13 +526,13 @@ func (c *ChromemStorage) saveToDisk() error {
 	if c.config.Path == "" || c.config.Path == ":memory:" {
 		return nil
 	}
-	
+
 	// 创建目录
 	dir := filepath.Dir(c.config.Path)
 	if err := ensureDir(dir); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
-	
+
 	// 保存文档数据
 	c.docMu.RLock()
 	data := struct {
@@ -543,17 +543,17 @@ func (c *ChromemStorage) saveToDisk() error {
 		Timestamp: time.Now(),
 	}
 	c.docMu.RUnlock()
-	
+
 	jsonData, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
-	
+
 	filename := c.config.Path + ".json"
 	if err := writeFile(filename, jsonData); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -562,31 +562,31 @@ func (c *ChromemStorage) loadFromDisk() error {
 	if c.config.Path == "" || c.config.Path == ":memory:" {
 		return nil
 	}
-	
+
 	filename := c.config.Path + ".json"
 	if !fileExists(filename) {
 		return nil // 文件不存在不是错误
 	}
-	
+
 	jsonData, err := readFile(filename)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
-	
+
 	var data struct {
 		Documents map[string]Document `json:"documents"`
 		Timestamp time.Time           `json:"timestamp"`
 	}
-	
+
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return fmt.Errorf("failed to unmarshal data: %w", err)
 	}
-	
+
 	// 恢复文档数据
 	c.docMu.Lock()
 	c.documents = data.Documents
 	c.docMu.Unlock()
-	
+
 	// 重新添加到chromem (重新生成向量)
 	ctx := context.Background()
 	for _, doc := range data.Documents {
@@ -600,14 +600,14 @@ func (c *ChromemStorage) loadFromDisk() error {
 		metadata["title"] = doc.Title
 		metadata["created"] = doc.Created.Format(time.RFC3339)
 		metadata["updated"] = doc.Updated.Format(time.RFC3339)
-		
+
 		c.collection.AddDocument(ctx, chromem.Document{
 			ID:       doc.ID,
 			Content:  content,
 			Metadata: metadata,
 		})
 	}
-	
+
 	return nil
 }
 
@@ -645,14 +645,14 @@ func (c *ChromemStorage) GetCollection() *chromem.Collection {
 func (c *ChromemStorage) QueryWithFilter(ctx context.Context, query string, limit int, where map[string]string) ([]VectorResult, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	chromemResults, err := c.collection.Query(ctx, query, limit, where, nil)
 	if err != nil {
 		return nil, fmt.Errorf("chromem query with filter failed: %w", err)
 	}
-	
+
 	results := make([]VectorResult, 0, len(chromemResults))
-	
+
 	c.docMu.RLock()
 	for _, result := range chromemResults {
 		if doc, exists := c.documents[result.ID]; exists {
@@ -664,7 +664,7 @@ func (c *ChromemStorage) QueryWithFilter(ctx context.Context, query string, limi
 		}
 	}
 	c.docMu.RUnlock()
-	
+
 	return results, nil
 }
 
@@ -672,15 +672,15 @@ func (c *ChromemStorage) QueryWithFilter(ctx context.Context, query string, limi
 func (c *ChromemStorage) GetStats() map[string]interface{} {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	stats := map[string]interface{}{
 		"collection_name":  c.collection.Name,
 		"document_count":   len(c.documents),
 		"vector_dimension": c.GetDimensions(),
-		"uptime":          time.Since(c.startTime),
-		"read_ops":        c.metrics.ReadOps,
-		"write_ops":       c.metrics.WriteOps,
+		"uptime":           time.Since(c.startTime),
+		"read_ops":         c.metrics.ReadOps,
+		"write_ops":        c.metrics.WriteOps,
 	}
-	
+
 	return stats
 }

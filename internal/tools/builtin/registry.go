@@ -1,6 +1,6 @@
 package builtin
 
-import "deep-coding-agent/internal/config"
+import "alex/internal/config"
 
 // GetAllBuiltinTools returns a list of all builtin tools
 func GetAllBuiltinTools() []Tool {

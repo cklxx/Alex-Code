@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"deep-coding-agent/internal/context/algorithms"
+	"alex/internal/context/algorithms"
 )
 
 // === 核心类型定义 ===

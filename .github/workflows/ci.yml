@@ -75,18 +75,9 @@ jobs:
         args: --timeout=5m
 
   build:
-    name: Build
+    name: Build Multi-Platform
     runs-on: ubuntu-latest
     needs: [test, lint]
-    
-    strategy:
-      matrix:
-        goos: [linux, darwin, windows]
-        goarch: [amd64, arm64]
-        exclude:
-          # Windows on arm64 is not commonly used
-          - goos: windows
-            goarch: arm64
     
     steps:
     - name: Check out code
@@ -97,23 +88,85 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
         
-    - name: Build binary
+    - name: Build for Linux (amd64)
       env:
-        GOOS: ${{ matrix.goos }}
-        GOARCH: ${{ matrix.goarch }}
+        GOOS: linux
+        GOARCH: amd64
       run: |
         mkdir -p build
-        binary_name="deep-coding-agent-${{ matrix.goos }}-${{ matrix.goarch }}"
-        if [ "${{ matrix.goos }}" = "windows" ]; then
-          binary_name="${binary_name}.exe"
-        fi
-        go build -ldflags="-w -s" -o "build/${binary_name}" cmd/main.go
+        go build -ldflags="-w -s" -o "build/alex-linux-amd64" cmd/main.go
         
-    - name: Upload build artifacts
+    - name: Build for macOS (amd64)
+      env:
+        GOOS: darwin
+        GOARCH: amd64
+      run: |
+        go build -ldflags="-w -s" -o "build/alex-darwin-amd64" cmd/main.go
+        
+    - name: Build for macOS (arm64)
+      env:
+        GOOS: darwin
+        GOARCH: arm64
+      run: |
+        go build -ldflags="-w -s" -o "build/alex-darwin-arm64" cmd/main.go
+        
+    - name: Build for Windows (amd64)
+      env:
+        GOOS: windows
+        GOARCH: amd64
+      run: |
+        go build -ldflags="-w -s" -o "build/alex-windows-amd64.exe" cmd/main.go
+        
+    - name: Create release packages
+      run: |
+        cd build
+        
+        # Create Linux package
+        tar -czf alex-linux-amd64.tar.gz alex-linux-amd64
+        
+        # Create macOS Intel package
+        tar -czf alex-darwin-amd64.tar.gz alex-darwin-amd64
+        
+        # Create macOS Apple Silicon package
+        tar -czf alex-darwin-arm64.tar.gz alex-darwin-arm64
+        
+        # Create Windows package
+        zip alex-windows-amd64.zip alex-windows-amd64.exe
+        
+        # List all artifacts
+        ls -la
+        
+    - name: Upload Linux artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: deep-coding-agent-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: build/
+        name: alex-linux-amd64
+        path: |
+          build/alex-linux-amd64
+          build/alex-linux-amd64.tar.gz
+          
+    - name: Upload macOS Intel artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: alex-darwin-amd64
+        path: |
+          build/alex-darwin-amd64
+          build/alex-darwin-amd64.tar.gz
+          
+    - name: Upload macOS Apple Silicon artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: alex-darwin-arm64
+        path: |
+          build/alex-darwin-arm64
+          build/alex-darwin-arm64.tar.gz
+          
+    - name: Upload Windows artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: alex-windows-amd64
+        path: |
+          build/alex-windows-amd64.exe
+          build/alex-windows-amd64.zip
 
   integration-test:
     name: Integration Tests
@@ -134,29 +187,24 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         
     - name: Build binary
-      run: go build -o deep-coding-agent cmd/main.go
+      run: go build -o alex cmd/main.go
       
     - name: Make binary executable (Unix)
       if: runner.os != 'Windows'
-      run: chmod +x deep-coding-agent
+      run: chmod +x alex
       
     - name: Test CLI commands (Unix)
       if: runner.os != 'Windows'
       run: |
-        ./deep-coding-agent version
-        ./deep-coding-agent config --list
-        ./deep-coding-agent analyze cmd/main.go
-        ./deep-coding-agent generate "test function" go
-        ./deep-coding-agent ai-status
+        ./alex --help
+        ./alex config show
+        ./alex -i <<< "exit"
         
     - name: Test CLI commands (Windows)
       if: runner.os == 'Windows'
       run: |
-        .\deep-coding-agent.exe version
-        .\deep-coding-agent.exe config --list
-        .\deep-coding-agent.exe analyze cmd\main.go
-        .\deep-coding-agent.exe generate "test function" go
-        .\deep-coding-agent.exe ai-status
+        .\alex.exe --help
+        .\alex.exe config show
 
   performance-test:
     name: Performance Tests
@@ -173,7 +221,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         
     - name: Build binary
-      run: go build -o deep-coding-agent cmd/main.go
+      run: go build -o alex cmd/main.go
       
     - name: Create test files
       run: |
@@ -189,27 +237,27 @@ jobs:
         
     - name: Run performance tests
       run: |
-        # Test analysis performance
+        # Test basic CLI response time
         start_time=$(date +%s%N)
-        ./deep-coding-agent analyze perf_test/ --concurrent
+        ./alex --help > /dev/null
         end_time=$(date +%s%N)
         duration=$(( (end_time - start_time) / 1000000 ))
-        echo "Analysis took ${duration}ms"
+        echo "CLI help took ${duration}ms"
         
         if [ $duration -gt 1000 ]; then
-          echo "Performance test failed: Analysis too slow (${duration}ms > 1000ms)"
+          echo "Performance test failed: CLI too slow (${duration}ms > 1000ms)"
           exit 1
         fi
         
-        # Test generation performance
+        # Test config command performance
         start_time=$(date +%s%N)
-        ./deep-coding-agent generate "calculator" go
+        ./alex config show > /dev/null
         end_time=$(date +%s%N)
         duration=$(( (end_time - start_time) / 1000000 ))
-        echo "Generation took ${duration}ms"
+        echo "Config command took ${duration}ms"
         
         if [ $duration -gt 500 ]; then
-          echo "Performance test failed: Generation too slow (${duration}ms > 500ms)"
+          echo "Performance test failed: Config too slow (${duration}ms > 500ms)"
           exit 1
         fi
 

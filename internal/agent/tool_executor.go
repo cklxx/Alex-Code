@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"deep-coding-agent/internal/llm"
-	"deep-coding-agent/internal/tools/builtin"
-	"deep-coding-agent/pkg/types"
+	"alex/internal/llm"
+	"alex/internal/tools/builtin"
+	"alex/pkg/types"
 )
 
 // ToolExecutor - 工具执行器
@@ -38,10 +38,17 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 			}
 		}
 
+		// Ensure CallID is not empty - generate one if missing
+		callID := tc.ID
+		if callID == "" {
+			callID = fmt.Sprintf("call_%d", time.Now().UnixNano())
+			log.Printf("[WARN] parseToolCalls: Missing ID for tool %s, generated: %s", tc.Function.Name, callID)
+		}
+
 		toolCall := &types.ReactToolCall{
 			Name:      tc.Function.Name,
 			Arguments: args,
-			CallID:    tc.ID,
+			CallID:    callID,
 		}
 		toolCalls = append(toolCalls, toolCall)
 	}
@@ -146,8 +153,8 @@ func (te *ToolExecutor) parseIndividualTextToolCall(callContent string) *types.R
 	}
 }
 
-// executeParallelToolsStream - 并行执行工具调用（流式版本）
-func (te *ToolExecutor) executeParallelToolsStream(ctx context.Context, toolCalls []*types.ReactToolCall, callback StreamCallback) []*types.ReactToolResult {
+// executeSerialToolsStream - 串行执行工具调用（流式版本）
+func (te *ToolExecutor) executeSerialToolsStream(ctx context.Context, toolCalls []*types.ReactToolCall, callback StreamCallback) []*types.ReactToolResult {
 	if len(toolCalls) == 0 {
 		return []*types.ReactToolResult{
 			{
@@ -157,30 +164,30 @@ func (te *ToolExecutor) executeParallelToolsStream(ctx context.Context, toolCall
 		}
 	}
 
-	// 并行执行工具调用（统一处理一个或多个）
-	type toolResult struct {
-		name   string
-		result *types.ReactToolResult
-		err    error
-		call   *types.ReactToolCall
-	}
+	// 串行执行工具调用，按顺序一个接一个执行
+	combinedResult := []*types.ReactToolResult{}
 
-	// 启动goroutines并行执行，但保持结果的有序显示
-	type indexedResult struct {
-		toolResult
-		index int
-	}
+	for _, toolCall := range toolCalls {
+		// 发送工具开始信号
+		toolCallStr := te.formatToolCallForDisplay(toolCall.Name, toolCall.Arguments)
+		callback(StreamChunk{Type: "tool_start", Content: toolCallStr})
 
-	indexedResultChan := make(chan indexedResult, len(toolCalls))
+		// 执行工具
+		result, err := te.executeTool(ctx, toolCall.Name, toolCall.Arguments, toolCall.CallID)
 
-	for i, tc := range toolCalls {
-		go func(toolCall *types.ReactToolCall, index int) {
-			// 在goroutine内部发送工具开始信号，避免竞态条件
-			toolCallStr := te.formatToolCallForDisplay(toolCall.Name, toolCall.Arguments)
-			callback(StreamChunk{Type: "tool_start", Content: toolCallStr})
-
-			result, err := te.executeTool(ctx, toolCall.Name, toolCall.Arguments, toolCall.CallID)
-
+		// 处理执行结果
+		if err != nil {
+			callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: %v", toolCall.Name, err)})
+			// 继续执行下一个工具，不因为一个工具失败而中断整个流程
+			combinedResult = append(combinedResult, &types.ReactToolResult{
+				Success:  false,
+				Error:    err.Error(),
+				ToolName: toolCall.Name,
+				ToolArgs: toolCall.Arguments,
+				CallID:   toolCall.CallID,
+			})
+		} else if result != nil {
+			// 发送工具结果信号
 			var contentStr string
 			if len(result.Content) > 100 {
 				contentStr = result.Content[:100] + "..."
@@ -188,45 +195,15 @@ func (te *ToolExecutor) executeParallelToolsStream(ctx context.Context, toolCall
 				contentStr = result.Content
 			}
 			callback(StreamChunk{Type: "tool_result", Content: contentStr})
-			indexedResultChan <- indexedResult{
-				toolResult: toolResult{
-					name:   toolCall.Name,
-					result: result,
-					err:    err,
-					call:   toolCall,
-				},
-				index: index,
-			}
-		}(tc, i)
-	}
 
-	// 组合结果
-	combinedResult := []*types.ReactToolResult{}
-	// 使用数组来存储按顺序的结果
-	orderedResults := make([]indexedResult, len(toolCalls))
-	resultCount := 0
-
-	for resultCount < len(toolCalls) {
-		indexedRes := <-indexedResultChan
-		orderedResults[indexedRes.index] = indexedRes
-		resultCount++
-	}
-
-	// 按原始顺序处理结果
-	for _, indexedRes := range orderedResults {
-		res := indexedRes.toolResult
-
-		if res.err != nil {
-			callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: %v", res.name, res.err)})
-		} else if res.result != nil {
-			if res.result.Success {
-				combinedResult = append(combinedResult, res.result)
+			if result.Success {
+				combinedResult = append(combinedResult, result)
 			} else {
 				combinedResult = append(combinedResult, &types.ReactToolResult{
 					Success: false,
-					Error:   res.result.Error,
+					Error:   result.Error,
 				})
-				callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: %s", res.name, res.result.Error)})
+				callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: %s", toolCall.Name, result.Error)})
 			}
 		}
 	}
