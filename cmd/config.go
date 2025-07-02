@@ -125,7 +125,7 @@ func handleConfigSet(manager *config.Manager, args []string) error {
 
 	// Type conversion based on key
 	var convertedValue interface{}
-	
+
 	// Handle nested keys
 	if strings.Contains(key, ".") {
 		parts := strings.Split(key, ".")

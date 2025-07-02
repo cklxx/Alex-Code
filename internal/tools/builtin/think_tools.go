@@ -54,4 +54,3 @@ func (t *ThinkTool) Execute(ctx context.Context, args map[string]interface{}) (*
 		},
 	}, nil
 }
-

@@ -29,7 +29,7 @@ func (pr *PathResolver) ResolvePath(path string) string {
 	if filepath.IsAbs(path) {
 		return path
 	}
-	
+
 	// 将相对路径基于工作目录解析为绝对路径
 	resolved := filepath.Join(pr.workingDir, path)
 	return filepath.Clean(resolved)
@@ -40,11 +40,11 @@ func GetPathResolverFromContext(ctx context.Context) *PathResolver {
 	if ctx == nil {
 		return NewPathResolver("")
 	}
-	
+
 	if workingDir, ok := ctx.Value(WorkingDirKey).(string); ok {
 		return NewPathResolver(workingDir)
 	}
-	
+
 	return NewPathResolver("")
 }
 

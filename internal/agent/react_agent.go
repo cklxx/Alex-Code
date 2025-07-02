@@ -37,7 +37,6 @@ type ReactAgent struct {
 	llmConfig      *llm.Config
 	promptBuilder  *LightPromptBuilder
 	contextMgr     *LightContextManager
-	codeExecutor   *CodeActExecutor
 	currentSession *session.Session
 	// 核心组件
 	reactCore    ReactCoreInterface
@@ -112,7 +111,6 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	// 创建组件
 	promptBuilder := NewLightPromptBuilder()
 	contextMgr := NewLightContextManager()
-	codeExecutor := NewCodeActExecutor()
 
 	agent := &ReactAgent{
 		llm:            llmClient,
@@ -123,7 +121,6 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 		llmConfig:      llmConfig,
 		promptBuilder:  promptBuilder,
 		contextMgr:     contextMgr,
-		codeExecutor:   codeExecutor,
 	}
 
 	// 初始化核心组件
