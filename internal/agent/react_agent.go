@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"alex/internal/config"
+	contextmgr "alex/internal/context"
 	"alex/internal/llm"
 	"alex/internal/prompts"
 	"alex/internal/session"
@@ -24,6 +25,9 @@ const SessionIDKey ContextKey = "session_id"
 // ReactCoreInterface - ReAct核心接口
 type ReactCoreInterface interface {
 	SolveTask(ctx context.Context, task string, streamCallback StreamCallback) (*types.ReactTaskResult, error)
+	GetContextStats(sess *session.Session) *contextmgr.ContextStats
+	ForceContextSummarization(ctx context.Context, sess *session.Session) (*contextmgr.ContextProcessingResult, error)
+	RestoreFullContext(sess *session.Session, backupID string) error
 }
 
 // ReactAgent - 轻量化ReAct引擎
@@ -299,6 +303,16 @@ func (r *ReactAgent) GetSessionHistory() []*session.Message {
 		return nil
 	}
 	return r.currentSession.Messages
+}
+
+// GetReactCore - 获取ReactCore实例
+func (r *ReactAgent) GetReactCore() ReactCoreInterface {
+	return r.reactCore
+}
+
+// GetSessionManager - 获取SessionManager实例
+func (r *ReactAgent) GetSessionManager() *session.Manager {
+	return r.sessionManager
 }
 
 // CodeBlock - 代码块结构

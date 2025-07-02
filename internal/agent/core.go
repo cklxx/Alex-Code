@@ -7,25 +7,50 @@ import (
 	"strings"
 	"time"
 
+	contextmgr "alex/internal/context"
 	"alex/internal/llm"
+	"alex/internal/session"
 	"alex/pkg/types"
 )
 
 // ReactCore - 使用工具调用流程的ReactCore核心实现
 type ReactCore struct {
 	agent          *ReactAgent
-	streamCallback StreamCallback // 当前流回调
+	streamCallback StreamCallback             // 当前流回调
+	contextMgr     *contextmgr.ContextManager // 上下文管理器
 }
 
 // NewReactCore - 创建ReAct核心实例
 func NewReactCore(agent *ReactAgent) *ReactCore {
-	return &ReactCore{agent: agent}
+	// 创建上下文管理器
+	contextConfig := &contextmgr.ContextLengthConfig{
+		MaxTokens:              8000, // 保守的token限制
+		SummarizationThreshold: 6000, // 75%时开始总结
+		CompressionRatio:       0.3,  // 压缩到30%
+		PreserveSystemMessages: true,
+	}
+
+	ctxMgr := contextmgr.NewContextManager(agent.llm, contextConfig)
+
+	return &ReactCore{
+		agent:      agent,
+		contextMgr: ctxMgr,
+	}
 }
 
 // SolveTask - 使用工具调用流程的简化任务解决方法
 func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback StreamCallback) (*types.ReactTaskResult, error) {
 	// 设置流回调
 	rc.streamCallback = streamCallback
+
+	// 获取当前会话
+	sess := rc.getCurrentSession(ctx)
+	if sess != nil {
+		// 检查并处理上下文溢出
+		if err := rc.handleContextOverflow(ctx, sess, streamCallback); err != nil {
+			log.Printf("[WARNING] Context overflow handling failed: %v", err)
+		}
+	}
 
 	// 生成任务ID
 	taskID := generateTaskID()
@@ -39,15 +64,11 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		streamCallback(StreamChunk{Type: "status", Content: "🧠 Starting tool-driven ReAct process...", Metadata: map[string]any{"phase": "initialization"}})
 	}
 
-	// 使用简化的系统消息，避免token过多导致API错误
-	messages := []llm.Message{
-		{Role: "system", Content: rc.buildToolDrivenTaskPrompt()},
-		{Role: "system", Content: rc.agent.contextMgr.CompressContext(taskCtx)},
-		{Role: "user", Content: task + "\n\n think about the task and break it down into a list of todos and then call the todo_update tool to create the todos"},
-	}
+	// 构建消息列表，基于会话历史
+	messages := rc.buildMessagesFromSession(sess, task)
 
 	// 执行工具驱动的ReAct循环
-	maxIterations := 10 // 减少迭代次数，依赖智能工具调用
+	maxIterations := 25 // 减少迭代次数，依赖智能工具调用
 
 	for iteration := 1; iteration <= maxIterations; iteration++ {
 		step := types.ReactExecutionStep{
@@ -553,4 +574,157 @@ func (rc *ReactCore) cleanToolOutput(content string) string {
 	}
 
 	return strings.Join(cleanLines, "\n")
+}
+
+// 新增的上下文管理方法
+
+// getCurrentSession - 获取当前会话
+func (rc *ReactCore) getCurrentSession(ctx context.Context) *session.Session {
+	if rc.agent.currentSession != nil {
+		return rc.agent.currentSession
+	}
+
+	// 尝试从context中获取session ID
+	if sessionID, ok := ctx.Value(SessionIDKey).(string); ok && sessionID != "" {
+		sess, err := rc.agent.sessionManager.RestoreSession(sessionID)
+		if err == nil {
+			rc.agent.mu.Lock()
+			rc.agent.currentSession = sess
+			rc.agent.mu.Unlock()
+			return sess
+		}
+		log.Printf("[WARNING] Failed to restore session %s: %v", sessionID, err)
+	}
+
+	return nil
+}
+
+// handleContextOverflow - 处理上下文溢出
+func (rc *ReactCore) handleContextOverflow(ctx context.Context, sess *session.Session, streamCallback StreamCallback) error {
+	// 检查上下文长度
+	analysis, err := rc.contextMgr.CheckContextLength(sess)
+	if err != nil {
+		return fmt.Errorf("failed to check context length: %w", err)
+	}
+
+	// 如果需要处理上下文溢出
+	if analysis.RequiresTrimming {
+		if streamCallback != nil {
+			streamCallback(StreamChunk{
+				Type:     "context_management",
+				Content:  fmt.Sprintf("⚠️ Context overflow detected (%d tokens), summarizing conversation...", analysis.EstimatedTokens),
+				Metadata: map[string]any{"action": "summarizing", "tokens": analysis.EstimatedTokens},
+			})
+		}
+
+		result, err := rc.contextMgr.ProcessContextOverflow(ctx, sess)
+		if err != nil {
+			return fmt.Errorf("failed to process context overflow: %w", err)
+		}
+
+		if streamCallback != nil {
+			streamCallback(StreamChunk{
+				Type:     "context_management",
+				Content:  fmt.Sprintf("✅ Context summarized: %d → %d messages (backup: %s)", result.OriginalCount, result.ProcessedCount, result.BackupID),
+				Metadata: map[string]any{"action": "completed", "backup_id": result.BackupID},
+			})
+		}
+
+		log.Printf("[INFO] Context summarized: %s, %d → %d messages", result.Action, result.OriginalCount, result.ProcessedCount)
+	}
+
+	return nil
+}
+
+// buildMessagesFromSession - 基于会话历史构建消息列表
+func (rc *ReactCore) buildMessagesFromSession(sess *session.Session, currentTask string) []llm.Message {
+	var messages []llm.Message
+
+	// 添加系统提示
+	messages = append(messages, llm.Message{
+		Role:    "system",
+		Content: rc.buildToolDrivenTaskPrompt(),
+	})
+
+	// 如果有会话历史，添加相关历史消息
+	if sess != nil {
+		historyMessages := sess.GetMessages()
+
+		// 限制历史消息数量，只包含最近的对话
+		maxHistoryMessages := 10
+		startIdx := 0
+		if len(historyMessages) > maxHistoryMessages {
+			startIdx = len(historyMessages) - maxHistoryMessages
+		}
+
+		for i := startIdx; i < len(historyMessages); i++ {
+			msg := historyMessages[i]
+
+			// 跳过空消息
+			if strings.TrimSpace(msg.Content) == "" {
+				continue
+			}
+
+			llmMsg := llm.Message{
+				Role:    msg.Role,
+				Content: msg.Content,
+			}
+
+			// 添加工具调用信息
+			if len(msg.ToolCalls) > 0 {
+				var toolCalls []llm.ToolCall
+				for _, tc := range msg.ToolCalls {
+					toolCalls = append(toolCalls, llm.ToolCall{
+						ID:   tc.ID,
+						Type: "function",
+						Function: llm.Function{
+							Name:      tc.Name,
+							Arguments: fmt.Sprintf("%v", tc.Args),
+						},
+					})
+				}
+				llmMsg.ToolCalls = toolCalls
+			}
+
+			messages = append(messages, llmMsg)
+		}
+	}
+
+	// 添加当前任务
+	messages = append(messages, llm.Message{
+		Role:    "user",
+		Content: currentTask + "\n\n think about the task and break it down into a list of todos and then call the todo_update tool to create the todos",
+	})
+
+	return messages
+}
+
+// GetContextStats - 获取上下文统计信息
+func (rc *ReactCore) GetContextStats(sess *session.Session) *contextmgr.ContextStats {
+	if rc.contextMgr == nil || sess == nil {
+		return &contextmgr.ContextStats{
+			TotalMessages:   0,
+			EstimatedTokens: 0,
+		}
+	}
+
+	return rc.contextMgr.GetContextStats(sess)
+}
+
+// ForceContextSummarization - 强制进行上下文总结
+func (rc *ReactCore) ForceContextSummarization(ctx context.Context, sess *session.Session) (*contextmgr.ContextProcessingResult, error) {
+	if rc.contextMgr == nil {
+		return nil, fmt.Errorf("context manager not available")
+	}
+
+	return rc.contextMgr.ProcessContextOverflow(ctx, sess)
+}
+
+// RestoreFullContext - 恢复完整上下文
+func (rc *ReactCore) RestoreFullContext(sess *session.Session, backupID string) error {
+	if rc.contextMgr == nil {
+		return fmt.Errorf("context manager not available")
+	}
+
+	return rc.contextMgr.RestoreFullContext(sess, backupID)
 }
