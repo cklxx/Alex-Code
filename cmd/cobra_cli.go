@@ -119,12 +119,8 @@ through streaming responses and advanced tool calling capabilities.
 				prompt := strings.Join(args, " ")
 				return cli.runSinglePrompt(prompt)
 			}
-			// Interactive mode - default to Bubble Tea TUI
-			if cli.useTUI || cli.interactive {
-				return cli.runTUI()
-			}
-			// Fallback to old interface only if explicitly requested
-			return cli.runInteractive()
+			// Always use Bubble Tea TUI for interactive mode
+			return cli.runTUI()
 		},
 	}
 
@@ -228,127 +224,6 @@ func (cli *CLI) initialize(cmd *cobra.Command) error {
 	return nil
 }
 
-// runInteractive starts the interactive mode with non-blocking input
-func (cli *CLI) runInteractive() error {
-	// Initialize terminal controller
-	termCtrl := NewTerminalController()
-	termCtrl.Initialize()
-	defer func() {
-		// Ensure timer is stopped
-		cli.stopWorkingIndicatorTimer()
-		termCtrl.Cleanup()
-	}()
-
-	// Enable raw mode for non-blocking input
-	if err := termCtrl.enableRawMode(); err != nil {
-		return fmt.Errorf("failed to enable raw mode: %w", err)
-	}
-
-	// Get current working directory
-	currentDir, err := os.Getwd()
-	if err != nil {
-		currentDir = "unknown"
-	}
-
-	// Display startup banner in scroll region
-	banner := fmt.Sprintf("%s Deep Coding Agent %s\n", blue("🤖"), bold(cobraVersion))
-	banner += fmt.Sprintf("%s Working Directory: %s\n", blue("📂"), currentDir)
-	banner += fmt.Sprintf("%s Type your questions or 'exit' to quit.\n", gray("💡"))
-	banner += "\n"
-
-	termCtrl.PrintInScrollRegion(banner)
-
-	// Show initial fixed bottom interface with input box
-	termCtrl.ShowFixedBottomInterface("", inputBox)
-
-	// Main input loop with non-blocking input
-	for {
-		// Read input non-blocking
-		inputBytes, err := termCtrl.ReadInputNonBlocking()
-		if err != nil {
-			// Handle read error
-			continue
-		}
-
-		if inputBytes != nil {
-			// Process input and check for complete command
-			command, complete := termCtrl.ProcessInputBuffer(inputBytes)
-			
-			// Update input display in real-time
-			if !cli.processing {
-				termCtrl.UpdateInputDisplay()
-			}
-
-			if complete {
-				input := strings.TrimSpace(command)
-
-				if input == "" {
-					// Just refresh the input box
-					termCtrl.ShowFixedBottomInterface("", inputBox)
-					continue
-				}
-
-				// Display user input in scroll region
-				userMessage := fmt.Sprintf("%s %s\n", blue("👤"), input)
-				termCtrl.PrintInScrollRegion(userMessage)
-
-				// Handle special commands
-				cli.currentTermCtrl = termCtrl
-				if cli.handleSpecialCommands(input) {
-					// Refresh the input box after special commands
-					termCtrl.ShowFixedBottomInterface("", inputBox)
-					continue
-				}
-
-				if input == "exit" || input == "quit" {
-					break
-				}
-
-				// Handle input based on processing state
-				if cli.processing {
-					// Queue the input for later processing
-					select {
-					case cli.inputQueue <- input:
-						// Show queued message
-						queueMsg := fmt.Sprintf("%s Input queued: %s\n", gray("⏳"), input)
-						termCtrl.PrintInScrollRegion(queueMsg)
-					default:
-						// Queue full
-						errorMsg := fmt.Sprintf("%s Input queue full, please wait...\n", red("⚠️"))
-						termCtrl.PrintInScrollRegion(errorMsg)
-					}
-				} else {
-					// Start processing immediately
-					go cli.processInputAsync(input, termCtrl)
-				}
-			}
-		}
-
-		// Handle queued inputs if processing is done
-		select {
-		case queuedInput := <-cli.inputQueue:
-			if !cli.processing {
-				// Process queued input
-				go cli.processInputAsync(queuedInput, termCtrl)
-			} else {
-				// Put it back in queue if still processing
-				select {
-				case cli.inputQueue <- queuedInput:
-				default:
-					// Queue full, ignore
-				}
-			}
-		default:
-			// No queued input
-		}
-
-		// Small delay to prevent busy waiting
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	return nil
-}
-
 // processInputAsync handles input processing in background
 func (cli *CLI) processInputAsync(input string, termCtrl *TerminalController) {
 	// Set processing state
@@ -378,10 +253,9 @@ func (cli *CLI) processInputAsync(input string, termCtrl *TerminalController) {
 	termCtrl.ShowFixedBottomInterface("", inputBox)
 }
 
-// runTUI starts the Bubble Tea TUI interface
+// runTUI starts the modern Bubble Tea TUI interface
 func (cli *CLI) runTUI() error {
-	fmt.Printf("%s Starting Bubble Tea TUI...\n", green("🚀"))
-	return runBubbleTeaTUI(cli.agent, cli.config)
+	return runModernTUI(cli.agent, cli.config)
 }
 
 // formatWorkingIndicator formats the working indicator string

@@ -207,8 +207,12 @@ func (cm *ContextManager) separateMessages(messages []*session.Message) ([]*sess
 }
 
 func (cm *ContextManager) calculateRecentMessageCount(totalConversation int) int {
-	// Keep at least 10 recent messages, or 20% of conversation, whichever is higher
-	minRecent := 10
+	// Keep at least 5 recent messages, or 20% of conversation, whichever is higher
+	minRecent := 5
+	if totalConversation < minRecent {
+		return totalConversation // Can't keep more than we have
+	}
+	
 	ratioRecent := int(float64(totalConversation) * 0.2)
 	
 	if ratioRecent > minRecent {
