@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,7 +33,10 @@ type CodeActExecutor struct {
 // NewCodeActExecutor - 创建新的CodeActExecutor
 func NewCodeActExecutor() *CodeActExecutor {
 	sandboxDir := filepath.Join(os.TempDir(), "deep-coding-sandbox")
-	os.MkdirAll(sandboxDir, 0755)
+	if err := os.MkdirAll(sandboxDir, 0755); err != nil {
+		// Fall back to current directory if sandbox creation fails
+		sandboxDir = "."
+	}
 
 	supportedLanguages := map[string]string{
 		"python":     "python3",
@@ -80,7 +84,11 @@ func (ce *CodeActExecutor) ExecuteCode(ctx context.Context, language, code strin
 	}
 
 	tempFile := filepath.Join(ce.sandboxDir, fmt.Sprintf("script_%d%s", time.Now().UnixNano(), ext))
-	defer os.Remove(tempFile)
+	defer func() {
+		if err := os.Remove(tempFile); err != nil {
+			log.Printf("Error removing temp file: %v", err)
+		}
+	}()
 
 	// 写入代码
 	if err := os.WriteFile(tempFile, []byte(code), 0644); err != nil {

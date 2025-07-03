@@ -1038,11 +1038,12 @@ func (t *DirectoryCreateTool) Execute(ctx context.Context, args map[string]inter
 
 	if permStr, ok := args["permissions"].(string); ok {
 		// Parse octal permissions string (e.g., "755" -> 0755)
-		if permStr == "755" {
+		switch permStr {
+		case "755":
 			permissions = 0755
-		} else if permStr == "644" {
+		case "644":
 			permissions = 0644
-		} else if permStr == "777" {
+		case "777":
 			permissions = 0777
 		}
 		// Default to 0755 for any other values

@@ -2,6 +2,7 @@ package llm
 
 import (
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -76,7 +77,9 @@ func ClearInstanceCache() {
 	// Close all cached clients
 	for _, client := range globalCache.clients {
 		if closer, ok := client.(interface{ Close() error }); ok {
-			closer.Close()
+			if err := closer.Close(); err != nil {
+				log.Printf("Error closing LLM client: %v", err)
+			}
 		}
 	}
 

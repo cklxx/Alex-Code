@@ -304,7 +304,8 @@ func TestHTTPLLMClient_ExtractSessionID(t *testing.T) {
 	}
 
 	// Test extraction from context
-	ctx := context.WithValue(context.Background(), "session_id", "ctx_session_123")
+	type sessionIDKey string
+	ctx := context.WithValue(context.Background(), sessionIDKey("session_id"), "ctx_session_123")
 	req := &ChatRequest{Messages: []Message{}}
 	sessionID := client.extractSessionID(ctx, req)
 	if sessionID != "ctx_session_123" {

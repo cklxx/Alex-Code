@@ -29,9 +29,9 @@ type ContextLengthConfig struct {
 func NewContextManager(llmClient llm.Client, config *ContextLengthConfig) *ContextManager {
 	if config == nil {
 		config = &ContextLengthConfig{
-			MaxTokens:              8000,  // Conservative default
-			SummarizationThreshold: 6000,  // Start summarizing at 75% of max
-			CompressionRatio:       0.3,   // Compress to 30% of original
+			MaxTokens:              8000, // Conservative default
+			SummarizationThreshold: 6000, // Start summarizing at 75% of max
+			CompressionRatio:       0.3,  // Compress to 30% of original
 			PreserveSystemMessages: true,
 		}
 	}
@@ -57,13 +57,13 @@ func (cm *ContextManager) CheckContextLength(sess *session.Session) (*ContextAna
 
 	// Estimate token usage
 	totalTokens := cm.estimateTokenUsage(messages)
-	
+
 	analysis := &ContextAnalysis{
-		TotalMessages:    len(messages),
-		EstimatedTokens:  totalTokens,
-		RequiresTrimming: totalTokens > cm.maxContextTokens,
-		ShouldSummarize:  totalTokens > int(float64(cm.maxContextTokens)*0.75), // 75% threshold
-		CompressionNeeded: totalTokens > int(float64(cm.maxContextTokens)*0.9), // 90% threshold
+		TotalMessages:     len(messages),
+		EstimatedTokens:   totalTokens,
+		RequiresTrimming:  totalTokens > cm.maxContextTokens,
+		ShouldSummarize:   totalTokens > int(float64(cm.maxContextTokens)*0.75), // 75% threshold
+		CompressionNeeded: totalTokens > int(float64(cm.maxContextTokens)*0.9),  // 90% threshold
 	}
 
 	return analysis, nil
@@ -85,37 +85,37 @@ func (cm *ContextManager) ProcessContextOverflow(ctx context.Context, sess *sess
 	}
 
 	messages := sess.GetMessages()
-	
+
 	// Separate system messages and conversation messages
 	systemMessages, conversationMessages := cm.separateMessages(messages)
-	
+
 	// Preserve context for restoration
 	contextBackup := cm.preservationMgr.CreateBackup(sess)
-	
+
 	// Summarize conversation messages (excluding recent ones)
 	recentCount := cm.calculateRecentMessageCount(len(conversationMessages))
 	messagesToSummarize := conversationMessages[:len(conversationMessages)-recentCount]
 	recentMessages := conversationMessages[len(conversationMessages)-recentCount:]
-	
+
 	summary, err := cm.summarizer.SummarizeMessages(ctx, messagesToSummarize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to summarize messages: %w", err)
 	}
-	
+
 	// Create new message list with summary + recent messages
 	newMessages := make([]*session.Message, 0)
-	
+
 	// Add system messages back
 	newMessages = append(newMessages, systemMessages...)
-	
+
 	// Add summary as a system message
 	summaryMsg := &session.Message{
 		Role:    "system",
 		Content: fmt.Sprintf("## Conversation Summary\n\n%s\n\n---\n\nThe above is a summary of the previous conversation. Continue from here with full context awareness.", summary.Summary),
 		Metadata: map[string]interface{}{
-			"type":               "context_summary",
-			"original_count":     len(messagesToSummarize),
-			"summary_timestamp":  time.Now().Unix(),
+			"type":              "context_summary",
+			"original_count":    len(messagesToSummarize),
+			"summary_timestamp": time.Now().Unix(),
 			"backup_id":         contextBackup.ID,
 			"key_points":        summary.KeyPoints,
 			"topics":            summary.Topics,
@@ -123,16 +123,16 @@ func (cm *ContextManager) ProcessContextOverflow(ctx context.Context, sess *sess
 		Timestamp: time.Now(),
 	}
 	newMessages = append(newMessages, summaryMsg)
-	
+
 	// Add recent messages
 	newMessages = append(newMessages, recentMessages...)
-	
+
 	// Update session with new message list
 	sess.ClearMessages()
 	for _, msg := range newMessages {
 		sess.AddMessage(msg)
 	}
-	
+
 	return &ContextProcessingResult{
 		Action:         "summarized",
 		OriginalCount:  len(messages),
@@ -152,7 +152,7 @@ func (cm *ContextManager) GetContextStats(sess *session.Session) *ContextStats {
 	messages := sess.GetMessages()
 	systemMsgs, userMsgs, assistantMsgs := 0, 0, 0
 	summaryMsgs := 0
-	
+
 	for _, msg := range messages {
 		switch msg.Role {
 		case "system":
@@ -167,11 +167,11 @@ func (cm *ContextManager) GetContextStats(sess *session.Session) *ContextStats {
 			assistantMsgs++
 		}
 	}
-	
+
 	return &ContextStats{
 		TotalMessages:     len(messages),
 		SystemMessages:    systemMsgs,
-		UserMessages:      userMsgs, 
+		UserMessages:      userMsgs,
 		AssistantMessages: assistantMsgs,
 		SummaryMessages:   summaryMsgs,
 		EstimatedTokens:   cm.estimateTokenUsage(messages),
@@ -194,7 +194,7 @@ func (cm *ContextManager) estimateTokenUsage(messages []*session.Message) int {
 func (cm *ContextManager) separateMessages(messages []*session.Message) ([]*session.Message, []*session.Message) {
 	var systemMessages []*session.Message
 	var conversationMessages []*session.Message
-	
+
 	for _, msg := range messages {
 		if msg.Role == "system" {
 			systemMessages = append(systemMessages, msg)
@@ -202,7 +202,7 @@ func (cm *ContextManager) separateMessages(messages []*session.Message) ([]*sess
 			conversationMessages = append(conversationMessages, msg)
 		}
 	}
-	
+
 	return systemMessages, conversationMessages
 }
 
@@ -212,9 +212,9 @@ func (cm *ContextManager) calculateRecentMessageCount(totalConversation int) int
 	if totalConversation < minRecent {
 		return totalConversation // Can't keep more than we have
 	}
-	
+
 	ratioRecent := int(float64(totalConversation) * 0.2)
-	
+
 	if ratioRecent > minRecent {
 		return ratioRecent
 	}
@@ -234,11 +234,11 @@ type ContextAnalysis struct {
 
 // ContextProcessingResult represents the result of context processing
 type ContextProcessingResult struct {
-	Action         string             `json:"action"`
-	OriginalCount  int                `json:"original_count"`
-	ProcessedCount int                `json:"processed_count"`
-	Summary        *MessageSummary    `json:"summary,omitempty"`
-	BackupID       string             `json:"backup_id,omitempty"`
+	Action         string          `json:"action"`
+	OriginalCount  int             `json:"original_count"`
+	ProcessedCount int             `json:"processed_count"`
+	Summary        *MessageSummary `json:"summary,omitempty"`
+	BackupID       string          `json:"backup_id,omitempty"`
 }
 
 // ContextStats provides detailed statistics about session context

@@ -18,9 +18,9 @@ type ReactAgentContextIntegration struct {
 
 // IntegrationConfig configures the context management integration
 type IntegrationConfig struct {
-	Enabled               bool                 `json:"enabled"`
-	AutoTrimming          bool                 `json:"auto_trimming"`
-	ContextLengthConfig   *ContextLengthConfig `json:"context_length_config"`
+	Enabled             bool                 `json:"enabled"`
+	AutoTrimming        bool                 `json:"auto_trimming"`
+	ContextLengthConfig *ContextLengthConfig `json:"context_length_config"`
 }
 
 // NewReactAgentContextIntegration creates a new context management integration
@@ -47,8 +47,8 @@ func NewReactAgentContextIntegration(llmClient llm.Client, config *IntegrationCo
 
 // ProcessMessageWithContextManagement processes a message with automatic context management
 func (raci *ReactAgentContextIntegration) ProcessMessageWithContextManagement(
-	ctx context.Context, 
-	sess *session.Session, 
+	ctx context.Context,
+	sess *session.Session,
 	userMessage string,
 	processFunc func(context.Context, *session.Session, string) error,
 ) error {
@@ -109,7 +109,7 @@ func (raci *ReactAgentContextIntegration) GetContextStats(sess *session.Session)
 		}
 	}
 
-	return raci.contextManager.GetContextStats(sess)  
+	return raci.contextManager.GetContextStats(sess)
 }
 
 // EnableContextManagement enables context management
@@ -147,13 +147,13 @@ func (raci *ReactAgentContextIntegration) checkAndProcessContextOverflow(ctx con
 
 	if analysis.RequiresTrimming {
 		log.Printf("[INFO] Context overflow detected, processing %d messages", analysis.TotalMessages)
-		
+
 		result, err := raci.contextManager.ProcessContextOverflow(ctx, sess)
 		if err != nil {
 			return fmt.Errorf("failed to process context overflow: %w", err)
 		}
 
-		log.Printf("[INFO] Context processed: %s, %d -> %d messages (backup: %s)", 
+		log.Printf("[INFO] Context processed: %s, %d -> %d messages (backup: %s)",
 			result.Action, result.OriginalCount, result.ProcessedCount, result.BackupID)
 	}
 
@@ -227,7 +227,7 @@ func (cmsc *ContextManagementSlashCommands) handleContextSummarize(ctx context.C
 • Messages: %d → %d
 • Backup ID: %s`,
 		result.Action,
-		result.OriginalCount, 
+		result.OriginalCount,
 		result.ProcessedCount,
 		result.BackupID), nil
 }

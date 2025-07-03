@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -280,7 +281,11 @@ func (t *WebSearchTool) makeRequest(ctx context.Context, request TavilyRequest) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Error closing response body: %v", err)
+		}
+	}()
 
 	// Read response
 	responseBody, err := io.ReadAll(resp.Body)

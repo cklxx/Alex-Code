@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"strings"
 	"time"
@@ -38,7 +39,9 @@ func NewSQLiteStorage(config StorageConfig) (*SQLiteStorage, error) {
 	}
 
 	if err := storage.initialize(); err != nil {
-		db.Close()
+		if err := db.Close(); err != nil {
+			log.Printf("Error closing database: %v", err)
+		}
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
@@ -195,7 +198,12 @@ func (s *SQLiteStorage) BatchStore(ctx context.Context, docs []Document) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			// Ignore rollback errors as they may be due to successful commit - intentionally empty
+			_ = rollbackErr // Suppress staticcheck warning
+		}
+	}()
 
 	stmt, err := tx.PrepareContext(ctx, `INSERT OR REPLACE INTO documents 
 		(id, title, content, metadata, created_at, updated_at) 
@@ -203,7 +211,7 @@ func (s *SQLiteStorage) BatchStore(ctx context.Context, docs []Document) error {
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { if err := stmt.Close(); err != nil { log.Printf("Error closing statement: %v", err) } }()
 
 	for _, doc := range docs {
 		metadataJSON, err := json.Marshal(doc.Metadata)
@@ -252,7 +260,7 @@ func (s *SQLiteStorage) BatchGet(ctx context.Context, ids []string) ([]Document,
 	if err != nil {
 		return nil, fmt.Errorf("failed to query documents: %w", err)
 	}
-	defer rows.Close()
+	defer func() { if err := rows.Close(); err != nil { log.Printf("Error closing rows: %v", err) } }()
 
 	var docs []Document
 	for rows.Next() {
@@ -320,7 +328,7 @@ func (s *SQLiteStorage) List(ctx context.Context, limit, offset int) ([]Document
 	if err != nil {
 		return nil, fmt.Errorf("failed to query documents: %w", err)
 	}
-	defer rows.Close()
+	defer func() { if err := rows.Close(); err != nil { log.Printf("Error closing rows: %v", err) } }()
 
 	var docs []Document
 	for rows.Next() {
@@ -427,7 +435,7 @@ func (s *SQLiteStorage) SearchSimilar(ctx context.Context, queryVector []float64
 	if err != nil {
 		return nil, fmt.Errorf("failed to query vectors: %w", err)
 	}
-	defer rows.Close()
+	defer func() { if err := rows.Close(); err != nil { log.Printf("Error closing rows: %v", err) } }()
 
 	var results []VectorResult
 	for rows.Next() {
@@ -447,7 +455,10 @@ func (s *SQLiteStorage) SearchSimilar(ctx context.Context, queryVector []float64
 		}
 
 		if metadataJSON != "" {
-			json.Unmarshal([]byte(metadataJSON), &doc.Metadata)
+			if err := json.Unmarshal([]byte(metadataJSON), &doc.Metadata); err != nil {
+				// Continue with empty metadata if unmarshal fails
+				doc.Metadata = make(map[string]string)
+			}
 		}
 
 		similarity := sqliteCosineSimilarity(queryVector, vector)
@@ -500,14 +511,19 @@ func (s *SQLiteStorage) BatchStoreVectors(ctx context.Context, vectors map[strin
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			// Ignore rollback errors as they may be due to successful commit - intentionally empty
+			_ = rollbackErr // Suppress staticcheck warning
+		}
+	}()
 
 	stmt, err := tx.PrepareContext(ctx, `INSERT OR REPLACE INTO vectors 
 		(id, vector_data, dimensions, created_at) VALUES (?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { if err := stmt.Close(); err != nil { log.Printf("Error closing statement: %v", err) } }()
 
 	for id, vector := range vectors {
 		vectorJSON, err := json.Marshal(vector)
@@ -544,7 +560,9 @@ func (s *SQLiteStorage) GetVectorCount() uint64 {
 	row := s.db.QueryRow(query)
 
 	var count uint64
-	row.Scan(&count)
+	if err := row.Scan(&count); err != nil {
+		return 0 // Return 0 if scan fails
+	}
 	return count
 }
 

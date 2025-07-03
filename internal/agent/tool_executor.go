@@ -123,7 +123,7 @@ func (te *ToolExecutor) parseIndividualTextToolCall(callContent string) *types.R
 	}
 
 	// 寻找JSON参数
-	var jsonStart, jsonEnd int = -1, -1
+	jsonStart, jsonEnd := -1, -1
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "```json" {

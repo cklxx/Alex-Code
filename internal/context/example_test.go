@@ -14,7 +14,11 @@ func TestCompleteWorkflow(t *testing.T) {
 
 	// 1. 创建引擎（零配置）
 	engine := NewEngine()
-	defer engine.Close()
+	defer func() {
+		if err := engine.Close(); err != nil {
+			fmt.Printf("Error closing engine: %v\n", err)
+		}
+	}()
 
 	fmt.Println("✅ 引擎启动成功 (< 1ms)")
 
@@ -120,7 +124,11 @@ func TestCompleteWorkflow(t *testing.T) {
 // TestPerformanceBenchmark 性能基准测试
 func TestPerformanceBenchmark(t *testing.T) {
 	engine := NewEngine()
-	defer engine.Close()
+	defer func() {
+		if err := engine.Close(); err != nil {
+			fmt.Printf("Error closing engine: %v\n", err)
+		}
+	}()
 
 	// 添加大量文档
 	docCount := 1000
@@ -134,7 +142,9 @@ func TestPerformanceBenchmark(t *testing.T) {
 			Content: fmt.Sprintf("这是第%d个文档的内容，包含一些示例文本用于测试搜索性能。", i),
 			Created: time.Now(),
 		}
-		engine.AddDocument(doc)
+		if err := engine.AddDocument(doc); err != nil {
+			t.Logf("Failed to add document %d: %v", i, err)
+		}
 	}
 	addTime := time.Since(start)
 

@@ -3,6 +3,7 @@ package builtin
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -296,7 +297,9 @@ func (t *GrepTool) nativeGrep(pattern, searchPath string, recursive, ignoreCase,
 				info, err := entry.Info()
 				if err == nil {
 					filePath := filepath.Join(searchPath, entry.Name())
-					searchFunc(filePath, info, nil)
+					if err := searchFunc(filePath, info, nil); err != nil {
+						log.Printf("Error in search function: %v", err)
+					}
 				}
 			}
 		}

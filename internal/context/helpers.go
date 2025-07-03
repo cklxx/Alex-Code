@@ -2,6 +2,7 @@ package context
 
 import (
 	"context"
+	"log"
 
 	"alex/internal/context/algorithms"
 )
@@ -93,7 +94,9 @@ func GetDefaultEngine() *UnifiedEngine {
 // ResetDefaultEngine 重置默认引擎（主要用于测试）
 func ResetDefaultEngine() {
 	if defaultEngine != nil {
-		defaultEngine.Close()
+		if err := defaultEngine.Close(); err != nil {
+			log.Printf("Error closing default engine: %v", err)
+		}
 	}
 	defaultEngine = NewUnifiedEngine(DefaultEngineConfig())
 }

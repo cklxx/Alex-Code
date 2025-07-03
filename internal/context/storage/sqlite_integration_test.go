@@ -21,7 +21,7 @@ func TestSQLiteIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create SQLite storage: %v", err)
 	}
-	defer storage.Close()
+	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
 
 	ctx := context.Background()
 
@@ -308,6 +308,8 @@ func TestSQLiteIntegration(t *testing.T) {
 }
 
 // testConcurrentOperationsWithSameStorage 使用同一个存储实例测试并发操作
+//
+//nolint:unused
 func testConcurrentOperationsWithSameStorage(t *testing.T, storage *SQLiteStorage) {
 	ctx := context.Background()
 
@@ -373,7 +375,7 @@ func TestSQLiteStorageWithRealData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create SQLite storage: %v", err)
 	}
-	defer storage.Close()
+	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
 
 	ctx := context.Background()
 

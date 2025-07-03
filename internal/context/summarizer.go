@@ -3,7 +3,7 @@ package context
 import (
 	"context"
 	"encoding/json"
-	"fmt" 
+	"fmt"
 	"strings"
 	"time"
 
@@ -19,15 +19,15 @@ type MessageSummarizer struct {
 
 // MessageSummary represents a structured summary of conversation messages
 type MessageSummary struct {
-	Summary       string            `json:"summary"`
-	KeyPoints     []string          `json:"key_points"`
-	Topics        []string          `json:"topics"`
-	ActionItems   []string          `json:"action_items"`
-	Decisions     []string          `json:"decisions"`
-	CodeChanges   []CodeChangeInfo  `json:"code_changes"`
-	Context       map[string]string `json:"context"`
-	TokensUsed    int               `json:"tokens_used"`
-	CreatedAt     time.Time         `json:"created_at"`
+	Summary     string            `json:"summary"`
+	KeyPoints   []string          `json:"key_points"`
+	Topics      []string          `json:"topics"`
+	ActionItems []string          `json:"action_items"`
+	Decisions   []string          `json:"decisions"`
+	CodeChanges []CodeChangeInfo  `json:"code_changes"`
+	Context     map[string]string `json:"context"`
+	TokensUsed  int               `json:"tokens_used"`
+	CreatedAt   time.Time         `json:"created_at"`
 }
 
 // CodeChangeInfo represents information about code changes discussed
@@ -56,10 +56,10 @@ func (ms *MessageSummarizer) SummarizeMessages(ctx context.Context, messages []*
 
 	// Convert messages to conversation text
 	conversationText := ms.formatMessagesForSummarization(messages)
-	
+
 	// Create summarization prompt
 	prompt := ms.buildSummarizationPrompt(conversationText, len(messages))
-	
+
 	// Call LLM for summarization
 	req := &llm.ChatRequest{
 		Messages: []llm.Message{
@@ -68,7 +68,7 @@ func (ms *MessageSummarizer) SummarizeMessages(ctx context.Context, messages []*
 				Content: "You are an expert conversation summarizer. Your task is to create structured, comprehensive summaries that preserve all important information while being concise and organized.",
 			},
 			{
-				Role:    "user", 
+				Role:    "user",
 				Content: prompt,
 			},
 		},
@@ -76,39 +76,39 @@ func (ms *MessageSummarizer) SummarizeMessages(ctx context.Context, messages []*
 		Temperature: 0.1,                // Low temperature for consistent summaries
 		MaxTokens:   2000,               // Generous token limit for detailed summaries
 	}
-	
+
 	response, err := ms.llmClient.Chat(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate summary: %w", err)
 	}
-	
+
 	if len(response.Choices) == 0 {
 		return nil, fmt.Errorf("no summary generated")
 	}
-	
+
 	// Parse the structured response
 	summary, err := ms.parseSummaryResponse(response.Choices[0].Message.Content)
 	if err != nil {
 		// Fallback to simple summary if parsing fails
 		summary = &MessageSummary{
-			Summary:    response.Choices[0].Message.Content,
-			KeyPoints:  []string{},
-			Topics:     []string{},
-			CreatedAt:  time.Now(),
+			Summary:   response.Choices[0].Message.Content,
+			KeyPoints: []string{},
+			Topics:    []string{},
+			CreatedAt: time.Now(),
 		}
 	}
-	
+
 	// Add metadata
 	summary.TokensUsed = response.Usage.TotalTokens
 	summary.CreatedAt = time.Now()
-	
+
 	return summary, nil
 }
 
 // formatMessagesForSummarization converts messages to a clean text format
 func (ms *MessageSummarizer) formatMessagesForSummarization(messages []*session.Message) string {
 	var parts []string
-	
+
 	for i, msg := range messages {
 		// Skip system messages except summaries
 		if msg.Role == "system" {
@@ -117,16 +117,16 @@ func (ms *MessageSummarizer) formatMessagesForSummarization(messages []*session.
 			}
 			continue
 		}
-		
+
 		// Format user/assistant messages
 		timestamp := ""
 		if !msg.Timestamp.IsZero() {
 			timestamp = fmt.Sprintf(" (%s)", msg.Timestamp.Format("15:04:05"))
 		}
-		
+
 		role := strings.ToUpper(msg.Role)
 		content := strings.TrimSpace(msg.Content)
-		
+
 		// Add context from tool calls if present
 		toolInfo := ""
 		if len(msg.ToolCalls) > 0 {
@@ -136,10 +136,10 @@ func (ms *MessageSummarizer) formatMessagesForSummarization(messages []*session.
 			}
 			toolInfo = fmt.Sprintf(" [Tools: %s]", strings.Join(toolNames, ", "))
 		}
-		
+
 		parts = append(parts, fmt.Sprintf("%d. %s%s%s:\n%s\n", i+1, role, timestamp, toolInfo, content))
 	}
-	
+
 	return strings.Join(parts, "\n")
 }
 
@@ -175,28 +175,28 @@ Be comprehensive but concise. This summary will be used to maintain context in a
 func (ms *MessageSummarizer) parseSummaryResponse(content string) (*MessageSummary, error) {
 	// Try to extract JSON from the response
 	content = strings.TrimSpace(content)
-	
+
 	// Find JSON block (could be wrapped in markdown code blocks)
 	jsonStart := strings.Index(content, "{")
 	jsonEnd := strings.LastIndex(content, "}")
-	
+
 	if jsonStart == -1 || jsonEnd == -1 {
 		return nil, fmt.Errorf("no JSON found in response")
 	}
-	
+
 	jsonContent := content[jsonStart : jsonEnd+1]
-	
+
 	var summary MessageSummary
 	err := json.Unmarshal([]byte(jsonContent), &summary)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
 	}
-	
+
 	// Validate required fields
 	if summary.Summary == "" {
 		return nil, fmt.Errorf("summary is empty")
 	}
-	
+
 	// Initialize arrays if nil
 	if summary.KeyPoints == nil {
 		summary.KeyPoints = []string{}
@@ -216,7 +216,7 @@ func (ms *MessageSummarizer) parseSummaryResponse(content string) (*MessageSumma
 	if summary.Context == nil {
 		summary.Context = make(map[string]string)
 	}
-	
+
 	return &summary, nil
 }
 
@@ -225,15 +225,15 @@ func (ms *MessageSummarizer) CompactSummarize(ctx context.Context, messages []*s
 	if len(messages) == 0 {
 		return "", nil
 	}
-	
+
 	conversationText := ms.formatMessagesForSummarization(messages)
-	
+
 	prompt := fmt.Sprintf(`Provide a very concise summary of this conversation in 2-3 sentences:
 
 %s
 
 Focus only on the most essential information, main outcomes, and current state.`, conversationText)
-	
+
 	req := &llm.ChatRequest{
 		Messages: []llm.Message{
 			{
@@ -249,30 +249,30 @@ Focus only on the most essential information, main outcomes, and current state.`
 		Temperature: 0.1,
 		MaxTokens:   150,
 	}
-	
+
 	response, err := ms.llmClient.Chat(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate compact summary: %w", err)
 	}
-	
+
 	if len(response.Choices) == 0 {
 		return "", fmt.Errorf("no summary generated")
 	}
-	
+
 	return strings.TrimSpace(response.Choices[0].Message.Content), nil
 }
 
 // GetSummaryStats returns statistics about the summarization process
 func (ms *MessageSummarizer) GetSummaryStats(summary *MessageSummary) map[string]interface{} {
 	return map[string]interface{}{
-		"summary_length":    len(summary.Summary),
-		"key_points_count":  len(summary.KeyPoints),
-		"topics_count":      len(summary.Topics),
+		"summary_length":     len(summary.Summary),
+		"key_points_count":   len(summary.KeyPoints),
+		"topics_count":       len(summary.Topics),
 		"action_items_count": len(summary.ActionItems),
-		"decisions_count":   len(summary.Decisions),
+		"decisions_count":    len(summary.Decisions),
 		"code_changes_count": len(summary.CodeChanges),
 		"context_keys_count": len(summary.Context),
-		"tokens_used":       summary.TokensUsed,
-		"created_at":        summary.CreatedAt,
+		"tokens_used":        summary.TokensUsed,
+		"created_at":         summary.CreatedAt,
 	}
 }
