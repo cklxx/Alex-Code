@@ -171,7 +171,7 @@ func (c *StreamingLLMClient) ChatStream(ctx context.Context, req *ChatRequest) (
 		return nil, fmt.Errorf("HTTP error %d: %s", resp.StatusCode, string(body))
 	}
 
-	deltaChannel := make(chan StreamDelta, 100)
+	deltaChannel := make(chan StreamDelta, 1000)  // Increased buffer size for better streaming performance
 
 	go func() {
 		defer close(deltaChannel)

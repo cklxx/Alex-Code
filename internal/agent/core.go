@@ -16,25 +16,27 @@ import (
 // ReactCore - 使用工具调用流程的ReactCore核心实现
 type ReactCore struct {
 	agent          *ReactAgent
-	streamCallback StreamCallback             // 当前流回调
-	contextMgr     *contextmgr.ContextManager // 上下文管理器
+	streamCallback StreamCallback
+	contextHandler *ContextHandler
+	llmHandler     *LLMHandler
+	toolHandler    *ToolHandler
+	promptHandler  *PromptHandler
 }
 
 // NewReactCore - 创建ReAct核心实例
 func NewReactCore(agent *ReactAgent) *ReactCore {
-	// 创建上下文管理器
-	contextConfig := &contextmgr.ContextLengthConfig{
-		MaxTokens:              8000, // 保守的token限制
-		SummarizationThreshold: 6000, // 75%时开始总结
-		CompressionRatio:       0.3,  // 压缩到30%
-		PreserveSystemMessages: true,
+	llmClient, err := llm.GetLLMInstance(llm.BasicModel)
+	if err != nil {
+		log.Printf("[ERROR] NewReactCore: Failed to get LLM instance: %v", err)
+		llmClient = nil
 	}
 
-	ctxMgr := contextmgr.NewContextManager(agent.llm, contextConfig)
-
 	return &ReactCore{
-		agent:      agent,
-		contextMgr: ctxMgr,
+		agent:          agent,
+		contextHandler: NewContextHandler(llmClient, agent.sessionManager),
+		llmHandler:     NewLLMHandler(nil), // Will be set per request
+		toolHandler:    NewToolHandler(agent.tools),
+		promptHandler:  NewPromptHandler(agent.promptBuilder),
 	}
 }
 
@@ -42,12 +44,13 @@ func NewReactCore(agent *ReactAgent) *ReactCore {
 func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback StreamCallback) (*types.ReactTaskResult, error) {
 	// 设置流回调
 	rc.streamCallback = streamCallback
+	rc.llmHandler.streamCallback = streamCallback
 
 	// 获取当前会话
-	sess := rc.getCurrentSession(ctx)
+	sess := rc.contextHandler.getCurrentSession(ctx, rc.agent)
 	if sess != nil {
 		// 检查并处理上下文溢出
-		if err := rc.handleContextOverflow(ctx, sess, streamCallback); err != nil {
+		if err := rc.contextHandler.handleContextOverflow(ctx, sess, streamCallback); err != nil {
 			log.Printf("[WARNING] Context overflow handling failed: %v", err)
 		}
 	}
@@ -65,7 +68,8 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	}
 
 	// 构建消息列表，基于会话历史
-	messages := rc.buildMessagesFromSession(sess, task)
+	systemPrompt := rc.promptHandler.buildToolDrivenTaskPrompt()
+	messages := rc.contextHandler.buildMessagesFromSession(sess, task, systemPrompt)
 
 	// 执行工具驱动的ReAct循环
 	maxIterations := 25 // 减少迭代次数，依赖智能工具调用
@@ -84,7 +88,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		}
 
 		// 构建可用工具列表 - 每轮都包含工具定义以确保模型能调用工具
-		tools := rc.buildToolDefinitions()
+		tools := rc.toolHandler.buildToolDefinitions()
 		toolChoice := "auto"
 
 		request := &llm.ChatRequest{
@@ -106,7 +110,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		}
 
 		// 添加请求参数验证
-		if err := rc.validateLLMRequest(request); err != nil {
+		if err := rc.llmHandler.validateLLMRequest(request); err != nil {
 			log.Printf("[ERROR] ReactCore: Invalid LLM request at iteration %d: %v", iteration, err)
 			if isStreaming {
 				streamCallback(StreamChunk{Type: "error", Content: fmt.Sprintf("❌ Invalid request: %v", err)})
@@ -115,7 +119,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		}
 
 		// 执行LLM调用，带重试机制
-		response, err := rc.callLLMWithRetry(ctx, client, request, 3)
+		response, err := rc.llmHandler.callLLMWithRetry(ctx, client, request, 3)
 		if err != nil {
 			log.Printf("[ERROR] ReactCore: LLM call failed at iteration %d after retries: %v", iteration, err)
 			if isStreaming {
@@ -157,8 +161,8 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			if isStreaming {
 				streamCallback(StreamChunk{
 					Type:     "tool_start",
-					Content:  fmt.Sprintf("⚡ Executing %d tool(s): %s", len(toolCalls), rc.formatToolNames(toolCalls)),
-					Metadata: map[string]any{"iteration": iteration, "tools": rc.formatToolNames(toolCalls)}})
+					Content:  fmt.Sprintf("⚡ Executing %d tool(s): %s", len(toolCalls), rc.toolHandler.formatToolNames(toolCalls)),
+					Metadata: map[string]any{"iteration": iteration, "tools": rc.toolHandler.formatToolNames(toolCalls)}})
 			}
 
 			// 执行工具调用
@@ -168,10 +172,10 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 			// 将工具结果添加到对话历史
 			if toolResult != nil {
-				toolMessages := rc.buildToolMessages(toolResult)
+				toolMessages := rc.toolHandler.buildToolMessages(toolResult)
 				messages = append(messages, toolMessages...)
 
-				step.Observation = rc.generateObservation(toolResult)
+				step.Observation = rc.toolHandler.generateObservation(toolResult)
 			}
 		} else {
 			finalAnswer := choice.Message.Content
@@ -189,7 +193,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			step.Duration = time.Since(step.Timestamp)
 			taskCtx.History = append(taskCtx.History, step)
 
-			return rc.buildFinalResult(taskCtx, finalAnswer, 0.8, true), nil
+			return buildFinalResult(taskCtx, finalAnswer, 0.8, true), nil
 		}
 
 		step.Duration = time.Since(step.Timestamp)
@@ -207,554 +211,20 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		streamCallback(StreamChunk{Type: "complete", Content: "⚠️ Maximum iterations reached"})
 	}
 
-	return rc.buildFinalResult(taskCtx, "Maximum iterations reached without completion", 0.5, false), nil
-}
-
-// buildToolDrivenTaskPrompt - 构建工具驱动的任务提示
-func (rc *ReactCore) buildToolDrivenTaskPrompt() string {
-	// 使用项目内的prompt builder
-	if rc.agent.promptBuilder != nil && rc.agent.promptBuilder.promptLoader != nil {
-		// 尝试使用React thinking prompt作为基础模板
-		template, err := rc.agent.promptBuilder.promptLoader.GetReActThinkingPrompt()
-		if err != nil {
-			log.Printf("[WARN] ReactCore: Failed to get ReAct thinking prompt, trying fallback: %v", err)
-		}
-		// 构建增强的任务提示，将特定任务信息与ReAct模板结合
-		return template
-	}
-
-	// Fallback to hardcoded prompt if prompt builder is not available
-	log.Printf("[WARN] ReactCore: Prompt builder not available, using hardcoded prompt")
-	return rc.buildHardcodedTaskPrompt()
-}
-
-// buildHardcodedTaskPrompt - 构建硬编码的任务提示（fallback）
-func (rc *ReactCore) buildHardcodedTaskPrompt() string {
-
-	return fmt.Sprintf(`You are an intelligent agent with access to powerful tools. Your goal is to complete this task efficiently:
-
-**time:** %s
-
-
-**Approach:**
-1. **For complex tasks**: Start with the 'think' tool to analyze and plan
-2. **For multi-step tasks**: Use 'todo_update' to create structured task lists
-3. **For file operations**: Use appropriate file tools (file_read, file_update, etc.)
-4. **For system operations**: Use bash tool when needed
-5. **For search/analysis**: Use grep or other search tools
-
-**Think Tool Capabilities:**
-- Phase: analyze, plan, reflect, reason, ultra_think
-- Depth: shallow, normal, deep, ultra
-- Use for strategic thinking and problem breakdown
-
-**Todo Management:**
-- todo_update: Create, batch create, update, complete tasks
-- todo_read: Read current todos with filtering and statistics
-
-**Guidelines:**
-- Use the 'think' tool first for complex problems requiring analysis
-- Break down multi-step tasks using todo_update
-- Execute tools systematically to achieve the goal
-- Provide clear, actionable results
-
-Begin by determining the best approach for this task.`, time.Now().Format(time.RFC3339))
-}
-
-// buildToolDefinitions - 构建工具定义列表（包括think工具）
-func (rc *ReactCore) buildToolDefinitions() []llm.Tool {
-	var tools []llm.Tool
-
-	for _, tool := range rc.agent.tools {
-		toolDef := llm.Tool{
-			Type: "function",
-			Function: llm.Function{
-				Name:        tool.Name(),
-				Description: tool.Description(),
-				Parameters:  tool.Parameters(),
-			},
-		}
-
-		tools = append(tools, toolDef)
-	}
-
-	return tools
-}
-
-// buildToolMessages - 构建工具结果消息
-func (rc *ReactCore) buildToolMessages(actionResult []*types.ReactToolResult) []llm.Message {
-	var toolMessages []llm.Message
-
-	for _, result := range actionResult {
-		content := result.Content
-		if !result.Success {
-			content = result.Error
-		}
-
-		// Ensure CallID is not empty - generate one if missing
-		callID := result.CallID
-		if callID == "" {
-			callID = fmt.Sprintf("tool_%d", time.Now().UnixNano())
-			log.Printf("[WARN] buildToolMessages: Missing CallID for tool %s, generated: %s", result.ToolName, callID)
-		}
-
-		toolMessages = append(toolMessages, llm.Message{
-			Role:       "tool",
-			Content:    content,
-			Name:       result.ToolName,
-			ToolCallId: callID,
-		})
-	}
-
-	return toolMessages
-}
-
-// generateObservation - 生成观察结果
-func (rc *ReactCore) generateObservation(toolResult []*types.ReactToolResult) string {
-	if toolResult == nil {
-		return "No tool execution result to observe"
-	}
-
-	for _, result := range toolResult {
-		if result.Success {
-			// 检查是否是特定工具的结果
-			if len(result.ToolCalls) > 0 {
-				toolName := result.ToolCalls[0].Name
-				// 清理工具输出，移除冗余格式信息
-				cleanContent := rc.cleanToolOutput(result.Content)
-				switch toolName {
-				case "think":
-					return fmt.Sprintf("🧠 Thinking completed: %s", rc.truncateContent(cleanContent, 100))
-				case "todo_update":
-					return fmt.Sprintf("📋 Todo management: %s", rc.truncateContent(cleanContent, 100))
-				case "file_read":
-					return fmt.Sprintf("📖 File read: %s", rc.truncateContent(cleanContent, 100))
-				case "bash":
-					return fmt.Sprintf("⚡ Command executed: %s", rc.truncateContent(cleanContent, 100))
-				default:
-					return fmt.Sprintf("✅ %s completed: %s", toolName, rc.truncateContent(cleanContent, 100))
-				}
-			}
-			return fmt.Sprintf("✅ Tool execution successful: %s", rc.truncateContent(rc.cleanToolOutput(toolResult[0].Content), 100))
-		} else {
-			return fmt.Sprintf("❌ Tool execution failed: %s", result.Error)
-		}
-	}
-	return "No tool execution result to observe"
-}
-
-// formatToolNames - 格式化工具名称列表
-func (rc *ReactCore) formatToolNames(toolCalls []*types.ReactToolCall) string {
-	var names []string
-	for _, tc := range toolCalls {
-		names = append(names, tc.Name)
-	}
-	return strings.Join(names, ", ")
-}
-
-// truncateContent - 截断内容到指定长度
-func (rc *ReactCore) truncateContent(content string, maxLen int) string {
-	if maxLen <= 0 {
-		return ""
-	}
-	if len(content) <= maxLen {
-		return content
-	}
-	// 确保不会越界
-	if maxLen > len(content) {
-		maxLen = len(content)
-	}
-	return content[:maxLen] + "..."
-}
-
-// buildFinalResult - 构建最终结果
-func (rc *ReactCore) buildFinalResult(taskCtx *types.ReactTaskContext, answer string, confidence float64, success bool) *types.ReactTaskResult {
-	totalDuration := time.Since(taskCtx.StartTime)
-
-	return &types.ReactTaskResult{
-		Success:    success,
-		Answer:     answer,
-		Confidence: confidence,
-		Steps:      taskCtx.History,
-		Duration:   totalDuration,
-		TokensUsed: taskCtx.TokensUsed,
-	}
-}
-
-// validateLLMRequest - 验证LLM请求参数
-func (rc *ReactCore) validateLLMRequest(request *llm.ChatRequest) error {
-	if request == nil {
-		return fmt.Errorf("request is nil")
-	}
-
-	if len(request.Messages) == 0 {
-		return fmt.Errorf("no messages in request")
-	}
-
-	if request.Config == nil {
-		return fmt.Errorf("config is nil")
-	}
-
-	return nil
-}
-
-// callLLMWithRetry - 带重试机制的流式LLM调用
-func (rc *ReactCore) callLLMWithRetry(ctx context.Context, client llm.Client, request *llm.ChatRequest, maxRetries int) (*llm.ChatResponse, error) {
-	var lastErr error
-
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		// 使用流式调用
-		streamChan, err := client.ChatStream(ctx, request)
-		if err != nil {
-			lastErr = err
-			log.Printf("[WARN] ReactCore: Stream initialization failed (attempt %d): %v", attempt, err)
-
-			// 检查是否是500错误，如果是，说明请求格式可能有问题，不要重试
-			if strings.Contains(err.Error(), "500") {
-				log.Printf("[ERROR] ReactCore: Server error 500, not retrying: %v", err)
-				return nil, fmt.Errorf("server error 500 - request format issue: %w", err)
-			}
-
-			if attempt < maxRetries {
-				backoffDuration := time.Duration(attempt*2) * time.Second
-				log.Printf("[WARN] ReactCore: Retrying in %v", backoffDuration)
-				select {
-				case <-ctx.Done():
-					return nil, ctx.Err()
-				case <-time.After(backoffDuration):
-					continue
-				}
-			}
-			continue
-		}
-
-		// 处理流式响应并重构为完整响应
-		response, err := rc.collectStreamingResponse(ctx, streamChan)
-		if err == nil && response != nil {
-			return response, nil
-		}
-
-		lastErr = err
-		log.Printf("[WARN] ReactCore: Failed to collect streaming response (attempt %d): %v", attempt, err)
-
-		if attempt < maxRetries {
-			backoffDuration := time.Duration(attempt*2) * time.Second
-			log.Printf("[WARN] ReactCore: Retrying in %v", backoffDuration)
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(backoffDuration):
-				continue
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("streaming LLM call failed after %d attempts: %w", maxRetries, lastErr)
-}
-
-// collectStreamingResponse - 收集流式响应并重构为完整响应
-func (rc *ReactCore) collectStreamingResponse(ctx context.Context, streamChan <-chan llm.StreamDelta) (*llm.ChatResponse, error) {
-	var response *llm.ChatResponse
-	var contentBuilder strings.Builder
-	var toolCalls []llm.ToolCall
-	var currentToolCall *llm.ToolCall
-
-	// 检查是否有流回调需要通知
-	hasStreamCallback := rc.streamCallback != nil
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case delta, ok := <-streamChan:
-			if !ok {
-				// 流结束，构建最终响应
-				if response == nil {
-					return nil, fmt.Errorf("no response received from stream")
-				}
-
-				// 设置最终的消息内容
-				if len(response.Choices) > 0 {
-					response.Choices[0].Message.Content = contentBuilder.String()
-					if len(toolCalls) > 0 {
-						response.Choices[0].Message.ToolCalls = toolCalls
-					}
-				}
-				return response, nil
-			}
-
-			// 初始化响应对象
-			if response == nil {
-				response = &llm.ChatResponse{
-					ID:      delta.ID,
-					Object:  delta.Object,
-					Created: delta.Created,
-					Model:   delta.Model,
-					Choices: make([]llm.Choice, 1),
-				}
-				response.Choices[0] = llm.Choice{
-					Index: 0,
-					Message: llm.Message{
-						Role: "assistant",
-					},
-				}
-			}
-
-			// 处理每个delta中的choice
-			if len(delta.Choices) > 0 {
-				choice := delta.Choices[0]
-
-				// 处理内容增量
-				if choice.Delta.Content != "" {
-					contentBuilder.WriteString(choice.Delta.Content)
-
-					// 如果启用流式，实时显示LLM输出内容
-					if hasStreamCallback {
-						rc.streamCallback(StreamChunk{
-							Type:     "llm_content",
-							Content:  choice.Delta.Content,
-							Metadata: map[string]any{"streaming": true},
-						})
-					}
-				}
-
-				// 处理 OpenAI reasoning 字段 (如果存在)
-				if hasStreamCallback {
-					// 处理 reasoning 字段
-					if choice.Delta.Reasoning != "" {
-						rc.streamCallback(StreamChunk{
-							Type:     "reasoning",
-							Content:  choice.Delta.Reasoning,
-							Metadata: map[string]any{"streaming": true, "source": "openai_reasoning"},
-						})
-					}
-					
-					// 处理 reasoning_summary 字段
-					if choice.Delta.ReasoningSummary != "" {
-						rc.streamCallback(StreamChunk{
-							Type:     "reasoning_summary",
-							Content:  choice.Delta.ReasoningSummary,
-							Metadata: map[string]any{"streaming": true, "source": "openai_reasoning_summary"},
-						})
-					}
-					
-					// 处理 think 字段
-					if choice.Delta.Think != "" {
-						rc.streamCallback(StreamChunk{
-							Type:     "think",
-							Content:  choice.Delta.Think,
-							Metadata: map[string]any{"streaming": true, "source": "openai_think"},
-						})
-					}
-				}
-
-				// 处理工具调用增量
-				if len(choice.Delta.ToolCalls) > 0 {
-					for _, deltaToolCall := range choice.Delta.ToolCalls {
-						if deltaToolCall.ID != "" {
-							// 新的工具调用
-							newToolCall := llm.ToolCall{
-								ID:   deltaToolCall.ID,
-								Type: deltaToolCall.Type,
-								Function: llm.Function{
-									Name:      deltaToolCall.Function.Name,
-									Arguments: deltaToolCall.Function.Arguments,
-								},
-							}
-							toolCalls = append(toolCalls, newToolCall)
-							currentToolCall = &toolCalls[len(toolCalls)-1]
-						} else if currentToolCall != nil {
-							// 继续现有工具调用
-							if deltaToolCall.Function.Name != "" {
-								currentToolCall.Function.Name += deltaToolCall.Function.Name
-							}
-							if deltaToolCall.Function.Arguments != "" {
-								currentToolCall.Function.Arguments += deltaToolCall.Function.Arguments
-							}
-						}
-					}
-				}
-
-				// 检查完成原因
-				if choice.FinishReason != "" {
-					response.Choices[0].FinishReason = choice.FinishReason
-				}
-			}
-		}
-	}
-}
-
-// cleanToolOutput - 清理工具输出，只保留工具调用格式
-func (rc *ReactCore) cleanToolOutput(content string) string {
-	lines := strings.Split(content, "\n")
-	var cleanLines []string
-
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-
-		// 只保留🔧工具调用格式的行，其他格式的行都移除
-		if strings.HasPrefix(trimmedLine, "🔧 ") {
-			cleanLines = append(cleanLines, trimmedLine)
-		}
-	}
-
-	// 如果没有找到工具调用格式，返回简洁的摘要
-	if len(cleanLines) == 0 {
-		return rc.truncateContent(content, 50)
-	}
-
-	return strings.Join(cleanLines, "\n")
-}
-
-// 新增的上下文管理方法
-
-// getCurrentSession - 获取当前会话
-func (rc *ReactCore) getCurrentSession(ctx context.Context) *session.Session {
-	if rc.agent.currentSession != nil {
-		return rc.agent.currentSession
-	}
-
-	// 尝试从context中获取session ID
-	if sessionID, ok := ctx.Value(SessionIDKey).(string); ok && sessionID != "" {
-		sess, err := rc.agent.sessionManager.RestoreSession(sessionID)
-		if err == nil {
-			rc.agent.mu.Lock()
-			rc.agent.currentSession = sess
-			rc.agent.mu.Unlock()
-			return sess
-		}
-		log.Printf("[WARNING] Failed to restore session %s: %v", sessionID, err)
-	}
-
-	return nil
-}
-
-// handleContextOverflow - 处理上下文溢出
-func (rc *ReactCore) handleContextOverflow(ctx context.Context, sess *session.Session, streamCallback StreamCallback) error {
-	// 检查上下文长度
-	analysis, err := rc.contextMgr.CheckContextLength(sess)
-	if err != nil {
-		return fmt.Errorf("failed to check context length: %w", err)
-	}
-
-	// 如果需要处理上下文溢出
-	if analysis.RequiresTrimming {
-		if streamCallback != nil {
-			streamCallback(StreamChunk{
-				Type:     "context_management",
-				Content:  fmt.Sprintf("⚠️ Context overflow detected (%d tokens), summarizing conversation...", analysis.EstimatedTokens),
-				Metadata: map[string]any{"action": "summarizing", "tokens": analysis.EstimatedTokens},
-			})
-		}
-
-		result, err := rc.contextMgr.ProcessContextOverflow(ctx, sess)
-		if err != nil {
-			return fmt.Errorf("failed to process context overflow: %w", err)
-		}
-
-		if streamCallback != nil {
-			streamCallback(StreamChunk{
-				Type:     "context_management",
-				Content:  fmt.Sprintf("✅ Context summarized: %d → %d messages (backup: %s)", result.OriginalCount, result.ProcessedCount, result.BackupID),
-				Metadata: map[string]any{"action": "completed", "backup_id": result.BackupID},
-			})
-		}
-
-		log.Printf("[INFO] Context summarized: %s, %d → %d messages", result.Action, result.OriginalCount, result.ProcessedCount)
-	}
-
-	return nil
-}
-
-// buildMessagesFromSession - 基于会话历史构建消息列表
-func (rc *ReactCore) buildMessagesFromSession(sess *session.Session, currentTask string) []llm.Message {
-	var messages []llm.Message
-
-	// 添加系统提示
-	messages = append(messages, llm.Message{
-		Role:    "system",
-		Content: rc.buildToolDrivenTaskPrompt(),
-	})
-
-	// 如果有会话历史，添加相关历史消息
-	if sess != nil {
-		historyMessages := sess.GetMessages()
-
-		// 限制历史消息数量，只包含最近的对话
-		maxHistoryMessages := 10
-		startIdx := 0
-		if len(historyMessages) > maxHistoryMessages {
-			startIdx = len(historyMessages) - maxHistoryMessages
-		}
-
-		for i := startIdx; i < len(historyMessages); i++ {
-			msg := historyMessages[i]
-
-			// 跳过空消息
-			if strings.TrimSpace(msg.Content) == "" {
-				continue
-			}
-
-			llmMsg := llm.Message{
-				Role:    msg.Role,
-				Content: msg.Content,
-			}
-
-			// 添加工具调用信息
-			if len(msg.ToolCalls) > 0 {
-				var toolCalls []llm.ToolCall
-				for _, tc := range msg.ToolCalls {
-					toolCalls = append(toolCalls, llm.ToolCall{
-						ID:   tc.ID,
-						Type: "function",
-						Function: llm.Function{
-							Name:      tc.Name,
-							Arguments: fmt.Sprintf("%v", tc.Args),
-						},
-					})
-				}
-				llmMsg.ToolCalls = toolCalls
-			}
-
-			messages = append(messages, llmMsg)
-		}
-	}
-
-	// 添加当前任务
-	messages = append(messages, llm.Message{
-		Role:    "user",
-		Content: currentTask + "\n\n think about the task and break it down into a list of todos and then call the todo_update tool to create the todos",
-	})
-
-	return messages
+	return buildFinalResult(taskCtx, "Maximum iterations reached without completion", 0.5, false), nil
 }
 
 // GetContextStats - 获取上下文统计信息
 func (rc *ReactCore) GetContextStats(sess *session.Session) *contextmgr.ContextStats {
-	if rc.contextMgr == nil || sess == nil {
-		return &contextmgr.ContextStats{
-			TotalMessages:   0,
-			EstimatedTokens: 0,
-		}
-	}
-
-	return rc.contextMgr.GetContextStats(sess)
+	return rc.contextHandler.GetContextStats(sess)
 }
 
 // ForceContextSummarization - 强制进行上下文总结
 func (rc *ReactCore) ForceContextSummarization(ctx context.Context, sess *session.Session) (*contextmgr.ContextProcessingResult, error) {
-	if rc.contextMgr == nil {
-		return nil, fmt.Errorf("context manager not available")
-	}
-
-	return rc.contextMgr.ProcessContextOverflow(ctx, sess)
+	return rc.contextHandler.ForceContextSummarization(ctx, sess)
 }
 
 // RestoreFullContext - 恢复完整上下文
 func (rc *ReactCore) RestoreFullContext(sess *session.Session, backupID string) error {
-	if rc.contextMgr == nil {
-		return fmt.Errorf("context manager not available")
-	}
-
-	return rc.contextMgr.RestoreFullContext(sess, backupID)
+	return rc.contextHandler.RestoreFullContext(sess, backupID)
 }
