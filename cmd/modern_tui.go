@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -60,11 +59,19 @@ var (
 	footerStyle = lipgloss.NewStyle().
 			Foreground(mutedColor).
 			Italic(true)
+
+	sessionTimeStyle = lipgloss.NewStyle().
+				Foreground(mutedColor).
+				Italic(true).
+				Align(lipgloss.Left)
 )
 
 // Message types
 type (
 	streamResponseMsg struct{ content string }
+	streamStartMsg    struct{ input string }
+	streamChunkMsg    struct{ content string }
+	streamCompleteMsg struct{}
 	processingDoneMsg struct{}
 	errorOccurredMsg  struct{ err error }
 	tickerMsg         struct{}
@@ -72,17 +79,19 @@ type (
 
 // ModernChatModel represents the clean TUI model
 type ModernChatModel struct {
-	viewport     viewport.Model
-	textarea     textarea.Model
-	messages     []ChatMessage
-	processing   bool
-	agent        *agent.ReactAgent
-	config       *config.Manager
-	width        int
-	height       int
-	ready        bool
-	currentInput string
-	execTimer    ExecutionTimer
+	textarea         textarea.Model
+	messages         []ChatMessage
+	processing       bool
+	agent            *agent.ReactAgent
+	config           *config.Manager
+	width            int
+	height           int
+	ready            bool
+	currentInput     string
+	execTimer        ExecutionTimer
+	program          *tea.Program
+	currentMessage   *ChatMessage  // Track current streaming message
+	sessionStartTime time.Time     // Track session start time
 }
 
 // ChatMessage represents a chat message with type and content
@@ -111,9 +120,6 @@ func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) ModernC
 	ta.ShowLineNumbers = false
 	ta.KeyMap.InsertNewline.SetEnabled(false)
 
-	// Configure viewport
-	vp := viewport.New(80, 20)
-
 	// Initial messages
 	welcomeTime := time.Now()
 	initialMessages := []ChatMessage{
@@ -135,12 +141,12 @@ func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) ModernC
 	}
 
 	return ModernChatModel{
-		textarea: ta,
-		viewport: vp,
-		messages: initialMessages,
-		agent:    agent,
-		config:   config,
-		ready:    false,
+		textarea:         ta,
+		messages:         initialMessages,
+		agent:            agent,
+		config:           config,
+		ready:            false,
+		sessionStartTime: time.Now(), // Initialize session start time
 	}
 }
 
@@ -157,30 +163,63 @@ func getCurrentWorkingDir() string {
 	return dir
 }
 
+// formatSessionRuntime formats the session runtime duration
+func (m ModernChatModel) formatSessionRuntime() string {
+	// Try to get actual session start time from agent
+	var startTime time.Time
+	if m.agent != nil {
+		sessionManager := m.agent.GetSessionManager()
+		if sessionManager != nil {
+			// Try to get current session history to find actual start time
+			history := m.agent.GetSessionHistory()
+			if len(history) > 0 {
+				// Use the timestamp of the first message as session start
+				startTime = history[0].Timestamp
+			}
+		}
+	}
+	
+	// Fallback to TUI start time if no session info available
+	if startTime.IsZero() {
+		startTime = m.sessionStartTime
+	}
+	
+	if startTime.IsZero() {
+		return ""
+	}
+	
+	duration := time.Since(startTime)
+	
+	// Format duration nicely
+	if duration < time.Minute {
+		return fmt.Sprintf("🕐 Session: %ds", int(duration.Seconds()))
+	} else if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		seconds := int(duration.Seconds()) % 60
+		return fmt.Sprintf("🕐 Session: %dm %ds", minutes, seconds)
+	} else {
+		hours := int(duration.Hours())
+		minutes := int(duration.Minutes()) % 60
+		return fmt.Sprintf("🕐 Session: %dh %dm", hours, minutes)
+	}
+}
+
 func (m ModernChatModel) Init() tea.Cmd {
-	return textarea.Blink
+	return tea.Batch(textarea.Blink, m.startTicker())
 }
 
 func (m ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var (
-		tiCmd tea.Cmd
-		vpCmd tea.Cmd
-	)
+	var tiCmd tea.Cmd
 
 	m.textarea, tiCmd = m.textarea.Update(msg)
-	m.viewport, vpCmd = m.viewport.Update(msg)
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		if !m.ready {
 			// Initialize dimensions
-			m.viewport = viewport.New(msg.Width, msg.Height-8) // Reserve space for header and input
 			m.textarea.SetWidth(msg.Width - 6)
 			m.ready = true
-			m.updateViewport()
 		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - 8
 			m.textarea.SetWidth(msg.Width - 6)
 		}
 		m.width = msg.Width
@@ -241,6 +280,39 @@ func (m ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, func() tea.Msg { return processingDoneMsg{} }
 
+	case streamStartMsg:
+		// Remove processing message and start with empty assistant message
+		if len(m.messages) > 0 && m.messages[len(m.messages)-1].Type == "processing" {
+			m.messages = m.messages[:len(m.messages)-1]
+		}
+
+		// Create initial assistant message for streaming
+		assistantMsg := ChatMessage{
+			Type:    "assistant",
+			Content: "",
+			Time:    time.Now(),
+		}
+		m.addMessage(assistantMsg)
+		m.currentMessage = &m.messages[len(m.messages)-1]
+
+		return m, nil
+
+	case streamChunkMsg:
+		// Append content to current message
+		if m.currentMessage != nil {
+			m.currentMessage.Content += msg.content
+		}
+		return m, nil
+
+	case streamCompleteMsg:
+		// Add execution time to final message
+		if m.currentMessage != nil && (m.execTimer.Active || !m.execTimer.StartTime.IsZero()) {
+			duration := time.Since(m.execTimer.StartTime)
+			m.currentMessage.Content += fmt.Sprintf("\n\n⏱️ Execution time: %v", duration.Truncate(10*time.Millisecond))
+		}
+		m.currentMessage = nil
+		return m, func() tea.Msg { return processingDoneMsg{} }
+
 	case tickerMsg:
 		if m.execTimer.Active {
 			m.execTimer.Duration = time.Since(m.execTimer.StartTime)
@@ -248,9 +320,11 @@ func (m ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.messages) > 0 && m.messages[len(m.messages)-1].Type == "processing" {
 				elapsed := m.execTimer.Duration.Truncate(time.Second)
 				m.messages[len(m.messages)-1].Content = fmt.Sprintf("Processing your request... (%v)", elapsed)
-				m.updateViewport()
 			}
 			return m, m.startTicker() // Continue ticking
+		} else {
+			// Continue ticking for session runtime display even when not processing
+			return m, m.startTicker()
 		}
 
 	case processingDoneMsg:
@@ -284,20 +358,112 @@ func (m ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.execTimer.Active = false
 	}
 
-	return m, tea.Batch(tiCmd, vpCmd)
+	return m, tiCmd
 }
 
 func (m *ModernChatModel) addMessage(msg ChatMessage) {
 	m.messages = append(m.messages, msg)
-	m.updateViewport()
 }
 
-func (m *ModernChatModel) updateViewport() {
-	var content strings.Builder
+func (m *ModernChatModel) startTicker() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return tickerMsg{}
+	})
+}
 
+func (m ModernChatModel) processUserInput(input string) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		
+		// Start processing and send immediate start message
+		go func() {
+			streamCallback := func(chunk agent.StreamChunk) {
+				// Send each chunk immediately as it arrives
+				var content string
+				switch chunk.Type {
+				case "status":
+					if chunk.Content != "" {
+						content = "📋 " + chunk.Content + "\n"
+					}
+				case "iteration":
+					if chunk.Content != "" {
+						content = "🔄 " + chunk.Content + "\n"
+					}
+				case "tool_start":
+					if chunk.Content != "" {
+						content = "🛠️ " + chunk.Content + "\n"
+					}
+				case "tool_result":
+					if chunk.Content != "" {
+						content = "📋 " + chunk.Content + "\n"
+					}
+				case "tool_error":
+					if chunk.Content != "" {
+						content = "❌ " + chunk.Content + "\n"
+					}
+				case "final_answer":
+					if chunk.Content != "" {
+						content = "✨ " + chunk.Content + "\n"
+					}
+				case "llm_content":
+					content = chunk.Content
+				case "complete":
+					if chunk.Content != "" {
+						content = "✅ " + chunk.Content + "\n"
+					}
+				case "max_iterations":
+					if chunk.Content != "" {
+						content = "⚠️ " + chunk.Content + "\n"
+					}
+				case "context_management":
+					if chunk.Content != "" {
+						content = "🧠 " + chunk.Content + "\n"
+					}
+				case "error":
+					// Error will be handled separately
+				}
+				
+				// Send streaming update immediately
+				if content != "" {
+					m.program.Send(streamChunkMsg{content: content})
+				}
+			}
+
+			err := m.agent.ProcessMessageStream(ctx, input, m.config.GetConfig(), streamCallback)
+			if err != nil {
+				m.program.Send(errorOccurredMsg{err: err})
+			} else {
+				m.program.Send(streamCompleteMsg{})
+			}
+		}()
+
+		// Return immediately with processing started message
+		return streamStartMsg{input: input}
+	}
+}
+
+func (m ModernChatModel) View() string {
+	if !m.ready {
+		return "Initializing Deep Coding Agent..."
+	}
+
+	var parts []string
+
+	// Header
+	header := headerStyle.Render("🤖 Deep Coding Agent - AI-Powered Coding Assistant")
+	parts = append(parts, header, "")
+
+	// Session runtime info (displayed at top)
+	if !m.sessionStartTime.IsZero() {
+		sessionRuntime := m.formatSessionRuntime()
+		sessionInfo := sessionTimeStyle.Render(sessionRuntime)
+		parts = append(parts, sessionInfo, "")
+	}
+
+	// Messages content (directly rendered, not in viewport)
 	for i, msg := range m.messages {
 		if i > 0 {
-			content.WriteString("\n") // Single line between messages
+			parts = append(parts, "") // Single line between messages
 		}
 
 		var styledContent string
@@ -316,94 +482,11 @@ func (m *ModernChatModel) updateViewport() {
 			styledContent = msg.Content
 		}
 
-		content.WriteString(styledContent)
+		parts = append(parts, styledContent)
 	}
 
-	m.viewport.SetContent(content.String())
-	m.viewport.GotoBottom()
-}
-
-func (m *ModernChatModel) startTicker() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
-		return tickerMsg{}
-	})
-}
-
-func (m ModernChatModel) processUserInput(input string) tea.Cmd {
-	return func() tea.Msg {
-		ctx := context.Background()
-		var responseBuilder strings.Builder
-
-		// Collect all response content
-		streamCallback := func(chunk agent.StreamChunk) {
-			switch chunk.Type {
-			case "status":
-				if chunk.Content != "" {
-					responseBuilder.WriteString("📋 " + chunk.Content + "\n")
-				}
-			case "iteration":
-				if chunk.Content != "" {
-					responseBuilder.WriteString("🔄 " + chunk.Content + "\n")
-				}
-			case "tool_start":
-				if chunk.Content != "" {
-					responseBuilder.WriteString("🛠️ " + chunk.Content + "\n")
-				}
-			case "tool_result":
-				if chunk.Content != "" {
-					responseBuilder.WriteString("📋 " + chunk.Content + "\n")
-				}
-			case "tool_error":
-				if chunk.Content != "" {
-					responseBuilder.WriteString("❌ " + chunk.Content + "\n")
-				}
-			case "final_answer":
-				if chunk.Content != "" {
-					responseBuilder.WriteString("✨ " + chunk.Content + "\n")
-				}
-			case "llm_content":
-				responseBuilder.WriteString(chunk.Content)
-			case "complete":
-				if chunk.Content != "" {
-					responseBuilder.WriteString("✅ " + chunk.Content + "\n")
-				}
-			case "max_iterations":
-				if chunk.Content != "" {
-					responseBuilder.WriteString("⚠️ " + chunk.Content + "\n")
-				}
-			case "context_management":
-				if chunk.Content != "" {
-					responseBuilder.WriteString("🧠 " + chunk.Content + "\n")
-				}
-			case "error":
-				// Error will be handled separately
-			}
-		}
-
-		err := m.agent.ProcessMessageStream(ctx, input, m.config.GetConfig(), streamCallback)
-		if err != nil {
-			return errorOccurredMsg{err: err}
-		}
-
-		response := strings.TrimSpace(responseBuilder.String())
-		if response == "" {
-			response = "I processed your request, but didn't generate a visible response."
-		}
-
-		return streamResponseMsg{content: response}
-	}
-}
-
-func (m ModernChatModel) View() string {
-	if !m.ready {
-		return "Initializing Deep Coding Agent..."
-	}
-
-	// Header
-	header := headerStyle.Render("🤖 Deep Coding Agent - AI-Powered Coding Assistant")
-
-	// Main content
-	content := m.viewport.View()
+	// Add space before input area
+	parts = append(parts, "")
 
 	// Input area
 	var inputArea string
@@ -412,19 +495,26 @@ func (m ModernChatModel) View() string {
 	} else {
 		inputArea = inputStyle.Render(m.textarea.View())
 	}
+	parts = append(parts, inputArea)
 
 	// Footer
 	footer := footerStyle.Render("Enter: Send message • Ctrl+C: Exit")
+	parts = append(parts, "", footer)
 
-	// Combine all parts
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		header,
-		content,
-		"", // Single spacer
-		inputArea,
-		footer,
-	)
+	// Join all parts and ensure it fits the screen
+	result := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	
+	// If content is too long for screen, only show recent parts
+	if m.height > 0 {
+		lines := strings.Split(result, "\n")
+		if len(lines) > m.height-2 { // Leave some margin
+			// Show last messages that fit on screen
+			visibleLines := lines[len(lines)-(m.height-2):]
+			result = strings.Join(visibleLines, "\n")
+		}
+	}
+
+	return result
 }
 
 // Run the modern TUI
@@ -432,10 +522,13 @@ func runModernTUI(agent *agent.ReactAgent, config *config.Manager) error {
 	model := NewModernChatModel(agent, config)
 
 	program := tea.NewProgram(
-		model,
+		&model,
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)
+
+	// Set the program reference for streaming callbacks
+	model.program = program
 
 	_, err := program.Run()
 	return err

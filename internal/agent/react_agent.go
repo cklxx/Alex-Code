@@ -20,7 +20,7 @@ import (
 // ContextKey 用于在context中存储值，避免类型冲突
 type ContextKey string
 
-const SessionIDKey ContextKey = "session_id"
+const SessionIDKey ContextKey = "sessionID"
 
 // ReactCoreInterface - ReAct核心接口
 type ReactCoreInterface interface {
@@ -412,10 +412,7 @@ func (cm *LightContextManager) formatDirectoryContext(context *types.ReactTaskCo
 	return strings.Join(contextLines, "\n")
 }
 
-// 辅助函数
-func generateTaskID() string {
-	return fmt.Sprintf("task_%d", time.Now().UnixNano())
-}
+// 辅助函数 - generateTaskID moved to utils.go
 
 func max(a, b int) int {
 	if a > b {

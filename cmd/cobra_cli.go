@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -70,7 +69,7 @@ type CLI struct {
 	useTUI           bool // Whether to use Bubble Tea TUI
 	currentTermCtrl  *TerminalController
 	currentStartTime time.Time
-	contentBuffer    bytes.Buffer // Buffer for accumulating streaming content
+	contentBuffer    strings.Builder // Buffer for accumulating streaming content (using strings.Builder for better performance)
 	processing       bool         // Whether currently processing
 	currentMessage   string       // Current working message
 	inputQueue       chan string  // Queue for pending inputs during processing
@@ -81,6 +80,9 @@ func NewRootCommand() *cobra.Command {
 	cli := &CLI{
 		inputQueue: make(chan string, 10), // Buffer for 10 pending inputs
 	}
+	
+	// Pre-allocate contentBuffer for better streaming performance
+	cli.contentBuffer.Grow(4096) // Pre-allocate 4KB buffer
 
 	rootCmd := &cobra.Command{
 		Use:   "alex",
@@ -325,6 +327,7 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 				}
 			}
 			cli.contentBuffer.Reset()
+			cli.contentBuffer.Grow(4096) // Re-allocate buffer after reset for next use
 		}
 		// Update message to show completion
 		if cli.processing {
