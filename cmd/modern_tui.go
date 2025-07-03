@@ -53,7 +53,7 @@ var (
 
 	inputStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(primaryColor).
+			BorderForeground(lipgloss.Color("#E5E7EB")).
 			Padding(0, 1)
 
 	footerStyle = lipgloss.NewStyle().
@@ -92,6 +92,7 @@ type ModernChatModel struct {
 	program          *tea.Program
 	currentMessage   *ChatMessage  // Track current streaming message
 	sessionStartTime time.Time     // Track session start time
+	copyMode         bool          // Track if copy mode is enabled
 }
 
 // ChatMessage represents a chat message with type and content
@@ -456,7 +457,8 @@ func (m ModernChatModel) View() string {
 	// Session runtime info (displayed at top)
 	if !m.sessionStartTime.IsZero() {
 		sessionRuntime := m.formatSessionRuntime()
-		sessionInfo := sessionTimeStyle.Render(sessionRuntime)
+		copyHint := " • Select text with mouse to copy"
+		sessionInfo := sessionTimeStyle.Render(sessionRuntime + copyHint)
 		parts = append(parts, sessionInfo, "")
 	}
 
@@ -497,9 +499,7 @@ func (m ModernChatModel) View() string {
 	}
 	parts = append(parts, inputArea)
 
-	// Footer
-	footer := footerStyle.Render("Enter: Send message • Ctrl+C: Exit")
-	parts = append(parts, "", footer)
+	// No footer - keep it clean
 
 	// Join all parts and ensure it fits the screen
 	result := lipgloss.JoinVertical(lipgloss.Left, parts...)
@@ -524,7 +524,7 @@ func runModernTUI(agent *agent.ReactAgent, config *config.Manager) error {
 	program := tea.NewProgram(
 		&model,
 		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
+		// Removed tea.WithMouseCellMotion() to allow text selection
 	)
 
 	// Set the program reference for streaming callbacks
