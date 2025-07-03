@@ -14,17 +14,17 @@ import (
 // newSessionCommand creates the session management subcommand
 func newSessionCommand(cli *CLI) *cobra.Command {
 	sessionCmd := &cobra.Command{
-		Use:   "session",
-		Short: "📁 Session management",
-		Long:  "Manage conversation sessions",
+		Use:     "session",
+		Short:   "📁 Session management",
+		Long:    "Manage conversation sessions",
 		Aliases: []string{"sessions", "s"},
 	}
 
 	// session list
 	listCmd := &cobra.Command{
-		Use:   "list",
-		Short: "List available sessions",
-		Long:  "Display all available conversation sessions",
+		Use:     "list",
+		Short:   "List available sessions",
+		Long:    "Display all available conversation sessions",
 		Aliases: []string{"ls", "l"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cli.listSessions()
@@ -76,9 +76,9 @@ func newSessionCommand(cli *CLI) *cobra.Command {
 
 	// session interactive
 	interactiveCmd := &cobra.Command{
-		Use:   "interactive",
-		Short: "Interactive session management",
-		Long:  "Manage sessions interactively using prompts",
+		Use:     "interactive",
+		Short:   "Interactive session management",
+		Long:    "Manage sessions interactively using prompts",
 		Aliases: []string{"i"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cli.interactiveSessionManagement()
@@ -113,7 +113,7 @@ func (cli *CLI) listSessions() error {
 
 	// Group sessions by date
 	sessionsByDate := make(map[string][]sessionInfo)
-	
+
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
 			sessionID := strings.TrimSuffix(entry.Name(), ".json")
@@ -137,9 +137,9 @@ func (cli *CLI) listSessions() error {
 		for _, session := range sessions {
 			timeStr := session.Modified.Format("15:04:05")
 			sizeStr := formatFileSize(session.Size)
-			fmt.Printf("  %s %s %s\n", 
-				blue("•"), 
-				session.ID, 
+			fmt.Printf("  %s %s %s\n",
+				blue("•"),
+				session.ID,
 				gray(fmt.Sprintf("(%s, %s)", timeStr, sizeStr)))
 		}
 		fmt.Println()

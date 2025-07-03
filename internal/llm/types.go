@@ -13,6 +13,11 @@ type Message struct {
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallId string     `json:"tool_call_id,omitempty"`
 	Name       string     `json:"name,omitempty"`
+	
+	// OpenAI reasoning fields (2025 Responses API)
+	Reasoning       string      `json:"reasoning,omitempty"`
+	ReasoningSummary string     `json:"reasoning_summary,omitempty"`
+	Think          string      `json:"think,omitempty"`
 }
 
 // ChatRequest represents a request to the LLM

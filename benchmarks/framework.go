@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -77,10 +76,8 @@ func NewCodeAgentBenchmark(configPath string) (*CodeAgentBenchmark, error) {
 
 // loadConfig loads benchmark configuration from JSON file
 func loadConfig(path string) (BenchmarkConfig, error) {
-	var config BenchmarkConfig
-
 	// Default configuration
-	config = BenchmarkConfig{
+	config := BenchmarkConfig{
 		AgentPath:     "../alex",
 		MaxProblems:   3,
 		OutputDir:     "results",
@@ -92,7 +89,7 @@ func loadConfig(path string) (BenchmarkConfig, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		// Create default config file
 		data, _ := json.MarshalIndent(config, "", "  ")
-		err := ioutil.WriteFile(path, data, 0644)
+		err := os.WriteFile(path, data, 0644)
 		if err != nil {
 			return config, err
 		}
@@ -100,7 +97,7 @@ func loadConfig(path string) (BenchmarkConfig, error) {
 		return config, nil
 	}
 
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return config, err
 	}
@@ -125,7 +122,11 @@ func loadHumanEvalProblems(path string) ([]HumanEvalProblem, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open %s: %w", jsonlPath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Error closing file: %v", err)
+		}
+	}()
 
 	var problems []HumanEvalProblem
 	scanner := bufio.NewScanner(file)
@@ -242,7 +243,7 @@ func (b *CodeAgentBenchmark) extractFunctionFromPrompt(prompt string) string {
 									paramName = strings.TrimSpace(paramName[:colonIndex])
 								}
 								if paramName != "" {
-									params = append(params, paramName)
+									params = append(params, paramName) //nolint:staticcheck // params parsed but not used in current implementation
 								}
 							}
 						}
@@ -296,12 +297,16 @@ func (b *CodeAgentBenchmark) extractFunctionFromPrompt(prompt string) string {
 // validateSolution validates a solution against the problem's test cases
 func (b *CodeAgentBenchmark) validateSolution(problem HumanEvalProblem, solution string) bool {
 	// Create a temporary Python file with the solution and test
-	tempDir, err := ioutil.TempDir("", "benchmark_test")
+	tempDir, err := os.MkdirTemp("", "benchmark_test")
 	if err != nil {
 		log.Printf("Failed to create temp dir: %v", err)
 		return false
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			log.Printf("Error removing temp dir: %v", err)
+		}
+	}()
 
 	// Build the complete function
 	lines := strings.Split(problem.Prompt, "\n")
@@ -332,7 +337,7 @@ if __name__ == "__main__":
 `, functionStart, solution, problem.Test, problem.EntryPoint)
 
 	testFile := filepath.Join(tempDir, "test.py")
-	if err := ioutil.WriteFile(testFile, []byte(pythonCode), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte(pythonCode), 0644); err != nil {
 		log.Printf("Failed to write test file: %v", err)
 		return false
 	}
@@ -356,7 +361,7 @@ func (b *CodeAgentBenchmark) saveResults() error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(resultsPath, data, 0644)
+	return os.WriteFile(resultsPath, data, 0644)
 }
 
 // generateReport generates a summary report
@@ -417,7 +422,7 @@ Detailed Results saved to: %s/results.json
 
 	// Save report to file
 	reportPath := filepath.Join(b.config.OutputDir, "report.txt")
-	return ioutil.WriteFile(reportPath, []byte(report), 0644)
+	return os.WriteFile(reportPath, []byte(report), 0644)
 }
 
 func main() {

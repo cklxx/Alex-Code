@@ -75,7 +75,11 @@ func TestHybridEngine(t *testing.T) {
 
 func TestBuildContext(t *testing.T) {
 	engine := NewEngine()
-	defer engine.Close()
+	defer func() {
+		if err := engine.Close(); err != nil {
+			t.Logf("Error closing engine: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 	result, err := engine.BuildContext(ctx, "代码审查", "func main() { println(\"Hello World\") }")

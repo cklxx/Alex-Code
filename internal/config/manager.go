@@ -454,6 +454,8 @@ func NewUnifiedConfigManager() (*Manager, error) {
 type UnifiedConfigManager = Manager
 
 // generateInstallationID creates a unique installation identifier
+//
+//nolint:unused
 func generateInstallationID() string {
 	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {

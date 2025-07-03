@@ -61,7 +61,9 @@ func TestStreamingClient_Chat(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		}
 	}))
 	defer server.Close()
 
@@ -153,13 +155,17 @@ func TestStreamingClient_ChatStream(t *testing.T) {
 
 		for _, delta := range deltas {
 			data, _ := json.Marshal(delta)
-			fmt.Fprintf(w, "data: %s\n\n", string(data))
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", string(data)); err != nil {
+				t.Logf("Error writing response: %v", err)
+			}
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}
 		}
 
-		fmt.Fprintf(w, "data: [DONE]\n\n")
+		if _, err := fmt.Fprintf(w, "data: [DONE]\n\n"); err != nil {
+			t.Logf("Error writing DONE response: %v", err)
+		}
 	}))
 	defer server.Close()
 

@@ -44,8 +44,8 @@ func NewTerminalController() *TerminalController {
 		cursorStack:   make([]CursorPosition, 0, 10),
 		useAltScreen:  false, // Disable alternate screen for stability
 		currentCursor: CursorPosition{X: 1, Y: 1},
-		contentHeight: 0,     // Initialize content height
-		scrollOffset:  0,     // Initialize scroll offset
+		contentHeight: 0, // Initialize content height
+		scrollOffset:  0, // Initialize scroll offset
 	}
 	tc.detectTerminalCapabilities()
 	tc.getTerminalSize()
@@ -179,7 +179,10 @@ func (tc *TerminalController) Cleanup() {
 	}
 
 	// Disable raw mode first
-	tc.disableRawMode()
+	if err := tc.disableRawMode(); err != nil {
+		// Continue cleanup even if disableRawMode fails - intentionally empty
+		_ = err // Suppress staticcheck warning
+	}
 
 	// Move cursor to bottom of scroll region instead of absolute bottom
 	tc.moveCursor(1, tc.scrollRegionBot+1)
@@ -191,9 +194,9 @@ func (tc *TerminalController) Cleanup() {
 // calculateDynamicPositions calculates working indicator and input box positions
 func (tc *TerminalController) calculateDynamicPositions() (int, int) {
 	availableHeight := tc.scrollRegionBot - tc.scrollRegionTop + 1
-	
+
 	var workingLine, inputStartLine int
-	
+
 	if tc.contentHeight <= availableHeight-4 {
 		// Content fits with room for input box
 		workingLine = tc.scrollRegionTop + tc.contentHeight + 1
@@ -209,7 +212,7 @@ func (tc *TerminalController) calculateDynamicPositions() (int, int) {
 		inputStartLine = tc.height - 3
 		workingLine = inputStartLine - 2
 	}
-	
+
 	return workingLine, inputStartLine
 }
 
@@ -250,7 +253,7 @@ func (tc *TerminalController) ShowDynamicBottomInterface(workingIndicator, input
 	tc.inputLine = inputStartLine + 1
 
 	// Position cursor at leftmost position of input box content area
-	leftCol := 3 // 3 for "│ " (left border + space)
+	leftCol := 3                             // 3 for "│ " (left border + space)
 	tc.moveCursor(leftCol, inputStartLine+1) // Content line of input box, left-aligned
 }
 
@@ -294,10 +297,10 @@ func (tc *TerminalController) PrintInScrollRegion(content string) {
 	if tc.contentHeight > availableHeight {
 		// Calculate how much we need to scroll
 		scrollNeeded := tc.contentHeight - availableHeight
-		
+
 		// If we need to scroll, print at current position and let terminal scroll naturally
 		fmt.Print(content)
-		
+
 		// Update scroll offset
 		tc.scrollOffset = scrollNeeded
 	} else {
@@ -344,7 +347,7 @@ func (tc *TerminalController) UpdateWorkingIndicator(indicator string) {
 
 	// Calculate dynamic working indicator position
 	workingLine, _ := tc.calculateDynamicPositions()
-	
+
 	// Update working indicator
 	tc.moveCursor(1, workingLine)
 	fmt.Print("\033[2K") // Clear line
@@ -356,71 +359,25 @@ func (tc *TerminalController) UpdateWorkingIndicator(indicator string) {
 	tc.moveCursor(currentX, currentY)
 }
 
-// enableRawMode enables raw terminal mode for non-blocking input
-func (tc *TerminalController) enableRawMode() error {
-	// For macOS/Darwin, use specific constants
-	const (
-		TCGETS = 0x40487413
-		TCSETS = 0x80487414
-	)
-	
-	// Get current terminal state
-	var oldState syscall.Termios
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL,
-		uintptr(syscall.Stdin),
-		uintptr(TCGETS),
-		uintptr(unsafe.Pointer(&oldState)))
-	
-	if errno != 0 {
-		return errno
-	}
-	
-	// Save original state
-	tc.originalState = &oldState
-	
-	// Create new state for raw mode
-	newState := oldState
-	
-	// Disable canonical mode, echo, and signals
-	newState.Lflag &^= syscall.ICANON | syscall.ECHO | syscall.ISIG
-	
-	// Set minimum characters to read and timeout
-	newState.Cc[syscall.VMIN] = 0  // Non-blocking read
-	newState.Cc[syscall.VTIME] = 1 // 0.1 second timeout
-	
-	// Apply new terminal state
-	_, _, errno = syscall.Syscall(syscall.SYS_IOCTL,
-		uintptr(syscall.Stdin),
-		uintptr(TCSETS),
-		uintptr(unsafe.Pointer(&newState)))
-	
-	if errno != 0 {
-		return errno
-	}
-	
-	tc.rawMode = true
-	return nil
-}
-
 // disableRawMode restores original terminal mode
 func (tc *TerminalController) disableRawMode() error {
 	if !tc.rawMode || tc.originalState == nil {
 		return nil
 	}
-	
+
 	// For macOS/Darwin, use specific constant
 	const TCSETS = 0x80487414
-	
+
 	// Restore original terminal state
 	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL,
 		uintptr(syscall.Stdin),
 		uintptr(TCSETS),
 		uintptr(unsafe.Pointer(tc.originalState)))
-	
+
 	if errno != 0 {
 		return errno
 	}
-	
+
 	tc.rawMode = false
 	return nil
 }
@@ -430,17 +387,17 @@ func (tc *TerminalController) ReadInputNonBlocking() ([]byte, error) {
 	if !tc.rawMode {
 		return nil, fmt.Errorf("terminal not in raw mode")
 	}
-	
+
 	buffer := make([]byte, 1024)
 	n, err := syscall.Read(syscall.Stdin, buffer)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if n == 0 {
 		return nil, nil // No input available
 	}
-	
+
 	return buffer[:n], nil
 }
 
@@ -448,7 +405,7 @@ func (tc *TerminalController) ReadInputNonBlocking() ([]byte, error) {
 func (tc *TerminalController) ProcessInputBuffer(input []byte) (string, bool) {
 	// Process bytes and convert to UTF-8 string for proper Unicode handling
 	inputStr := string(input)
-	
+
 	for _, r := range inputStr {
 		switch r {
 		case 13, 10: // Enter (CR or LF)
@@ -482,22 +439,22 @@ func (tc *TerminalController) ProcessInputBuffer(input []byte) (string, bool) {
 func (tc *TerminalController) UpdateInputDisplay() {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
-	
+
 	if !tc.initialized {
 		return
 	}
-	
+
 	// Save current position
 	currentX, currentY := tc.currentCursor.X, tc.currentCursor.Y
-	
+
 	// Calculate dynamic input line position
 	_, inputStartLine := tc.calculateDynamicPositions()
 	tc.moveCursor(3, inputStartLine+1) // Content line of input box
-	
+
 	// Clear the input area and show current buffer
 	maxInputWidth := tc.width - 6 // Account for borders and padding
 	displayText := tc.inputBuffer
-	
+
 	// Handle Unicode width properly for Chinese characters
 	displayWidth := tc.calculateDisplayWidth(displayText)
 	if displayWidth > maxInputWidth {
@@ -511,18 +468,18 @@ func (tc *TerminalController) UpdateInputDisplay() {
 		}
 		displayText = string(runes)
 	}
-	
-	fmt.Printf("\033[2K") // Clear line from cursor
+
+	fmt.Printf("\033[2K")                      // Clear line from cursor
 	fmt.Printf("\033[%d;3H", inputStartLine+1) // Move to input position
 	fmt.Print(displayText)
-	
+
 	// Position cursor at the end of displayed text
 	cursorX := 3 + tc.calculateDisplayWidth(displayText)
 	tc.moveCursor(cursorX, inputStartLine+1)
-	
+
 	// Update tracked input line position
 	tc.inputLine = inputStartLine + 1
-	
+
 	// Restore cursor position if it wasn't in input area
 	if currentY < tc.inputLine {
 		tc.moveCursor(currentX, currentY)

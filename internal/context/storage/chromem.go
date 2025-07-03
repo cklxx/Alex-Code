@@ -601,11 +601,14 @@ func (c *ChromemStorage) loadFromDisk() error {
 		metadata["created"] = doc.Created.Format(time.RFC3339)
 		metadata["updated"] = doc.Updated.Format(time.RFC3339)
 
-		c.collection.AddDocument(ctx, chromem.Document{
+		if err := c.collection.AddDocument(ctx, chromem.Document{
 			ID:       doc.ID,
 			Content:  content,
 			Metadata: metadata,
-		})
+		}); err != nil {
+			// Continue with next document if this one fails
+			continue
+		}
 	}
 
 	return nil

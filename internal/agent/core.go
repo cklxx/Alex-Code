@@ -518,6 +518,36 @@ func (rc *ReactCore) collectStreamingResponse(ctx context.Context, streamChan <-
 					}
 				}
 
+				// 处理 OpenAI reasoning 字段 (如果存在)
+				if hasStreamCallback {
+					// 处理 reasoning 字段
+					if choice.Delta.Reasoning != "" {
+						rc.streamCallback(StreamChunk{
+							Type:     "reasoning",
+							Content:  choice.Delta.Reasoning,
+							Metadata: map[string]any{"streaming": true, "source": "openai_reasoning"},
+						})
+					}
+					
+					// 处理 reasoning_summary 字段
+					if choice.Delta.ReasoningSummary != "" {
+						rc.streamCallback(StreamChunk{
+							Type:     "reasoning_summary",
+							Content:  choice.Delta.ReasoningSummary,
+							Metadata: map[string]any{"streaming": true, "source": "openai_reasoning_summary"},
+						})
+					}
+					
+					// 处理 think 字段
+					if choice.Delta.Think != "" {
+						rc.streamCallback(StreamChunk{
+							Type:     "think",
+							Content:  choice.Delta.Think,
+							Metadata: map[string]any{"streaming": true, "source": "openai_think"},
+						})
+					}
+				}
+
 				// 处理工具调用增量
 				if len(choice.Delta.ToolCalls) > 0 {
 					for _, deltaToolCall := range choice.Delta.ToolCalls {

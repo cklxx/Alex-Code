@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -100,7 +101,11 @@ func (c *StreamingLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatR
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Error closing response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -160,7 +165,9 @@ func (c *StreamingLLMClient) ChatStream(ctx context.Context, req *ChatRequest) (
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Error closing response body: %v", err)
+		}
 		return nil, fmt.Errorf("HTTP error %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -168,7 +175,11 @@ func (c *StreamingLLMClient) ChatStream(ctx context.Context, req *ChatRequest) (
 
 	go func() {
 		defer close(deltaChannel)
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				log.Printf("Error closing response body: %v", err)
+			}
+		}()
 
 		scanner := bufio.NewScanner(resp.Body)
 		for scanner.Scan() {

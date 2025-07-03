@@ -19,47 +19,47 @@ import (
 // Modern TUI with clean, professional interface
 var (
 	// Color scheme
-	primaryColor   = lipgloss.Color("#7C3AED")
-	successColor   = lipgloss.Color("#10B981") 
-	warningColor   = lipgloss.Color("#F59E0B")
-	errorColor     = lipgloss.Color("#EF4444")
-	mutedColor     = lipgloss.Color("#6B7280")
-	backgroundColor = lipgloss.Color("#1F2937")
-	
+	primaryColor    = lipgloss.Color("#7C3AED")
+	successColor    = lipgloss.Color("#10B981")
+	warningColor    = lipgloss.Color("#F59E0B")
+	errorColor      = lipgloss.Color("#EF4444")
+	mutedColor      = lipgloss.Color("#6B7280")
+	backgroundColor = lipgloss.Color("#1F2937") //nolint:unused
+
 	// Styles
 	headerStyle = lipgloss.NewStyle().
-		Foreground(primaryColor).
-		Bold(true).
-		Padding(0, 1).
-		Margin(0, 0, 1, 0)
+			Foreground(primaryColor).
+			Bold(true).
+			Padding(0, 1).
+			Margin(0, 0, 1, 0)
 
 	userMsgStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#06B6D4")).
-		Bold(true)
+			Foreground(lipgloss.Color("#06B6D4")).
+			Bold(true)
 
 	assistantMsgStyle = lipgloss.NewStyle().
-		Foreground(successColor)
+				Foreground(successColor)
 
 	systemMsgStyle = lipgloss.NewStyle().
-		Foreground(mutedColor).
-		Italic(true)
+			Foreground(mutedColor).
+			Italic(true)
 
 	processingStyle = lipgloss.NewStyle().
-		Foreground(warningColor).
-		Bold(true)
+			Foreground(warningColor).
+			Bold(true)
 
 	errorMsgStyle = lipgloss.NewStyle().
-		Foreground(errorColor).
-		Bold(true)
+			Foreground(errorColor).
+			Bold(true)
 
 	inputStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(primaryColor).
-		Padding(0, 1)
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(primaryColor).
+			Padding(0, 1)
 
 	footerStyle = lipgloss.NewStyle().
-		Foreground(mutedColor).
-		Italic(true)
+			Foreground(mutedColor).
+			Italic(true)
 )
 
 // Message types
@@ -67,6 +67,7 @@ type (
 	streamResponseMsg struct{ content string }
 	processingDoneMsg struct{}
 	errorOccurredMsg  struct{ err error }
+	tickerMsg         struct{}
 )
 
 // ModernChatModel represents the clean TUI model
@@ -81,6 +82,7 @@ type ModernChatModel struct {
 	height       int
 	ready        bool
 	currentInput string
+	execTimer    ExecutionTimer
 }
 
 // ChatMessage represents a chat message with type and content
@@ -88,6 +90,13 @@ type ChatMessage struct {
 	Type    string // "user", "assistant", "system", "processing", "error"
 	Content string
 	Time    time.Time
+}
+
+// ExecutionTimer tracks execution time for processing messages
+type ExecutionTimer struct {
+	StartTime time.Time
+	Duration  time.Duration
+	Active    bool
 }
 
 // NewModernChatModel creates a clean, modern chat interface
@@ -114,7 +123,7 @@ func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) ModernC
 			Time:    welcomeTime,
 		},
 		{
-			Type:    "system", 
+			Type:    "system",
 			Content: fmt.Sprintf("📂 Working in: %s", getCurrentWorkingDir()),
 			Time:    welcomeTime,
 		},
@@ -186,23 +195,28 @@ func (m ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				input := strings.TrimSpace(m.textarea.Value())
 				m.currentInput = input
 				m.textarea.Reset()
-				
+
 				// Add user message
 				m.addMessage(ChatMessage{
 					Type:    "user",
 					Content: input,
 					Time:    time.Now(),
 				})
-				
-				// Start processing
+
+				// Start processing timer
 				m.processing = true
+				m.execTimer = ExecutionTimer{
+					StartTime: time.Now(),
+					Active:    true,
+				}
+
 				m.addMessage(ChatMessage{
 					Type:    "processing",
 					Content: "Processing your request...",
 					Time:    time.Now(),
 				})
-				
-				return m, m.processUserInput(input)
+
+				return m, tea.Batch(m.processUserInput(input), m.startTicker())
 			}
 		}
 
@@ -211,30 +225,63 @@ func (m ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.messages) > 0 && m.messages[len(m.messages)-1].Type == "processing" {
 			m.messages = m.messages[:len(m.messages)-1]
 		}
-		
+
+		// Add execution time to response if available
+		content := msg.content
+		if m.execTimer.Active || !m.execTimer.StartTime.IsZero() {
+			duration := time.Since(m.execTimer.StartTime)
+			content += fmt.Sprintf("\n\n⏱️ Execution time: %v", duration.Truncate(10*time.Millisecond))
+		}
+
 		m.addMessage(ChatMessage{
 			Type:    "assistant",
-			Content: msg.content,
+			Content: content,
 			Time:    time.Now(),
 		})
-		
+
 		return m, func() tea.Msg { return processingDoneMsg{} }
+
+	case tickerMsg:
+		if m.execTimer.Active {
+			m.execTimer.Duration = time.Since(m.execTimer.StartTime)
+			// Update the last processing message with current execution time
+			if len(m.messages) > 0 && m.messages[len(m.messages)-1].Type == "processing" {
+				elapsed := m.execTimer.Duration.Truncate(time.Second)
+				m.messages[len(m.messages)-1].Content = fmt.Sprintf("Processing your request... (%v)", elapsed)
+				m.updateViewport()
+			}
+			return m, m.startTicker() // Continue ticking
+		}
 
 	case processingDoneMsg:
 		m.processing = false
+		m.execTimer.Active = false
+		if m.execTimer.StartTime.IsZero() {
+			m.execTimer.Duration = 0
+		} else {
+			m.execTimer.Duration = time.Since(m.execTimer.StartTime)
+		}
 
 	case errorOccurredMsg:
 		// Remove processing message
 		if len(m.messages) > 0 && m.messages[len(m.messages)-1].Type == "processing" {
 			m.messages = m.messages[:len(m.messages)-1]
 		}
-		
+
+		// Add execution time to error message if available
+		errorContent := fmt.Sprintf("Error: %v", msg.err)
+		if m.execTimer.Active || !m.execTimer.StartTime.IsZero() {
+			duration := time.Since(m.execTimer.StartTime)
+			errorContent += fmt.Sprintf("\n⏱️ Execution time: %v", duration.Truncate(10*time.Millisecond))
+		}
+
 		m.addMessage(ChatMessage{
 			Type:    "error",
-			Content: fmt.Sprintf("Error: %v", msg.err),
+			Content: errorContent,
 			Time:    time.Now(),
 		})
 		m.processing = false
+		m.execTimer.Active = false
 	}
 
 	return m, tea.Batch(tiCmd, vpCmd)
@@ -247,12 +294,12 @@ func (m *ModernChatModel) addMessage(msg ChatMessage) {
 
 func (m *ModernChatModel) updateViewport() {
 	var content strings.Builder
-	
+
 	for i, msg := range m.messages {
 		if i > 0 {
 			content.WriteString("\n") // Single line between messages
 		}
-		
+
 		var styledContent string
 		switch msg.Type {
 		case "user":
@@ -268,43 +315,81 @@ func (m *ModernChatModel) updateViewport() {
 		default:
 			styledContent = msg.Content
 		}
-		
+
 		content.WriteString(styledContent)
 	}
-	
+
 	m.viewport.SetContent(content.String())
 	m.viewport.GotoBottom()
+}
+
+func (m *ModernChatModel) startTicker() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return tickerMsg{}
+	})
 }
 
 func (m ModernChatModel) processUserInput(input string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 		var responseBuilder strings.Builder
-		
+
 		// Collect all response content
 		streamCallback := func(chunk agent.StreamChunk) {
 			switch chunk.Type {
-			case "final_answer", "llm_content", "content":
-				responseBuilder.WriteString(chunk.Content)
+			case "status":
+				if chunk.Content != "" {
+					responseBuilder.WriteString("📋 " + chunk.Content + "\n")
+				}
+			case "iteration":
+				if chunk.Content != "" {
+					responseBuilder.WriteString("🔄 " + chunk.Content + "\n")
+				}
+			case "tool_start":
+				if chunk.Content != "" {
+					responseBuilder.WriteString("🛠️ " + chunk.Content + "\n")
+				}
 			case "tool_result":
 				if chunk.Content != "" {
-					responseBuilder.WriteString("\n\n📋 " + chunk.Content)
+					responseBuilder.WriteString("📋 " + chunk.Content + "\n")
+				}
+			case "tool_error":
+				if chunk.Content != "" {
+					responseBuilder.WriteString("❌ " + chunk.Content + "\n")
+				}
+			case "final_answer":
+				if chunk.Content != "" {
+					responseBuilder.WriteString("✨ " + chunk.Content + "\n")
+				}
+			case "llm_content":
+				responseBuilder.WriteString(chunk.Content)
+			case "complete":
+				if chunk.Content != "" {
+					responseBuilder.WriteString("✅ " + chunk.Content + "\n")
+				}
+			case "max_iterations":
+				if chunk.Content != "" {
+					responseBuilder.WriteString("⚠️ " + chunk.Content + "\n")
+				}
+			case "context_management":
+				if chunk.Content != "" {
+					responseBuilder.WriteString("🧠 " + chunk.Content + "\n")
 				}
 			case "error":
 				// Error will be handled separately
 			}
 		}
-		
+
 		err := m.agent.ProcessMessageStream(ctx, input, m.config.GetConfig(), streamCallback)
 		if err != nil {
 			return errorOccurredMsg{err: err}
 		}
-		
+
 		response := strings.TrimSpace(responseBuilder.String())
 		if response == "" {
 			response = "I processed your request, but didn't generate a visible response."
 		}
-		
+
 		return streamResponseMsg{content: response}
 	}
 }
@@ -316,10 +401,10 @@ func (m ModernChatModel) View() string {
 
 	// Header
 	header := headerStyle.Render("🤖 Deep Coding Agent - AI-Powered Coding Assistant")
-	
+
 	// Main content
 	content := m.viewport.View()
-	
+
 	// Input area
 	var inputArea string
 	if m.processing {
@@ -327,10 +412,10 @@ func (m ModernChatModel) View() string {
 	} else {
 		inputArea = inputStyle.Render(m.textarea.View())
 	}
-	
+
 	// Footer
 	footer := footerStyle.Render("Enter: Send message • Ctrl+C: Exit")
-	
+
 	// Combine all parts
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
@@ -345,13 +430,13 @@ func (m ModernChatModel) View() string {
 // Run the modern TUI
 func runModernTUI(agent *agent.ReactAgent, config *config.Manager) error {
 	model := NewModernChatModel(agent, config)
-	
+
 	program := tea.NewProgram(
 		model,
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)
-	
+
 	_, err := program.Run()
 	return err
 }
