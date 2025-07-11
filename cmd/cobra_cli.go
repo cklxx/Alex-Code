@@ -324,9 +324,9 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 			if ShouldRenderAsMarkdown(bufferedContent) {
 				renderedContent := RenderMarkdown(bufferedContent)
 				if cli.currentTermCtrl != nil {
-					cli.currentTermCtrl.PrintInScrollRegion("\n--- Formatted Output ---\n" + renderedContent)
+					cli.currentTermCtrl.PrintInScrollRegion("\n--- Output ---\n" + renderedContent)
 				} else {
-					fmt.Print("\n--- Formatted Output ---\n" + renderedContent)
+					fmt.Print("\n--- Output ---\n" + renderedContent)
 				}
 			}
 			cli.contentBuffer.Reset()
@@ -339,16 +339,6 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 	default:
 		if cli.debug {
 			content = fmt.Sprintf("Unknown chunk type: %s\n", chunk.Type)
-		}
-	}
-
-	// Print content in scroll region if we have terminal controller
-	if content != "" {
-		if cli.currentTermCtrl != nil {
-			cli.currentTermCtrl.PrintInScrollRegion(content)
-		} else {
-			// Fallback to regular print
-			fmt.Print(content)
 		}
 	}
 }

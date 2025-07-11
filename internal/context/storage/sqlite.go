@@ -211,7 +211,11 @@ func (s *SQLiteStorage) BatchStore(ctx context.Context, docs []Document) error {
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
-	defer func() { if err := stmt.Close(); err != nil { log.Printf("Error closing statement: %v", err) } }()
+	defer func() {
+		if err := stmt.Close(); err != nil {
+			log.Printf("Error closing statement: %v", err)
+		}
+	}()
 
 	for _, doc := range docs {
 		metadataJSON, err := json.Marshal(doc.Metadata)
@@ -260,7 +264,11 @@ func (s *SQLiteStorage) BatchGet(ctx context.Context, ids []string) ([]Document,
 	if err != nil {
 		return nil, fmt.Errorf("failed to query documents: %w", err)
 	}
-	defer func() { if err := rows.Close(); err != nil { log.Printf("Error closing rows: %v", err) } }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
 
 	var docs []Document
 	for rows.Next() {
@@ -328,7 +336,11 @@ func (s *SQLiteStorage) List(ctx context.Context, limit, offset int) ([]Document
 	if err != nil {
 		return nil, fmt.Errorf("failed to query documents: %w", err)
 	}
-	defer func() { if err := rows.Close(); err != nil { log.Printf("Error closing rows: %v", err) } }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
 
 	var docs []Document
 	for rows.Next() {
@@ -435,7 +447,11 @@ func (s *SQLiteStorage) SearchSimilar(ctx context.Context, queryVector []float64
 	if err != nil {
 		return nil, fmt.Errorf("failed to query vectors: %w", err)
 	}
-	defer func() { if err := rows.Close(); err != nil { log.Printf("Error closing rows: %v", err) } }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
 
 	var results []VectorResult
 	for rows.Next() {
@@ -523,7 +539,11 @@ func (s *SQLiteStorage) BatchStoreVectors(ctx context.Context, vectors map[strin
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
-	defer func() { if err := stmt.Close(); err != nil { log.Printf("Error closing statement: %v", err) } }()
+	defer func() {
+		if err := stmt.Close(); err != nil {
+			log.Printf("Error closing statement: %v", err)
+		}
+	}()
 
 	for id, vector := range vectors {
 		vectorJSON, err := json.Marshal(vector)

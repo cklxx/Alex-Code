@@ -21,7 +21,11 @@ func TestSQLiteIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create SQLite storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -375,7 +379,11 @@ func TestSQLiteStorageWithRealData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create SQLite storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 

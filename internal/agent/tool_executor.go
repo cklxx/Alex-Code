@@ -197,7 +197,7 @@ func (te *ToolExecutor) executeSerialToolsStream(ctx context.Context, toolCalls 
 			callback(StreamChunk{Type: "tool_result", Content: contentStr})
 
 			if result.Success {
-				// Ensure ToolName is preserved 
+				// Ensure ToolName is preserved
 				if result.ToolName == "" {
 					result.ToolName = toolCall.Name
 				}
@@ -298,7 +298,7 @@ func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args m
 	}, nil
 }
 
-// injectWorkingDirContext - 注入工作目录上下文
+// injectWorkingDirContext - 注入工作目录上下文和会话ID
 func (te *ToolExecutor) injectWorkingDirContext(ctx context.Context) context.Context {
 	// 尝试从当前会话获取工作目录
 	te.agent.mu.RLock()
@@ -320,5 +320,12 @@ func (te *ToolExecutor) injectWorkingDirContext(ctx context.Context) context.Con
 	}
 
 	// 将工作目录注入到context中
-	return builtin.WithWorkingDir(ctx, workingDir)
+	ctx = builtin.WithWorkingDir(ctx, workingDir)
+
+	// 将会话ID注入到context中，供session-aware tools使用
+	if currentSession != nil {
+		ctx = context.WithValue(ctx, SessionIDKey, currentSession.ID)
+	}
+
+	return ctx
 }

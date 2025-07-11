@@ -1,9 +1,13 @@
 package types
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -145,6 +149,12 @@ type FunctionDefinition struct {
 	Parameters  map[string]interface{} `json:"parameters"`
 }
 
+// ProjectSummary - 项目信息汇总
+type ProjectSummary struct {
+	Info    string `json:"info"`    // 项目信息汇总 (类型、主要文件、构建工具等)
+	Context string `json:"context"` // 系统环境汇总 (OS、工具版本、用户等)
+}
+
 // DirectoryContextInfo - 目录上下文信息
 type DirectoryContextInfo struct {
 	Path         string     `json:"path"`          // 完整路径
@@ -180,6 +190,9 @@ type ReactTaskContext struct {
 	// Directory context information
 	WorkingDir    string                `json:"working_dir"`              // 对话发起时的工作目录
 	DirectoryInfo *DirectoryContextInfo `json:"directory_info,omitempty"` // 目录信息
+
+	// Project and environment information
+	ProjectSummary  *ProjectSummary   `json:"project_summary,omitempty"`  // 项目和系统环境汇总
 }
 
 // ReactExecutionStep - ReAct执行步骤
@@ -276,18 +289,20 @@ func NewReactConfig() *ReactConfig {
 func NewReactTaskContext(taskID, goal string) *ReactTaskContext {
 	workingDir, _ := getCurrentWorkingDir()
 	directoryInfo := gatherDirectoryInfo(workingDir)
+	projectSummary := gatherProjectSummary(workingDir, directoryInfo)
 
 	return &ReactTaskContext{
-		TaskID:        taskID,
-		Goal:          goal,
-		History:       make([]ReactExecutionStep, 0),
-		Memory:        make(map[string]interface{}),
-		StartTime:     time.Now(),
-		LastUpdate:    time.Now(),
-		TokensUsed:    0,
-		Metadata:      make(map[string]interface{}),
-		WorkingDir:    workingDir,
-		DirectoryInfo: directoryInfo,
+		TaskID:         taskID,
+		Goal:           goal,
+		History:        make([]ReactExecutionStep, 0),
+		Memory:         make(map[string]interface{}),
+		StartTime:      time.Now(),
+		LastUpdate:     time.Now(),
+		TokensUsed:     0,
+		Metadata:       make(map[string]interface{}),
+		WorkingDir:     workingDir,
+		DirectoryInfo:  directoryInfo,
+		ProjectSummary: projectSummary,
 	}
 }
 
@@ -365,31 +380,45 @@ func gatherDirectoryInfo(dirPath string) *DirectoryContextInfo {
 			lastModified = info.ModTime()
 		}
 
-		// 收集主要文件（限制数量）
-		if len(topFiles) < 10 {
-			fileType := "file"
-			if entry.IsDir() {
-				fileType = "directory"
-			} else {
-				ext := filepath.Ext(entry.Name())
-				if ext != "" {
-					fileType = ext[1:] // 去掉点号
-				}
+		// 收集主要文件（优先重要文件，限制数量）
+		fileType := "file"
+		if entry.IsDir() {
+			fileType = "directory"
+		} else {
+			ext := filepath.Ext(entry.Name())
+			if ext != "" {
+				fileType = ext[1:] // 去掉点号
 			}
+		}
 
-			topFiles = append(topFiles, FileInfo{
-				Name:     entry.Name(),
-				Path:     entry.Name(),
-				Size:     info.Size(),
-				Modified: info.ModTime(),
-				Type:     fileType,
-				IsDir:    entry.IsDir(),
-			})
+		fileInfo := FileInfo{
+			Name:     entry.Name(),
+			Path:     entry.Name(),
+			Size:     info.Size(),
+			Modified: info.ModTime(),
+			Type:     fileType,
+			IsDir:    entry.IsDir(),
+		}
+
+		// 重要文件优先收集，不受10个文件限制
+		isImportantFile := false
+		if !entry.IsDir() {
+			switch entry.Name() {
+			case "go.mod", "go.sum", "package.json", "package-lock.json", "Cargo.toml", "Cargo.lock",
+				 "requirements.txt", "setup.py", "pyproject.toml", "pom.xml", "build.gradle", 
+				 "tsconfig.json", "CMakeLists.txt", "Makefile", "makefile", "Dockerfile", 
+				 "docker-compose.yml", "README.md", "CLAUDE.md":
+				isImportantFile = true
+			}
+		}
+
+		if isImportantFile || len(topFiles) < 10 {
+			topFiles = append(topFiles, fileInfo)
 		}
 	}
 
 	// 生成描述
-	description := generateDirectoryDescription(dirPath, fileCount, dirCount, projectType)
+	description := generateDirectoryDescription(dirPath, fileCount, dirCount, projectType, topFiles)
 
 	return &DirectoryContextInfo{
 		Path:         dirPath,
@@ -404,7 +433,7 @@ func gatherDirectoryInfo(dirPath string) *DirectoryContextInfo {
 }
 
 // generateDirectoryDescription 生成目录描述
-func generateDirectoryDescription(dirPath string, fileCount, dirCount int, projectType string) string {
+func generateDirectoryDescription(dirPath string, fileCount, dirCount int, projectType string, topFiles []FileInfo) string {
 	baseName := filepath.Base(dirPath)
 	if baseName == "." || baseName == "/" {
 		baseName = "current directory"
@@ -431,6 +460,60 @@ func generateDirectoryDescription(dirPath string, fileCount, dirCount int, proje
 		desc.WriteString(formatCount(dirCount, "directory", "directories"))
 	}
 
+	// 添加主要文件和文件夹信息
+	if len(topFiles) > 0 {
+		desc.WriteString(". Key items: ")
+
+		var directories []string
+		var files []string
+
+		// 分类重要文件和目录
+		for _, file := range topFiles {
+			if file.IsDir {
+				// 识别重要目录
+				switch file.Name {
+				case "cmd", "internal", "pkg", "src", "lib", "docs", "tests", "scripts", "config", "assets", "build", "dist", "node_modules", ".git", ".github":
+					directories = append(directories, file.Name+"/")
+				default:
+					directories = append(directories, file.Name+"/")
+				}
+			} else {
+				// 识别重要文件
+				switch file.Name {
+				case "main.go", "README.md", "Makefile", "go.mod", "package.json", "Dockerfile", "docker-compose.yml", "CLAUDE.md", "config.json", "config.yaml", "config.yml":
+					files = append(files, file.Name)
+				default:
+					// 只显示前几个非重要文件
+					if len(files) < 3 {
+						files = append(files, file.Name)
+					}
+				}
+			}
+		}
+
+		// 按优先级组合显示
+		var allItems []string
+
+		// 首先显示重要目录
+		for _, dir := range directories {
+			if len(allItems) < 8 { // 限制显示数量
+				allItems = append(allItems, dir)
+			}
+		}
+
+		// 然后显示重要文件
+		for _, file := range files {
+			if len(allItems) < 8 { // 限制显示数量
+				allItems = append(allItems, file)
+			}
+		}
+
+		// 格式化输出
+		if len(allItems) > 0 {
+			desc.WriteString(strings.Join(allItems, ", "))
+		}
+	}
+
 	return desc.String()
 }
 
@@ -445,4 +528,337 @@ func formatCount(count int, singular string, plural ...string) string {
 		return "1 " + singular
 	}
 	return fmt.Sprintf("%d %s", count, pluralForm)
+}
+
+// gatherProjectSummary 收集项目信息汇总
+func gatherProjectSummary(dirPath string, directoryInfo *DirectoryContextInfo) *ProjectSummary {
+	if dirPath == "" || directoryInfo == nil {
+		return nil
+	}
+
+	projectName := filepath.Base(dirPath)
+	var buildTools []string
+	var mainFiles []string
+	var versions []string
+
+	// 分析主要文件和构建工具
+	for _, file := range directoryInfo.TopFiles {
+		if !file.IsDir {
+			// 检测构建工具和版本
+			switch file.Name {
+			case "Makefile", "makefile":
+				buildTools = appendUnique(buildTools, "Make")
+			case "package.json":
+				buildTools = appendUnique(buildTools, "npm")
+				if version := getNodeVersion(dirPath, file.Name); version != "" {
+					versions = appendUnique(versions, fmt.Sprintf("Node.js %s", version))
+				}
+				// 检测Node.js虚拟环境
+				if venv := detectNodeVirtualEnv(); venv != "" {
+					versions = appendUnique(versions, venv)
+				}
+			case "go.mod":
+				buildTools = appendUnique(buildTools, "Go")
+				if version := getGoModVersion(dirPath, file.Name); version != "" {
+					versions = appendUnique(versions, fmt.Sprintf("Go %s", version))
+				}
+			case "Cargo.toml":
+				buildTools = appendUnique(buildTools, "Cargo")
+				if version := getRustVersion(); version != "" {
+					versions = appendUnique(versions, fmt.Sprintf("Rust %s", version))
+				}
+				// 检测Rust虚拟环境
+				if venv := detectRustVirtualEnv(); venv != "" {
+					versions = appendUnique(versions, venv)
+				}
+			case "requirements.txt", "setup.py", "pyproject.toml":
+				buildTools = appendUnique(buildTools, "Python")
+				if version := getPythonVersion(); version != "" {
+					versions = appendUnique(versions, fmt.Sprintf("Python %s", version))
+				}
+				// 检测Python虚拟环境
+				if venv := detectPythonVirtualEnv(); venv != "" {
+					versions = appendUnique(versions, venv)
+				}
+			case "pom.xml", "build.gradle":
+				buildTools = appendUnique(buildTools, "Java")
+				if version := getJavaVersion(); version != "" {
+					versions = appendUnique(versions, fmt.Sprintf("Java %s", version))
+				}
+			case "tsconfig.json":
+				buildTools = appendUnique(buildTools, "TypeScript")
+				if version := getTypeScriptVersion(dirPath); version != "" {
+					versions = appendUnique(versions, fmt.Sprintf("TypeScript %s", version))
+				}
+			case "CMakeLists.txt":
+				buildTools = appendUnique(buildTools, "CMake")
+			case "Dockerfile":
+				buildTools = appendUnique(buildTools, "Docker")
+			}
+
+			// 检测主要文件
+			switch file.Name {
+			case "main.go", "main.py", "main.js", "main.ts", "main.cpp", "main.c", "main.java", "README.md", "CLAUDE.md":
+				mainFiles = append(mainFiles, file.Name)
+			}
+		}
+	}
+
+	// 生成项目信息汇总
+	info := fmt.Sprintf("%s (%s project)", projectName, directoryInfo.ProjectType)
+	if len(buildTools) > 0 {
+		info += fmt.Sprintf(", tools: %s", strings.Join(buildTools, "/"))
+	}
+	if len(versions) > 0 {
+		info += fmt.Sprintf(", versions: %s", strings.Join(versions, ", "))
+	}
+	if len(mainFiles) > 0 {
+		info += fmt.Sprintf(", main files: %s", strings.Join(mainFiles, ", "))
+	}
+
+	// 生成系统环境汇总
+	var currentUser string
+	if user, err := user.Current(); err == nil {
+		currentUser = user.Username
+	}
+	var shell string
+	if shellPath := os.Getenv("SHELL"); shellPath != "" {
+		shell = filepath.Base(shellPath)
+	}
+
+	context := fmt.Sprintf("%s/%s, Go %s, user: %s", 
+		runtime.GOOS, runtime.GOARCH, runtime.Version(), currentUser)
+	if shell != "" {
+		context += fmt.Sprintf(", shell: %s", shell)
+	}
+
+	return &ProjectSummary{
+		Info:    info,
+		Context: context,
+	}
+}
+
+
+// appendUnique 添加唯一元素到切片
+func appendUnique(slice []string, item string) []string {
+	for _, existing := range slice {
+		if existing == item {
+			return slice
+		}
+	}
+	return append(slice, item)
+}
+
+// getNodeVersion 从 package.json 获取 Node.js 版本要求
+func getNodeVersion(dirPath, fileName string) string {
+	// 尝试读取 package.json 中的 engines.node 字段
+	content, err := os.ReadFile(filepath.Join(dirPath, fileName))
+	if err != nil {
+		return ""
+	}
+	
+	// 简单的字符串匹配，避免引入 JSON 解析依赖
+	contentStr := string(content)
+	if strings.Contains(contentStr, `"node"`) {
+		// 查找 "node": "版本" 模式
+		if start := strings.Index(contentStr, `"node"`); start != -1 {
+			remaining := contentStr[start:]
+			if colonPos := strings.Index(remaining, ":"); colonPos != -1 {
+				afterColon := remaining[colonPos+1:]
+				if quoteStart := strings.Index(afterColon, `"`); quoteStart != -1 {
+					versionStart := afterColon[quoteStart+1:]
+					if quoteEnd := strings.Index(versionStart, `"`); quoteEnd != -1 {
+						version := versionStart[:quoteEnd]
+						return strings.TrimSpace(version)
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// getGoModVersion 从 go.mod 获取 Go 版本
+func getGoModVersion(dirPath, fileName string) string {
+	content, err := os.ReadFile(filepath.Join(dirPath, fileName))
+	if err != nil {
+		return ""
+	}
+	
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "go ") {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				return parts[1]
+			}
+		}
+	}
+	return ""
+}
+
+// getRustVersion 获取 Rust 版本
+func getRustVersion() string {
+	// 尝试执行 rustc --version
+	if version := getCommandVersion("rustc", "--version"); version != "" {
+		// rustc 1.70.0 (90c541806 2023-05-31)
+		parts := strings.Fields(version)
+		if len(parts) >= 2 {
+			return parts[1]
+		}
+	}
+	return ""
+}
+
+// getPythonVersion 获取 Python 版本
+func getPythonVersion() string {
+	// 尝试 python3 和 python
+	for _, cmd := range []string{"python3", "python"} {
+		if version := getCommandVersion(cmd, "--version"); version != "" {
+			// Python 3.9.7
+			parts := strings.Fields(version)
+			if len(parts) >= 2 {
+				return parts[1]
+			}
+		}
+	}
+	return ""
+}
+
+// getJavaVersion 获取 Java 版本
+func getJavaVersion() string {
+	if version := getCommandVersion("java", "-version"); version != "" {
+		// java version "11.0.16" 2022-07-19 LTS
+		// 或者 openjdk version "17.0.4" 2022-07-19
+		if strings.Contains(version, "version") {
+			// 查找版本号
+			if start := strings.Index(version, `"`); start != -1 {
+				remaining := version[start+1:]
+				if end := strings.Index(remaining, `"`); end != -1 {
+					return remaining[:end]
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// getTypeScriptVersion 获取 TypeScript 版本
+func getTypeScriptVersion(dirPath string) string {
+	// 尝试从 node_modules 获取版本
+	packagePath := filepath.Join(dirPath, "node_modules", "typescript", "package.json")
+	if content, err := os.ReadFile(packagePath); err == nil {
+		contentStr := string(content)
+		if strings.Contains(contentStr, `"version"`) {
+			if start := strings.Index(contentStr, `"version"`); start != -1 {
+				remaining := contentStr[start:]
+				if colonPos := strings.Index(remaining, ":"); colonPos != -1 {
+					afterColon := remaining[colonPos+1:]
+					if quoteStart := strings.Index(afterColon, `"`); quoteStart != -1 {
+						versionStart := afterColon[quoteStart+1:]
+						if quoteEnd := strings.Index(versionStart, `"`); quoteEnd != -1 {
+							return versionStart[:quoteEnd]
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	// 备选方案：尝试执行 tsc --version
+	if version := getCommandVersion("tsc", "--version"); version != "" {
+		// Version 4.8.4
+		parts := strings.Fields(version)
+		if len(parts) >= 2 {
+			return parts[1]
+		}
+	}
+	return ""
+}
+
+// getCommandVersion 执行命令获取版本信息
+func getCommandVersion(command string, args ...string) string {
+	// 执行命令获取版本信息，设置超时防止hang
+	cmd := exec.Command(command, args...)
+	
+	// 设置超时，避免hang住
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	cmd = exec.CommandContext(ctx, command, args...)
+	
+	// 执行命令并获取输出
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	
+	return strings.TrimSpace(string(output))
+}
+
+// detectPythonVirtualEnv 检测Python虚拟环境
+func detectPythonVirtualEnv() string {
+	// 检查常见的虚拟环境环境变量
+	if venv := os.Getenv("VIRTUAL_ENV"); venv != "" {
+		return fmt.Sprintf("venv:%s", filepath.Base(venv))
+	}
+	
+	if conda := os.Getenv("CONDA_DEFAULT_ENV"); conda != "" && conda != "base" {
+		return fmt.Sprintf("conda:%s", conda)
+	}
+	
+	if poetry := os.Getenv("POETRY_ACTIVE"); poetry == "1" {
+		return "poetry:active"
+	}
+	
+	if pipenv := os.Getenv("PIPENV_ACTIVE"); pipenv == "1" {
+		return "pipenv:active"
+	}
+	
+	// 检查本地虚拟环境目录
+	for _, venvDir := range []string{"venv", ".venv", "env", ".env"} {
+		if info, err := os.Stat(venvDir); err == nil && info.IsDir() {
+			// 检查是否有Python可执行文件
+			pythonPath := filepath.Join(venvDir, "bin", "python")
+			if runtime.GOOS == "windows" {
+				pythonPath = filepath.Join(venvDir, "Scripts", "python.exe")
+			}
+			if _, err := os.Stat(pythonPath); err == nil {
+				return fmt.Sprintf("local:%s", venvDir)
+			}
+		}
+	}
+	
+	return ""
+}
+
+// detectNodeVirtualEnv 检测Node.js虚拟环境
+func detectNodeVirtualEnv() string {
+	// 检查node_modules是否存在
+	if info, err := os.Stat("node_modules"); err == nil && info.IsDir() {
+		return "npm:node_modules"
+	}
+	
+	// 检查yarn.lock或pnpm-lock.yaml
+	if _, err := os.Stat("yarn.lock"); err == nil {
+		return "yarn:workspace"
+	}
+	
+	if _, err := os.Stat("pnpm-lock.yaml"); err == nil {
+		return "pnpm:workspace"
+	}
+	
+	return ""
+}
+
+// detectRustVirtualEnv 检测Rust虚拟环境
+func detectRustVirtualEnv() string {
+	// 检查Cargo.lock和target目录
+	if _, err := os.Stat("Cargo.lock"); err == nil {
+		if info, err := os.Stat("target"); err == nil && info.IsDir() {
+			return "cargo:workspace"
+		}
+	}
+	
+	return ""
 }

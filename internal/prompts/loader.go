@@ -1,9 +1,11 @@
 package prompts
 
 import (
+	"alex/pkg/types"
 	"embed"
 	"fmt"
 	"strings"
+	"time"
 )
 
 //go:embed *.md
@@ -99,8 +101,22 @@ func (p *PromptLoader) ListPrompts() []string {
 }
 
 // GetReActThinkingPrompt returns the ReAct thinking phase prompt
-func (p *PromptLoader) GetReActThinkingPrompt() (string, error) {
-	return p.RenderPrompt("react_thinking", nil)
+func (p *PromptLoader) GetReActThinkingPrompt(taskCtx *types.ReactTaskContext) (string, error) {
+	variables := map[string]string{
+		"WorkingDir":    taskCtx.WorkingDir,
+		"DirectoryInfo": taskCtx.DirectoryInfo.Description,
+		"Goal":          taskCtx.Goal,
+		"Memory":        "You are a helpful assistant that can help the user with their tasks.",
+		"LastUpdate":    taskCtx.LastUpdate.Format(time.RFC3339),
+	}
+
+	// Add project summary if available
+	if taskCtx.ProjectSummary != nil {
+		variables["ProjectInfo"] = taskCtx.ProjectSummary.Info
+		variables["SystemContext"] = taskCtx.ProjectSummary.Context
+	}
+
+	return p.RenderPrompt("coder", variables)
 }
 
 // GetReActObservationPrompt returns the observation phase prompt with variables

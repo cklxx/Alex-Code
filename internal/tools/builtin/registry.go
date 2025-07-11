@@ -1,19 +1,21 @@
 package builtin
 
-import "alex/internal/config"
+import (
+	"alex/internal/session"
+)
 
 // GetAllBuiltinTools returns a list of all builtin tools
 func GetAllBuiltinTools() []Tool {
-	// Create a config manager for tools that need it
-	configManager, _ := config.NewManager()
+	// Create a session manager for session-aware tools
+	sessionManager, _ := session.NewManager()
 
 	return []Tool{
 		// Thinking and reasoning tools
 		NewThinkTool(),
 
-		// Task management tools
-		NewTodoUpdateTool(configManager),
-		NewTodoReadTool(configManager),
+		// Task management tools (session-aware)
+		NewSessionTodoUpdateTool(sessionManager),
+		NewSessionTodoReadTool(sessionManager),
 
 		// File tools
 		CreateFileReadTool(),
@@ -35,15 +37,15 @@ func GetAllBuiltinTools() []Tool {
 
 // GetToolByName creates a tool instance by name
 func GetToolByName(name string) Tool {
-	configManager, _ := config.NewManager()
+	sessionManager, _ := session.NewManager()
 
 	switch name {
 	case "think":
 		return NewThinkTool()
 	case "todo_update":
-		return NewTodoUpdateTool(configManager)
+		return NewSessionTodoUpdateTool(sessionManager)
 	case "todo_read":
-		return NewTodoReadTool(configManager)
+		return NewSessionTodoReadTool(sessionManager)
 	case "file_read":
 		return CreateFileReadTool()
 	case "file_update":
@@ -67,15 +69,15 @@ func GetToolByName(name string) Tool {
 
 // GetToolsByCategory returns tools grouped by category
 func GetToolsByCategory() map[string][]Tool {
-	configManager, _ := config.NewManager()
+	sessionManager, _ := session.NewManager()
 
 	return map[string][]Tool{
 		"reasoning": {
 			NewThinkTool(),
 		},
 		"task_management": {
-			NewTodoUpdateTool(configManager),
-			NewTodoReadTool(configManager),
+			NewSessionTodoUpdateTool(sessionManager),
+			NewSessionTodoReadTool(sessionManager),
 		},
 		"file": {
 			CreateFileReadTool(),

@@ -177,10 +177,10 @@ func (h *LLMHandler) collectStreamingResponse(ctx context.Context, streamChan <-
 				if len(choice.Delta.ToolCalls) > 0 {
 					for _, deltaToolCall := range choice.Delta.ToolCalls {
 						// 判断是否为新工具调用：有ID、有函数名、或者函数名与当前工具调用不同
-						isNewToolCall := deltaToolCall.ID != "" || 
+						isNewToolCall := deltaToolCall.ID != "" ||
 							deltaToolCall.Function.Name != "" ||
 							currentToolCall == nil
-						
+
 						if isNewToolCall {
 							// 新的工具调用
 							toolCallID := deltaToolCall.ID

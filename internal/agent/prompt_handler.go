@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"alex/pkg/types"
 	"fmt"
 	"log"
 	"time"
@@ -19,11 +20,11 @@ func NewPromptHandler(promptBuilder *LightPromptBuilder) *PromptHandler {
 }
 
 // buildToolDrivenTaskPrompt - 构建工具驱动的任务提示
-func (h *PromptHandler) buildToolDrivenTaskPrompt() string {
+func (h *PromptHandler) buildToolDrivenTaskPrompt(taskCtx *types.ReactTaskContext) string {
 	// 使用项目内的prompt builder
 	if h.promptBuilder != nil && h.promptBuilder.promptLoader != nil {
 		// 尝试使用React thinking prompt作为基础模板
-		template, err := h.promptBuilder.promptLoader.GetReActThinkingPrompt()
+		template, err := h.promptBuilder.promptLoader.GetReActThinkingPrompt(taskCtx)
 		if err != nil {
 			log.Printf("[WARN] PromptHandler: Failed to get ReAct thinking prompt, trying fallback: %v", err)
 		}
@@ -33,15 +34,22 @@ func (h *PromptHandler) buildToolDrivenTaskPrompt() string {
 
 	// Fallback to hardcoded prompt if prompt builder is not available
 	log.Printf("[WARN] PromptHandler: Prompt builder not available, using hardcoded prompt")
-	return h.buildHardcodedTaskPrompt()
+	return h.buildHardcodedTaskPrompt(taskCtx)
 }
 
 // buildHardcodedTaskPrompt - 构建硬编码的任务提示（fallback）
-func (h *PromptHandler) buildHardcodedTaskPrompt() string {
+func (h *PromptHandler) buildHardcodedTaskPrompt(taskCtx *types.ReactTaskContext) string {
 	return fmt.Sprintf(`You are an intelligent agent with access to powerful tools. Your goal is to complete this task efficiently:
 
-**time:** %s
+**WorkingDir:** %s
 
+**Goal:** %s
+
+**DirectoryInfo:** %s
+
+**Memory:** %s
+
+**Time:** %s
 
 **Approach:**
 1. **For complex tasks**: Start with the 'think' tool to analyze and plan
@@ -65,5 +73,5 @@ func (h *PromptHandler) buildHardcodedTaskPrompt() string {
 - Execute tools systematically to achieve the goal
 - Provide clear, actionable results
 
-Begin by determining the best approach for this task.`, time.Now().Format(time.RFC3339))
+Begin by determining the best approach for this task.`, taskCtx.WorkingDir, taskCtx.Goal, taskCtx.DirectoryInfo.Description, taskCtx.Memory, time.Now().Format(time.RFC3339))
 }
