@@ -47,7 +47,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         
     - name: Install Gosec
-      run: go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+      run: go install github.com/securecodewarrior/gosec/cmd/gosec@latest
         
     - name: Run Gosec Security Scanner
       run: gosec -fmt sarif -out gosec.sarif ./...
@@ -110,13 +110,33 @@ jobs:
     steps:
     - name: Check out code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
       
-    - name: Run TruffleHog OSS
+    - name: Run TruffleHog OSS (PR)
+      if: github.event_name == 'pull_request'
       uses: trufflesecurity/trufflehog@main
       with:
         path: ./
-        base: main
+        base: ${{ github.event.repository.default_branch }}
         head: HEAD
+        extra_args: --debug --only-verified
+        
+    - name: Run TruffleHog OSS (Push)
+      if: github.event_name == 'push'
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: HEAD~1
+        head: HEAD
+        extra_args: --debug --only-verified
+        
+    - name: Run TruffleHog OSS (Full Scan)
+      if: github.event_name == 'schedule'
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        extra_args: --debug --only-verified
 
   supply-chain-security:
     name: Supply Chain Security

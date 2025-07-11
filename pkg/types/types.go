@@ -192,7 +192,7 @@ type ReactTaskContext struct {
 	DirectoryInfo *DirectoryContextInfo `json:"directory_info,omitempty"` // 目录信息
 
 	// Project and environment information
-	ProjectSummary  *ProjectSummary   `json:"project_summary,omitempty"`  // 项目和系统环境汇总
+	ProjectSummary *ProjectSummary `json:"project_summary,omitempty"` // 项目和系统环境汇总
 }
 
 // ReactExecutionStep - ReAct执行步骤
@@ -405,9 +405,9 @@ func gatherDirectoryInfo(dirPath string) *DirectoryContextInfo {
 		if !entry.IsDir() {
 			switch entry.Name() {
 			case "go.mod", "go.sum", "package.json", "package-lock.json", "Cargo.toml", "Cargo.lock",
-				 "requirements.txt", "setup.py", "pyproject.toml", "pom.xml", "build.gradle", 
-				 "tsconfig.json", "CMakeLists.txt", "Makefile", "makefile", "Dockerfile", 
-				 "docker-compose.yml", "README.md", "CLAUDE.md":
+				"requirements.txt", "setup.py", "pyproject.toml", "pom.xml", "build.gradle",
+				"tsconfig.json", "CMakeLists.txt", "Makefile", "makefile", "Dockerfile",
+				"docker-compose.yml", "README.md", "CLAUDE.md":
 				isImportantFile = true
 			}
 		}
@@ -626,7 +626,7 @@ func gatherProjectSummary(dirPath string, directoryInfo *DirectoryContextInfo) *
 		shell = filepath.Base(shellPath)
 	}
 
-	context := fmt.Sprintf("%s/%s, Go %s, user: %s", 
+	context := fmt.Sprintf("%s/%s, Go %s, user: %s",
 		runtime.GOOS, runtime.GOARCH, runtime.Version(), currentUser)
 	if shell != "" {
 		context += fmt.Sprintf(", shell: %s", shell)
@@ -637,7 +637,6 @@ func gatherProjectSummary(dirPath string, directoryInfo *DirectoryContextInfo) *
 		Context: context,
 	}
 }
-
 
 // appendUnique 添加唯一元素到切片
 func appendUnique(slice []string, item string) []string {
@@ -656,7 +655,7 @@ func getNodeVersion(dirPath, fileName string) string {
 	if err != nil {
 		return ""
 	}
-	
+
 	// 简单的字符串匹配，避免引入 JSON 解析依赖
 	contentStr := string(content)
 	if strings.Contains(contentStr, `"node"`) {
@@ -684,7 +683,7 @@ func getGoModVersion(dirPath, fileName string) string {
 	if err != nil {
 		return ""
 	}
-	
+
 	lines := strings.Split(string(content), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -765,7 +764,7 @@ func getTypeScriptVersion(dirPath string) string {
 			}
 		}
 	}
-	
+
 	// 备选方案：尝试执行 tsc --version
 	if version := getCommandVersion("tsc", "--version"); version != "" {
 		// Version 4.8.4
@@ -781,18 +780,18 @@ func getTypeScriptVersion(dirPath string) string {
 func getCommandVersion(command string, args ...string) string {
 	// 执行命令获取版本信息，设置超时防止hang
 	cmd := exec.Command(command, args...)
-	
+
 	// 设置超时，避免hang住
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	cmd = exec.CommandContext(ctx, command, args...)
-	
+
 	// 执行命令并获取输出
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return ""
 	}
-	
+
 	return strings.TrimSpace(string(output))
 }
 
@@ -802,19 +801,19 @@ func detectPythonVirtualEnv() string {
 	if venv := os.Getenv("VIRTUAL_ENV"); venv != "" {
 		return fmt.Sprintf("venv:%s", filepath.Base(venv))
 	}
-	
+
 	if conda := os.Getenv("CONDA_DEFAULT_ENV"); conda != "" && conda != "base" {
 		return fmt.Sprintf("conda:%s", conda)
 	}
-	
+
 	if poetry := os.Getenv("POETRY_ACTIVE"); poetry == "1" {
 		return "poetry:active"
 	}
-	
+
 	if pipenv := os.Getenv("PIPENV_ACTIVE"); pipenv == "1" {
 		return "pipenv:active"
 	}
-	
+
 	// 检查本地虚拟环境目录
 	for _, venvDir := range []string{"venv", ".venv", "env", ".env"} {
 		if info, err := os.Stat(venvDir); err == nil && info.IsDir() {
@@ -828,7 +827,7 @@ func detectPythonVirtualEnv() string {
 			}
 		}
 	}
-	
+
 	return ""
 }
 
@@ -838,16 +837,16 @@ func detectNodeVirtualEnv() string {
 	if info, err := os.Stat("node_modules"); err == nil && info.IsDir() {
 		return "npm:node_modules"
 	}
-	
+
 	// 检查yarn.lock或pnpm-lock.yaml
 	if _, err := os.Stat("yarn.lock"); err == nil {
 		return "yarn:workspace"
 	}
-	
+
 	if _, err := os.Stat("pnpm-lock.yaml"); err == nil {
 		return "pnpm:workspace"
 	}
-	
+
 	return ""
 }
 
@@ -859,6 +858,6 @@ func detectRustVirtualEnv() string {
 			return "cargo:workspace"
 		}
 	}
-	
+
 	return ""
 }
