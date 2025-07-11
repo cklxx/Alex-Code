@@ -37,24 +37,14 @@ func (t *BashTool) Parameters() map[string]interface{} {
 			},
 			"working_dir": map[string]interface{}{
 				"type":        "string",
-				"description": "Working directory for the command (optional)",
+				"description": "Working directory for the command",
 			},
 			"timeout": map[string]interface{}{
 				"type":        "integer",
-				"description": "Timeout in seconds (default: 30)",
+				"description": "Timeout in seconds",
 				"default":     30,
 				"minimum":     1,
 				"maximum":     300,
-			},
-			"capture_output": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Whether to capture command output (default: true)",
-				"default":     true,
-			},
-			"allow_interactive": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Allow interactive commands (default: false)",
-				"default":     false,
 			},
 		},
 		"required": []string{"command"},
@@ -65,9 +55,7 @@ func (t *BashTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
 		AddStringField("command", "The shell command to execute").
 		AddOptionalStringField("working_dir", "Working directory for the command").
-		AddOptionalIntField("timeout", "Timeout in seconds", 1, 300).
-		AddBoolField("capture_output", "Whether to capture command output", false).
-		AddBoolField("allow_interactive", "Allow interactive commands", false)
+		AddOptionalIntField("timeout", "Timeout in seconds", 1, 300)
 
 	// First run standard validation
 	if err := validator.Validate(args); err != nil {

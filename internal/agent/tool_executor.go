@@ -197,11 +197,18 @@ func (te *ToolExecutor) executeSerialToolsStream(ctx context.Context, toolCalls 
 			callback(StreamChunk{Type: "tool_result", Content: contentStr})
 
 			if result.Success {
+				// Ensure ToolName is preserved 
+				if result.ToolName == "" {
+					result.ToolName = toolCall.Name
+				}
 				combinedResult = append(combinedResult, result)
 			} else {
 				combinedResult = append(combinedResult, &types.ReactToolResult{
-					Success: false,
-					Error:   result.Error,
+					Success:  false,
+					Error:    result.Error,
+					ToolName: toolCall.Name,
+					ToolArgs: toolCall.Arguments,
+					CallID:   toolCall.CallID,
 				})
 				callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: %s", toolCall.Name, result.Error)})
 			}

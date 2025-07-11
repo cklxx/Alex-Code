@@ -60,10 +60,18 @@ func (h *ToolHandler) buildToolMessages(actionResult []*types.ReactToolResult) [
 			log.Printf("[WARN] buildToolMessages: Missing CallID for tool %s, generated: %s", result.ToolName, callID)
 		}
 
+		// Ensure ToolName is not empty and properly formatted for Gemini API
+		toolName := result.ToolName
+
+		// Debug logging for Gemini API compatibility
+		log.Printf("[DEBUG] buildToolMessages: Creating tool message - Name: '%s', CallID: '%s'", toolName, callID)
+
+		// Gemini API compatibility: ensure tool response format is correct
+		// 兼容所有类型的api
 		toolMessages = append(toolMessages, llm.Message{
-			Role:       "tool",
+			Role:       "user",
 			Content:    content,
-			Name:       result.ToolName,
+			Name:       toolName,
 			ToolCallId: callID,
 		})
 	}

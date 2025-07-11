@@ -84,45 +84,16 @@ func (t *WebSearchTool) Parameters() map[string]interface{} {
 			},
 			"max_results": map[string]interface{}{
 				"type":        "integer",
-				"description": "Maximum number of search results to return (default: 5)",
+				"description": "Maximum number of search results to return",
 				"default":     5,
 				"minimum":     1,
-				"maximum":     20,
+				"maximum":     10,
 			},
 			"search_depth": map[string]interface{}{
 				"type":        "string",
-				"description": "Search depth: 'basic' for quick results or 'advanced' for comprehensive search",
+				"description": "Search depth: basic or advanced",
 				"enum":        []string{"basic", "advanced"},
 				"default":     "basic",
-			},
-			"include_answer": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Include a short answer to the query from the search results",
-				"default":     true,
-			},
-			"include_images": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Include related images in the search results",
-				"default":     false,
-			},
-			"include_raw_content": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Include full raw content of search results",
-				"default":     false,
-			},
-			"include_domains": map[string]interface{}{
-				"type":        "array",
-				"description": "List of domains to include in search (optional)",
-				"items": map[string]interface{}{
-					"type": "string",
-				},
-			},
-			"exclude_domains": map[string]interface{}{
-				"type":        "array",
-				"description": "List of domains to exclude from search (optional)",
-				"items": map[string]interface{}{
-					"type": "string",
-				},
 			},
 		},
 		"required": []string{"query"},
@@ -132,7 +103,7 @@ func (t *WebSearchTool) Parameters() map[string]interface{} {
 func (t *WebSearchTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
 		AddStringField("query", "The search query to execute").
-		AddOptionalIntField("max_results", "Maximum number of search results to return", 1, 20).
+		AddOptionalIntField("max_results", "Maximum number of search results to return", 1, 10).
 		AddCustomValidator("search_depth", "Search depth (basic or advanced)", false, func(value interface{}) error {
 			if value == nil {
 				return nil // Optional field
@@ -145,10 +116,7 @@ func (t *WebSearchTool) Validate(args map[string]interface{}) error {
 				return fmt.Errorf("search_depth must be 'basic' or 'advanced'")
 			}
 			return nil
-		}).
-		AddBoolField("include_answer", "Include a short answer to the query", false).
-		AddBoolField("include_images", "Include related images in the search results", false).
-		AddBoolField("include_raw_content", "Include full raw content of search results", false)
+		})
 
 	return validator.Validate(args)
 }

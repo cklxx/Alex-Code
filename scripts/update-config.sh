@@ -58,7 +58,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Google Gemini API Configuration
-API_KEY="${GOOGLE_API_KEY:-x x x}"
+API_KEY="${GOOGLE_API_KEY:-AIzaSyCrp7wq-4GLRBeg_WsMf4WLhWdsKpsdMwU}"
 MODEL="${GEMINI_MODEL:-gemini-2.5-pro}"
 BASE_URL="${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}"
 

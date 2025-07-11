@@ -308,7 +308,7 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 	case "iteration":
 		// Handle ReAct iteration chunks - these represent steps in the think-act-observe cycle
 		if cli.debug {
-			content = DeepCodingReasoning("ReAct iteration: " + chunk.Content) + "\n"
+			content = DeepCodingReasoning("ReAct iteration: "+chunk.Content) + "\n"
 		}
 	case "llm_content", "content":
 		// Accumulate streaming content for better markdown processing
@@ -378,7 +378,7 @@ func (cli *CLI) showConfig() {
 	config += fmt.Sprintf("  %s: %s\n", bold("Max Turns"), blue(fmt.Sprintf("%d", cfg.MaxTurns)))
 
 	// Display multi-model configurations if available
-	if cfg.Models != nil && len(cfg.Models) > 0 {
+	if len(cfg.Models) > 0 {
 		config += fmt.Sprintf("\n%s Multi-Model Configurations:\n", bold("🤖"))
 		config += fmt.Sprintf("  %s: %s\n", bold("Default Model Type"), blue(string(cfg.DefaultModelType)))
 
