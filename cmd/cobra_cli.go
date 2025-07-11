@@ -318,9 +318,6 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 	case "error":
 		content = DeepCodingError(chunk.Content) + "\n"
 	case "complete":
-		if cli.debug {
-			content = DeepCodingSuccess("Stream completed") + "\n"
-		}
 		// Process accumulated content for markdown rendering
 		if cli.contentBuffer.Len() > 0 {
 			bufferedContent := cli.contentBuffer.String()

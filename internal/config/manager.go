@@ -57,7 +57,6 @@ func NewManager() (*Manager, error) {
 			return nil, fmt.Errorf("failed to create default config: %w", err)
 		}
 	}
-	fmt.Printf("DEBUG: Config loaded: %+v\n", manager.config)
 	return manager, nil
 }
 
