@@ -92,6 +92,7 @@ func (h *LLMHandler) collectStreamingResponse(ctx context.Context, streamChan <-
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case delta, ok := <-streamChan:
+
 			if !ok {
 				// 流结束，构建最终响应
 				if response == nil {
@@ -128,7 +129,6 @@ func (h *LLMHandler) collectStreamingResponse(ctx context.Context, streamChan <-
 			// 处理每个delta中的choice
 			if len(delta.Choices) > 0 {
 				choice := delta.Choices[0]
-
 				// 处理内容增量
 				if choice.Delta.Content != "" {
 					contentBuilder.WriteString(choice.Delta.Content)
@@ -153,7 +153,7 @@ func (h *LLMHandler) collectStreamingResponse(ctx context.Context, streamChan <-
 							Metadata: map[string]any{"streaming": true, "source": "openai_reasoning"},
 						})
 					}
-					
+
 					// 处理 reasoning_summary 字段
 					if choice.Delta.ReasoningSummary != "" {
 						h.streamCallback(StreamChunk{
@@ -162,7 +162,7 @@ func (h *LLMHandler) collectStreamingResponse(ctx context.Context, streamChan <-
 							Metadata: map[string]any{"streaming": true, "source": "openai_reasoning_summary"},
 						})
 					}
-					
+
 					// 处理 think 字段
 					if choice.Delta.Think != "" {
 						h.streamCallback(StreamChunk{
@@ -205,6 +205,7 @@ func (h *LLMHandler) collectStreamingResponse(ctx context.Context, streamChan <-
 					response.Choices[0].FinishReason = choice.FinishReason
 				}
 			}
+
 		}
 	}
 }

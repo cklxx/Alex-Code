@@ -70,9 +70,9 @@ type CLI struct {
 	currentTermCtrl  *TerminalController
 	currentStartTime time.Time
 	contentBuffer    strings.Builder // Buffer for accumulating streaming content (using strings.Builder for better performance)
-	processing       bool         // Whether currently processing
-	currentMessage   string       // Current working message
-	inputQueue       chan string  // Queue for pending inputs during processing
+	processing       bool            // Whether currently processing
+	currentMessage   string          // Current working message
+	inputQueue       chan string     // Queue for pending inputs during processing
 }
 
 // NewRootCommand creates the root cobra command
@@ -80,7 +80,7 @@ func NewRootCommand() *cobra.Command {
 	cli := &CLI{
 		inputQueue: make(chan string, 10), // Buffer for 10 pending inputs
 	}
-	
+
 	// Pre-allocate contentBuffer for better streaming performance
 	cli.contentBuffer.Grow(4096) // Pre-allocate 4KB buffer
 
@@ -305,6 +305,11 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 		}
 	case "task_complete":
 		content = DeepCodingSuccess("Task completed") + "\n"
+	case "iteration":
+		// Handle ReAct iteration chunks - these represent steps in the think-act-observe cycle
+		if cli.debug {
+			content = DeepCodingReasoning("ReAct iteration: " + chunk.Content) + "\n"
+		}
 	case "llm_content", "content":
 		// Accumulate streaming content for better markdown processing
 		cli.contentBuffer.WriteString(chunk.Content)
@@ -362,11 +367,34 @@ func (cli *CLI) runSinglePrompt(prompt string) error {
 }
 
 func (cli *CLI) showConfig() {
+	cfg := cli.config.GetConfig()
 	config := fmt.Sprintf("\n%s Current Configuration:\n", bold("⚙️"))
-	// TODO: Display actual config
-	config += fmt.Sprintf("  Model: %s\n", blue("deepseek-chat-v3"))
-	config += fmt.Sprintf("  Max Tokens: %s\n", blue("2000"))
-	config += fmt.Sprintf("  Temperature: %s\n", blue("0.7"))
+
+	// Display legacy config (for compatibility)
+	config += fmt.Sprintf("  %s: %s\n", bold("Model"), blue(cfg.Model))
+	config += fmt.Sprintf("  %s: %s\n", bold("Max Tokens"), blue(fmt.Sprintf("%d", cfg.MaxTokens)))
+	config += fmt.Sprintf("  %s: %s\n", bold("Temperature"), blue(fmt.Sprintf("%.1f", cfg.Temperature)))
+	config += fmt.Sprintf("  %s: %s\n", bold("Base URL"), blue(cfg.BaseURL))
+	config += fmt.Sprintf("  %s: %s\n", bold("Max Turns"), blue(fmt.Sprintf("%d", cfg.MaxTurns)))
+
+	// Display multi-model configurations if available
+	if cfg.Models != nil && len(cfg.Models) > 0 {
+		config += fmt.Sprintf("\n%s Multi-Model Configurations:\n", bold("🤖"))
+		config += fmt.Sprintf("  %s: %s\n", bold("Default Model Type"), blue(string(cfg.DefaultModelType)))
+
+		for modelType, modelConfig := range cfg.Models {
+			config += fmt.Sprintf("\n  %s %s:\n", bold("📋"), bold(string(modelType)))
+			config += fmt.Sprintf("    %s: %s\n", "Model", blue(modelConfig.Model))
+			config += fmt.Sprintf("    %s: %s\n", "Max Tokens", blue(fmt.Sprintf("%d", modelConfig.MaxTokens)))
+			config += fmt.Sprintf("    %s: %s\n", "Temperature", blue(fmt.Sprintf("%.1f", modelConfig.Temperature)))
+			config += fmt.Sprintf("    %s: %s\n", "Base URL", blue(modelConfig.BaseURL))
+			// Mask API key for security
+			if modelConfig.APIKey != "" {
+				maskedKey := modelConfig.APIKey[:8] + "..." + modelConfig.APIKey[len(modelConfig.APIKey)-8:]
+				config += fmt.Sprintf("    %s: %s\n", "API Key", blue(maskedKey))
+			}
+		}
+	}
 
 	if cli.currentTermCtrl != nil {
 		cli.currentTermCtrl.PrintInScrollRegion(config)

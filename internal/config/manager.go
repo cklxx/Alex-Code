@@ -1,8 +1,6 @@
 package config
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -46,7 +44,7 @@ func NewManager() (*Manager, error) {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	configPath := filepath.Join(homeDir, ".deep-coding-config.json")
+	configPath := filepath.Join(homeDir, ".alex-config.json")
 	manager := &Manager{
 		configPath: configPath,
 		config:     getDefaultConfig(),
@@ -59,7 +57,7 @@ func NewManager() (*Manager, error) {
 			return nil, fmt.Errorf("failed to create default config: %w", err)
 		}
 	}
-
+	fmt.Printf("DEBUG: Config loaded: %+v\n", manager.config)
 	return manager, nil
 }
 
@@ -452,18 +450,6 @@ func NewUnifiedConfigManager() (*Manager, error) {
 
 // UnifiedConfigManager is an alias for Manager
 type UnifiedConfigManager = Manager
-
-// generateInstallationID creates a unique installation identifier
-//
-//nolint:unused
-func generateInstallationID() string {
-	bytes := make([]byte, 16)
-	if _, err := rand.Read(bytes); err != nil {
-		// Fallback to timestamp-based ID if crypto/rand fails
-		return fmt.Sprintf("install_%d", time.Now().Unix())
-	}
-	return hex.EncodeToString(bytes)
-}
 
 // ValidateConfig validates the configuration values
 func (m *Manager) ValidateConfig() error {
