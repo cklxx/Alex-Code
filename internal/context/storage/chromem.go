@@ -1,3 +1,6 @@
+//go:build chromem
+// +build chromem
+
 package storage
 
 import (
