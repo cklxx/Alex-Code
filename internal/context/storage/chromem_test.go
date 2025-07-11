@@ -18,7 +18,11 @@ func TestChromemStorage_Basic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create Chromem storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -101,7 +105,11 @@ func TestChromemStorage_BatchOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create Chromem storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -183,7 +191,11 @@ func TestChromemStorage_SemanticSearch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create Chromem storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -294,7 +306,11 @@ func TestChromemStorage_Performance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create Chromem storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -384,7 +400,11 @@ func TestChromemStorage_AdvancedFeatures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create Chromem storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -488,7 +508,11 @@ func TestChromemStorage_ErrorHandling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create Chromem storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 

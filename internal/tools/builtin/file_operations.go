@@ -408,7 +408,7 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 	}
 
 	originalContent := string(content)
-	
+
 	// Simple case-sensitive first occurrence replacement
 	newContent := strings.Replace(originalContent, search, replace, 1)
 	replacementCount := 0
@@ -923,4 +923,3 @@ func getFileIcon(ext string) string {
 		return "📄"
 	}
 }
-

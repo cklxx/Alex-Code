@@ -4,37 +4,44 @@ Welcome to the Deep Coding Agent documentation. This directory contains comprehe
 
 ## 📋 Documentation Structure
 
-### Core Documentation (Read in Order)
-- **[00-readme.md](00-readme.md)** - This documentation index
-- **[01-architecture-overview.md](01-architecture-overview.md)** - Comprehensive architecture analysis and implementation plan
-- **[02-react-agent-design.md](02-react-agent-design.md)** - Detailed ReactAgent design and implementation
-- **[03-prompt-system.md](03-prompt-system.md)** - Prompt template system architecture
-- **[04-prompt-design.md](04-prompt-design.md)** - System prompts design patterns
+### 🏗️ Architecture Documentation
+- **[architecture/01-architecture-overview.md](architecture/01-architecture-overview.md)** - Comprehensive architecture analysis and implementation plan
+- **[architecture/02-react-agent-design.md](architecture/02-react-agent-design.md)** - Detailed ReactAgent design and implementation
+- **[architecture/03-prompt-system.md](architecture/03-prompt-system.md)** - Prompt template system architecture
+- **[architecture/04-prompt-design.md](architecture/04-prompt-design.md)** - System prompts design patterns
 
-### Implementation Guides
+### 🛠️ Implementation Guides
 - **[guides/quickstart.md](guides/quickstart.md)** - Quick start guide for users
 - **[guides/tool-development.md](guides/tool-development.md)** - Tool development guide
+- **[implementation/chromem-local-embeddings-config.md](implementation/chromem-local-embeddings-config.md)** - Local embeddings configuration
+- **[implementation/cli-input-bottom-design.md](implementation/cli-input-bottom-design.md)** - CLI input design patterns
 
-### CodeAct Integration
-- **[codeact/integration-guide.md](codeact/integration-guide.md)** - Complete CodeAct integration guide
-- **[codeact/api-reference.md](codeact/api-reference.md)** - CodeAct API reference
-- **[codeact/implementation-roadmap.md](codeact/implementation-roadmap.md)** - Implementation roadmap
-
-### API Reference
-- **[reference/api-reference.md](reference/api-reference.md)** - General API reference
-
-### Research & Analysis
+### 🔬 Research & Experiments
 - **[research/industry-benchmarks.md](research/industry-benchmarks.md)** - Industry research and benchmarking
 - **[research/execution-flow-analysis.md](research/execution-flow-analysis.md)** - ReAct execution flow analysis
 - **[research/react-architecture-summary.md](research/react-architecture-summary.md)** - ReAct architecture summary
 - **[research/react-patterns.md](research/react-patterns.md)** - ReAct implementation patterns
 - **[research/react-implementation.md](research/react-implementation.md)** - ReAct implementation details
-- **[research/agent-architecture.md](research/agent-architecture.md)** - Agent architecture research
+- **[research/agent-architecture-old.md](research/agent-architecture-old.md)** - Legacy agent architecture research
+- **[research/codeact-research-report.md](research/codeact-research-report.md)** - CodeAct research and analysis
+
+### 📊 Analysis & Reports
+- **[analysis/CONTEXT_ENGINEERING_AND_COMPRESSION_RESEARCH.md](analysis/CONTEXT_ENGINEERING_AND_COMPRESSION_RESEARCH.md)** - Context engineering research
+- **[analysis/DATABASE_INTEGRATION_ULTRA_ANALYSIS_2025.md](analysis/DATABASE_INTEGRATION_ULTRA_ANALYSIS_2025.md)** - Database integration analysis
+- **[analysis/software-engineering-roles-analysis.md](analysis/software-engineering-roles-analysis.md)** - Software engineering roles analysis
+
+### 🧩 CodeAct Integration
+- **[codeact/integration-guide.md](codeact/integration-guide.md)** - Complete CodeAct integration guide
+- **[codeact/api-reference.md](codeact/api-reference.md)** - CodeAct API reference
+- **[codeact/implementation-roadmap.md](codeact/implementation-roadmap.md)** - Implementation roadmap
+
+### 📚 API Reference
+- **[reference/api-reference.md](reference/api-reference.md)** - General API reference
 
 ## 🚀 Quick Start
 
-1. **Begin with Architecture**: Start with [01-architecture-overview.md](01-architecture-overview.md) for a complete understanding of the system
-2. **Implementation Details**: Read [02-react-agent-design.md](02-react-agent-design.md) for detailed design patterns
+1. **Begin with Architecture**: Start with [architecture/01-architecture-overview.md](architecture/01-architecture-overview.md) for a complete understanding of the system
+2. **Implementation Details**: Read [architecture/02-react-agent-design.md](architecture/02-react-agent-design.md) for detailed design patterns
 3. **Getting Started**: Follow [guides/quickstart.md](guides/quickstart.md) for immediate usage
 4. **CodeAct Features**: Explore [codeact/integration-guide.md](codeact/integration-guide.md) for advanced capabilities
 
@@ -76,10 +83,12 @@ When contributing to documentation:
 
 ## 🔍 Document Categories
 
-- **Core**: Essential system documentation (numbered 00-04)
-- **Guides**: User and developer guides
-- **CodeAct**: CodeAct-specific documentation
-- **Reference**: API and technical reference
-- **Research**: Research papers, analysis, and experimental documentation
+- **Architecture**: Core system architecture and design documentation (🏗️)
+- **Implementation**: Implementation guides and configuration details (🛠️)
+- **Research**: Experimental features and research papers (🔬)
+- **Analysis**: Data analysis, reports, and engineering studies (📊)
+- **CodeAct**: CodeAct-specific integration documentation (🧩)
+- **Reference**: API and technical reference materials (📚)
+- **Guides**: User and developer guides for getting started
 
 For support and questions, refer to the main project README or contact the development team.

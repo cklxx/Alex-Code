@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Essential Development Commands
 
-**⚠️ Recent Build Fix (2024-06-29)**: The Makefile has been updated to build the entire `cmd` package instead of just `cmd/main.go`, fixing compilation issues with the `handleConfigCommand` function. The project now builds successfully.
+**⚠️ Current Build Status (2025-07)**: The Makefile builds the entire `cmd` package successfully. All core functionality is working including session-aware todo management and enhanced tool system.
 
 ### Building and Testing
 ```bash
@@ -17,14 +17,23 @@ make build                    # Builds ./alex binary
 
 # Development workflow
 make dev                      # Format, vet, build, and test functionality
-make test                     # Run all tests
-make fmt                      # Format Go code
-make vet                      # Run go vet
+make dev-safe                 # Safe development workflow (excludes broken tests)
+make dev-robust               # Ultra-robust workflow with dependency management
 
-# Using scripts for advanced workflows
-./scripts/dev.sh dev          # Complete development workflow with setup
-./scripts/test.sh all         # Comprehensive test suite (unit, integration, performance)
-./scripts/run.sh dev          # Hot reload development with Air
+# Testing options
+make test                     # Run all tests
+make test-working             # Run only working tests
+make test-robust              # Run tests with automatic issue handling
+make test-functionality       # Quick test of core functionality
+
+# Code quality
+make fmt                      # Format Go code
+make vet                      # Run go vet (all code)
+make vet-working              # Vet only working code
+
+# Build variants
+make build-all                # Build for multiple platforms
+make install                  # Install binary to GOPATH/bin
 ```
 
 ### Alex Usage
@@ -54,20 +63,26 @@ make vet                      # Run go vet
 
 ### Testing Individual Components
 ```bash
-# Run tests for specific package
-go test ./internal/analyzer/         # Test analyzer package
-go test -v ./internal/ai/            # Verbose tests for AI package
-go test -run TestAnalyzeFile         # Run specific test
-go test ./internal/agent/core/       # Test ReAct agent components
-go test ./internal/tools/            # Test tool system
-go test ./internal/security/         # Test security components
+# Test specific packages
+go test ./internal/agent/             # Test ReAct agent system
+go test ./internal/tools/builtin/     # Test builtin tools
+go test ./internal/llm/               # Test LLM integration
+go test ./internal/config/            # Test configuration management
+go test ./internal/session/           # Test session management
+go test ./internal/prompts/           # Test prompt system
+
+# Test specific functionality
+go test -run TestSessionTodo          # Test session-aware todos
+go test -run TestToolExecution        # Test tool execution
+go test -run TestReactAgent           # Test ReAct agent workflow
 
 # Coverage testing
 go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out
 
 # Integration testing
-go test -v ./internal/agent/core/ -count=1    # ReAct integration tests
+go test -v ./internal/agent/ -count=1        # ReAct integration tests
+go test -v ./internal/tools/builtin/ -count=1 # Tool integration tests
 ```
 
 ### Docker Development
@@ -101,7 +116,7 @@ go test -v ./internal/agent/core/ -count=1    # ReAct integration tests
 2. **Prompt Management** (`internal/prompts/`)
    - Embedded markdown-based prompt templates
    - Unified prompt loading and rendering system
-   - Template variable substitution
+   - Template variable substitution with ProjectSummary integration
    - Fallback prompt support for reliability
 
 3. **ReAct Core Components**:
@@ -182,7 +197,9 @@ internal/tools/
 - **File Operations**: `file_read`, `file_update`, `file_replace`, `file_list`, `directory_create`
 - **Shell Execution**: `bash`, `script_runner`, `process_monitor` with security controls
 - **Search Tools**: `grep`, `ripgrep`, `find` with flexible pattern matching
-- **Todo Management**: Task creation, reading, status management
+- **Todo Management**: Session-aware task creation, reading, status management
+- **Web Integration**: `web_search` for information retrieval
+- **Reasoning Tools**: `think` for structured problem solving
 
 **Tool System Features:**
 - **Dynamic Registration**: Runtime tool discovery and registration
@@ -241,6 +258,56 @@ internal/tools/
 - Configurable message limits (default: 1000)
 - Automatic cleanup (configurable retention: 7 days)
 - Session restoration with error handling
+- **Session-Aware Todo Management**: Each session maintains its own todo list
+- **Context Injection**: Tools receive session ID and working directory through context
+
+### Session-Aware Todo System (`internal/tools/builtin/session_todo_tools.go`)
+
+**Recently Enhanced Todo Management:**
+
+**Core Features:**
+- **Session Isolation**: Each session maintains independent todo lists
+- **Persistent Storage**: Todos stored in session config and persisted to disk
+- **Context-Aware Operations**: Tools automatically detect current session
+- **Fallback Mechanisms**: Creates temporary sessions when context is unavailable
+
+**Todo Operations:**
+```bash
+# Todo management within a session
+./alex "Create todos: 1. Review code 2. Run tests 3. Deploy"
+./alex "Show my current todos"
+./alex "Complete todo: Review code"
+```
+
+**Implementation Details:**
+- **SessionTodoUpdateTool**: Handles create, update, complete, delete operations
+- **SessionTodoReadTool**: Provides filtered reading with status/priority filters
+- **Context Injection**: Session ID passed through ToolExecutor context
+- **Automatic Session Creation**: Falls back to working-directory-based sessions
+
+### Enhanced Project Detection (`pkg/types/types.go`)
+
+**Intelligent Environment Detection:**
+
+**Virtual Environment Support:**
+- **Python**: Detects venv, conda, poetry, pipenv environments
+- **Node.js**: Identifies npm, yarn, pnpm workspaces  
+- **Rust**: Recognizes cargo workspaces and target directories
+- **Environment Variables**: Automatically detects VIRTUAL_ENV, CONDA_DEFAULT_ENV, etc.
+
+**Project Context (`ProjectSummary`):**
+- **Simplified Architecture**: Replaces complex ProjectInfo/SystemEnv with streamlined ProjectSummary
+- **Build Tool Detection**: Automatically identifies Make, npm, Go modules, Cargo, Maven, Gradle
+- **Version Detection**: Extracts versions from go.mod, package.json, and command-line tools
+- **Main File Identification**: Locates entry points (main.go, main.py, README.md, etc.)
+
+**Context Integration:**
+```go
+type ProjectSummary struct {
+    Info    string // Project info summary (type, tools, versions, files)
+    Context string // System environment summary (OS, user, shell, etc.)
+}
+```
 
 ### CLI Interface (`cmd/main.go` + `cmd/config.go`)
 
@@ -837,12 +904,13 @@ Configuration is managed through `~/.alex-config.json` with the config manager h
 - Sub-30ms execution times for most operations
 - 40-100x performance improvement over predecessor implementations
 
-### Recent Major Changes (2024-06-30):
+### Recent Major Changes (2025-07):
+- **Session-Aware Todo System**: Todos now properly stored per session with context injection
+- **Enhanced Project Detection**: Improved virtual environment detection for Python, Node.js, and Rust
+- **Simplified Context System**: Streamlined ProjectSummary replacing complex ProjectInfo/SystemEnv
+- **Tool System Refinements**: Session-aware tools with improved fallback mechanisms
 - **Unified Prompt System**: All prompts centralized in `internal/prompts` with markdown templates
-- **Simplified Architecture**: Clear separation of concerns with ReactCore, ThinkingEngine, ToolExecutor
-- **Eliminated Redundancy**: Removed hardcoded prompt templates from ReactAgent
-- **Enhanced Reliability**: Multiple fallback layers for prompt loading failures
-- **Code Simplification**: Adherence to "如无需求勿增实体" principle
+- **Code Simplification**: Continued adherence to "如无需求勿增实体" principle
 
 This represents a mature, production-ready AI coding assistant with enterprise-grade architecture, industry-standard best practices, and comprehensive roadmap for 2025. The system balances simplicity with scalability, following modern Go development patterns, AI framework best practices, and enterprise deployment standards.
 

@@ -7,30 +7,31 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/config"
+	"alex/internal/session"
 	"alex/pkg/types"
 )
 
-// TodoUpdateTool handles todo management operations (create, update, complete, delete)
-type TodoUpdateTool struct {
-	configManager *config.Manager
+// SessionTodoUpdateTool handles session-specific todo management operations
+type SessionTodoUpdateTool struct {
+	sessionManager *session.Manager
 }
 
-func NewTodoUpdateTool(configManager *config.Manager) *TodoUpdateTool {
-	return &TodoUpdateTool{
-		configManager: configManager,
+// NewSessionTodoUpdateTool creates a new session-aware todo update tool
+func NewSessionTodoUpdateTool(sessionManager *session.Manager) *SessionTodoUpdateTool {
+	return &SessionTodoUpdateTool{
+		sessionManager: sessionManager,
 	}
 }
 
-func (t *TodoUpdateTool) Name() string {
+func (t *SessionTodoUpdateTool) Name() string {
 	return "todo_update"
 }
 
-func (t *TodoUpdateTool) Description() string {
-	return "Create, update, complete, and delete todo tasks. Supports batch operations and task management."
+func (t *SessionTodoUpdateTool) Description() string {
+	return "Create, update, complete, and delete todo tasks in the current session. Supports batch operations and task management."
 }
 
-func (t *TodoUpdateTool) Parameters() map[string]interface{} {
+func (t *SessionTodoUpdateTool) Parameters() map[string]interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -83,7 +84,7 @@ func (t *TodoUpdateTool) Parameters() map[string]interface{} {
 	}
 }
 
-func (t *TodoUpdateTool) Validate(args map[string]interface{}) error {
+func (t *SessionTodoUpdateTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
 		AddCustomValidator("action", "Action to perform (create, create_batch, update, complete, delete, set_progress)", true, func(value interface{}) error {
 			action, ok := value.(string)
@@ -146,34 +147,54 @@ func (t *TodoUpdateTool) Validate(args map[string]interface{}) error {
 	return nil
 }
 
-func (t *TodoUpdateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	action := args["action"].(string)
+func (t *SessionTodoUpdateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	// Try to get session from context first
+	sessionID := GetSessionFromContext(ctx)
 
-	// Get current config
-	config, err := t.configManager.GetLegacyConfig()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get config: %w", err)
+	// If not found in context, try to get from working directory context
+	if sessionID == "" {
+		if workingDir := GetWorkingDirFromContext(ctx); workingDir != "" {
+			// Create a temporary session ID based on working directory
+			sessionID = fmt.Sprintf("wd_%s_%d", strings.ReplaceAll(workingDir, "/", "_"), time.Now().Unix()/3600)
+		}
 	}
+
+	// If still no session ID, create one
+	if sessionID == "" {
+		sessionID = fmt.Sprintf("temp_session_%d", time.Now().Unix())
+	}
+
+	// Get or create session
+	session, err := t.sessionManager.RestoreSession(sessionID)
+	if err != nil {
+		// If session doesn't exist, create it
+		session, err = t.sessionManager.StartSession(sessionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create session: %w", err)
+		}
+	}
+
+	action := args["action"].(string)
 
 	switch action {
 	case "create":
-		return t.createTodo(config, args)
+		return t.createTodo(session, args)
 	case "create_batch":
-		return t.createBatchTodos(config, args)
+		return t.createBatchTodos(session, args)
 	case "update":
-		return t.updateTodo(config, args)
+		return t.updateTodo(session, args)
 	case "complete":
-		return t.completeTodo(config, args)
+		return t.completeTodo(session, args)
 	case "delete":
-		return t.deleteTodo(config, args)
+		return t.deleteTodo(session, args)
 	case "set_progress":
-		return t.setProgress(config, args)
+		return t.setProgress(session, args)
 	default:
 		return nil, fmt.Errorf("unsupported action: %s", action)
 	}
 }
 
-func (t *TodoUpdateTool) createTodo(config *types.Config, args map[string]interface{}) (*ToolResult, error) {
+func (t *SessionTodoUpdateTool) createTodo(session *session.Session, args map[string]interface{}) (*ToolResult, error) {
 	content := args["content"].(string)
 	order := 1
 	if o, ok := args["order"]; ok {
@@ -182,9 +203,12 @@ func (t *TodoUpdateTool) createTodo(config *types.Config, args map[string]interf
 		}
 	}
 
+	// Get current todos from session
+	todos := t.getTodosFromSession(session)
+
 	// Auto-assign order if not provided or 0
 	if order <= 0 {
-		order = t.getNextOrder(config)
+		order = t.getNextOrder(todos)
 	}
 
 	// Generate unique ID
@@ -199,14 +223,14 @@ func (t *TodoUpdateTool) createTodo(config *types.Config, args map[string]interf
 		CreatedAt: time.Now(),
 	}
 
-	// Add to config
-	config.Todos = append(config.Todos, newTodo)
-	config.LastUpdated = time.Now()
+	// Add to todos
+	todos = append(todos, newTodo)
 
-	// Save config
-	if err := t.saveConfig(config); err != nil {
-		return nil, fmt.Errorf("failed to save config: %w", err)
+	// Save todos to session
+	if err := t.saveTodosToSession(session, todos); err != nil {
+		return nil, fmt.Errorf("failed to save todos to session: %w", err)
 	}
+
 	return &ToolResult{
 		Content: fmt.Sprintf("✅ Created todo: %s (ID: %s, Order: %d)", content, id, order),
 		Data: map[string]interface{}{
@@ -219,14 +243,17 @@ func (t *TodoUpdateTool) createTodo(config *types.Config, args map[string]interf
 	}, nil
 }
 
-func (t *TodoUpdateTool) createBatchTodos(config *types.Config, args map[string]interface{}) (*ToolResult, error) {
+func (t *SessionTodoUpdateTool) createBatchTodos(session *session.Session, args map[string]interface{}) (*ToolResult, error) {
 	tasks := args["tasks"].([]interface{})
+
+	// Get current todos from session
+	todos := t.getTodosFromSession(session)
 
 	var createdTodos []types.TodoItem
 	var summary strings.Builder
 	summary.WriteString(fmt.Sprintf("✅ Created %d todos:\n", len(tasks)))
 
-	baseOrder := t.getNextOrder(config)
+	baseOrder := t.getNextOrder(todos)
 
 	for i, task := range tasks {
 		taskMap := task.(map[string]interface{})
@@ -251,20 +278,19 @@ func (t *TodoUpdateTool) createBatchTodos(config *types.Config, args map[string]
 			CreatedAt: time.Now(),
 		}
 
-		// Add to config
-		config.Todos = append(config.Todos, newTodo)
+		// Add to todos
+		todos = append(todos, newTodo)
 		createdTodos = append(createdTodos, newTodo)
 
 		// Add to summary
 		summary.WriteString(fmt.Sprintf("  %d. [%s] %s\n", order, id[:8], content))
 	}
 
-	config.LastUpdated = time.Now()
-
-	// Save config
-	if err := t.saveConfig(config); err != nil {
-		return nil, fmt.Errorf("failed to save config: %w", err)
+	// Save todos to session
+	if err := t.saveTodosToSession(session, todos); err != nil {
+		return nil, fmt.Errorf("failed to save todos to session: %w", err)
 	}
+
 	return &ToolResult{
 		Content: summary.String(),
 		Data: map[string]interface{}{
@@ -275,12 +301,15 @@ func (t *TodoUpdateTool) createBatchTodos(config *types.Config, args map[string]
 	}, nil
 }
 
-func (t *TodoUpdateTool) updateTodo(config *types.Config, args map[string]interface{}) (*ToolResult, error) {
+func (t *SessionTodoUpdateTool) updateTodo(session *session.Session, args map[string]interface{}) (*ToolResult, error) {
 	id := args["id"].(string)
+
+	// Get current todos from session
+	todos := t.getTodosFromSession(session)
 
 	// Find todo
 	todoIndex := -1
-	for i, todo := range config.Todos {
+	for i, todo := range todos {
 		if todo.ID == id {
 			todoIndex = i
 			break
@@ -293,29 +322,27 @@ func (t *TodoUpdateTool) updateTodo(config *types.Config, args map[string]interf
 
 	// Update fields
 	if content, ok := args["content"].(string); ok {
-		config.Todos[todoIndex].Content = content
+		todos[todoIndex].Content = content
 	}
 	if order, ok := args["order"]; ok {
 		if orderFloat, ok := order.(float64); ok {
-			config.Todos[todoIndex].Order = int(orderFloat)
+			todos[todoIndex].Order = int(orderFloat)
 		}
 	}
 	if status, ok := args["status"].(string); ok {
 		// Validate status transition
-		if err := t.validateStatusTransition(config, todoIndex, status); err != nil {
+		if err := t.validateStatusTransition(todos, todoIndex, status); err != nil {
 			return nil, err
 		}
-		config.Todos[todoIndex].Status = status
+		todos[todoIndex].Status = status
 	}
 
-	config.LastUpdated = time.Now()
-
-	// Save config
-	if err := t.saveConfig(config); err != nil {
-		return nil, fmt.Errorf("failed to save config: %w", err)
+	// Save todos to session
+	if err := t.saveTodosToSession(session, todos); err != nil {
+		return nil, fmt.Errorf("failed to save todos to session: %w", err)
 	}
 
-	todo := config.Todos[todoIndex]
+	todo := todos[todoIndex]
 	return &ToolResult{
 		Content: fmt.Sprintf("📝 Updated todo: %s (Status: %s, Order: %d)", todo.Content, todo.Status, todo.Order),
 		Data: map[string]interface{}{
@@ -327,12 +354,15 @@ func (t *TodoUpdateTool) updateTodo(config *types.Config, args map[string]interf
 	}, nil
 }
 
-func (t *TodoUpdateTool) completeTodo(config *types.Config, args map[string]interface{}) (*ToolResult, error) {
+func (t *SessionTodoUpdateTool) completeTodo(session *session.Session, args map[string]interface{}) (*ToolResult, error) {
 	id := args["id"].(string)
+
+	// Get current todos from session
+	todos := t.getTodosFromSession(session)
 
 	// Find todo
 	todoIndex := -1
-	for i, todo := range config.Todos {
+	for i, todo := range todos {
 		if todo.ID == id {
 			todoIndex = i
 			break
@@ -345,16 +375,15 @@ func (t *TodoUpdateTool) completeTodo(config *types.Config, args map[string]inte
 
 	// Mark as completed
 	now := time.Now()
-	config.Todos[todoIndex].Status = "completed"
-	config.Todos[todoIndex].CompletedAt = &now
-	config.LastUpdated = time.Now()
+	todos[todoIndex].Status = "completed"
+	todos[todoIndex].CompletedAt = &now
 
-	// Save config
-	if err := t.saveConfig(config); err != nil {
-		return nil, fmt.Errorf("failed to save config: %w", err)
+	// Save todos to session
+	if err := t.saveTodosToSession(session, todos); err != nil {
+		return nil, fmt.Errorf("failed to save todos to session: %w", err)
 	}
 
-	todo := config.Todos[todoIndex]
+	todo := todos[todoIndex]
 	return &ToolResult{
 		Content: fmt.Sprintf("✅ Completed todo: %s", todo.Content),
 		Data: map[string]interface{}{
@@ -366,13 +395,16 @@ func (t *TodoUpdateTool) completeTodo(config *types.Config, args map[string]inte
 	}, nil
 }
 
-func (t *TodoUpdateTool) deleteTodo(config *types.Config, args map[string]interface{}) (*ToolResult, error) {
+func (t *SessionTodoUpdateTool) deleteTodo(session *session.Session, args map[string]interface{}) (*ToolResult, error) {
 	id := args["id"].(string)
+
+	// Get current todos from session
+	todos := t.getTodosFromSession(session)
 
 	// Find todo
 	todoIndex := -1
 	var todoContent string
-	for i, todo := range config.Todos {
+	for i, todo := range todos {
 		if todo.ID == id {
 			todoIndex = i
 			todoContent = todo.Content
@@ -385,12 +417,11 @@ func (t *TodoUpdateTool) deleteTodo(config *types.Config, args map[string]interf
 	}
 
 	// Remove todo
-	config.Todos = append(config.Todos[:todoIndex], config.Todos[todoIndex+1:]...)
-	config.LastUpdated = time.Now()
+	todos = append(todos[:todoIndex], todos[todoIndex+1:]...)
 
-	// Save config
-	if err := t.saveConfig(config); err != nil {
-		return nil, fmt.Errorf("failed to save config: %w", err)
+	// Save todos to session
+	if err := t.saveTodosToSession(session, todos); err != nil {
+		return nil, fmt.Errorf("failed to save todos to session: %w", err)
 	}
 
 	return &ToolResult{
@@ -403,12 +434,15 @@ func (t *TodoUpdateTool) deleteTodo(config *types.Config, args map[string]interf
 	}, nil
 }
 
-func (t *TodoUpdateTool) setProgress(config *types.Config, args map[string]interface{}) (*ToolResult, error) {
+func (t *SessionTodoUpdateTool) setProgress(session *session.Session, args map[string]interface{}) (*ToolResult, error) {
 	id := args["id"].(string)
+
+	// Get current todos from session
+	todos := t.getTodosFromSession(session)
 
 	// Find todo
 	todoIndex := -1
-	for i, todo := range config.Todos {
+	for i, todo := range todos {
 		if todo.ID == id {
 			todoIndex = i
 			break
@@ -420,22 +454,21 @@ func (t *TodoUpdateTool) setProgress(config *types.Config, args map[string]inter
 	}
 
 	// Check if another task is already in progress
-	for i, todo := range config.Todos {
+	for i, todo := range todos {
 		if i != todoIndex && todo.Status == "in_progress" {
 			return nil, fmt.Errorf("another task is already in progress: %s. Only one task can be in progress at a time", todo.Content)
 		}
 	}
 
 	// Set as in progress
-	config.Todos[todoIndex].Status = "in_progress"
-	config.LastUpdated = time.Now()
+	todos[todoIndex].Status = "in_progress"
 
-	// Save config
-	if err := t.saveConfig(config); err != nil {
-		return nil, fmt.Errorf("failed to save config: %w", err)
+	// Save todos to session
+	if err := t.saveTodosToSession(session, todos); err != nil {
+		return nil, fmt.Errorf("failed to save todos to session: %w", err)
 	}
 
-	todo := config.Todos[todoIndex]
+	todo := todos[todoIndex]
 	return &ToolResult{
 		Content: fmt.Sprintf("🚀 Started working on: %s", todo.Content),
 		Data: map[string]interface{}{
@@ -446,10 +479,10 @@ func (t *TodoUpdateTool) setProgress(config *types.Config, args map[string]inter
 	}, nil
 }
 
-func (t *TodoUpdateTool) validateStatusTransition(config *types.Config, todoIndex int, newStatus string) error {
+func (t *SessionTodoUpdateTool) validateStatusTransition(todos []types.TodoItem, todoIndex int, newStatus string) error {
 	// Allow all transitions for now, but enforce single in_progress rule
 	if newStatus == "in_progress" {
-		for i, todo := range config.Todos {
+		for i, todo := range todos {
 			if i != todoIndex && todo.Status == "in_progress" {
 				return fmt.Errorf("another task is already in progress: %s. Only one task can be in progress at a time", todo.Content)
 			}
@@ -459,32 +492,119 @@ func (t *TodoUpdateTool) validateStatusTransition(config *types.Config, todoInde
 	return nil
 }
 
-func (t *TodoUpdateTool) saveConfig(_ *types.Config) error {
-	// The config manager should already have the updated config in memory
-	// since we modified config directly. Just call Save to persist it.
-	return t.configManager.Save()
+func (t *SessionTodoUpdateTool) getTodosFromSession(session *session.Session) []types.TodoItem {
+	todosInterface, exists := session.GetConfig("todos")
+	if !exists {
+		return []types.TodoItem{}
+	}
+
+	// Convert interface{} to []types.TodoItem
+	if todosList, ok := todosInterface.([]interface{}); ok {
+		var todos []types.TodoItem
+		for _, todoInterface := range todosList {
+			if todoMap, ok := todoInterface.(map[string]interface{}); ok {
+				todo := types.TodoItem{
+					ID:      getString(todoMap, "id"),
+					Content: getString(todoMap, "content"),
+					Status:  getString(todoMap, "status"),
+					Order:   getInt(todoMap, "order"),
+				}
+
+				// Parse timestamps
+				if createdAtStr := getString(todoMap, "created_at"); createdAtStr != "" {
+					if createdAt, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
+						todo.CreatedAt = createdAt
+					}
+				}
+
+				if completedAtStr := getString(todoMap, "completed_at"); completedAtStr != "" {
+					if completedAt, err := time.Parse(time.RFC3339, completedAtStr); err == nil {
+						todo.CompletedAt = &completedAt
+					}
+				}
+
+				todos = append(todos, todo)
+			}
+		}
+		return todos
+	}
+
+	return []types.TodoItem{}
 }
 
-// TodoReadTool provides read-only access to todos
-type TodoReadTool struct {
-	configManager *config.Manager
+func (t *SessionTodoUpdateTool) saveTodosToSession(session *session.Session, todos []types.TodoItem) error {
+	// Convert todos to interface{} format for session storage
+	var todosInterface []interface{}
+	for _, todo := range todos {
+		todoMap := map[string]interface{}{
+			"id":         todo.ID,
+			"content":    todo.Content,
+			"status":     todo.Status,
+			"order":      todo.Order,
+			"created_at": todo.CreatedAt.Format(time.RFC3339),
+		}
+		if todo.CompletedAt != nil {
+			todoMap["completed_at"] = todo.CompletedAt.Format(time.RFC3339)
+		}
+		todosInterface = append(todosInterface, todoMap)
+	}
+
+	session.SetConfig("todos", todosInterface)
+	return t.sessionManager.SaveSession(session)
 }
 
-func NewTodoReadTool(configManager *config.Manager) *TodoReadTool {
-	return &TodoReadTool{
-		configManager: configManager,
+func (t *SessionTodoUpdateTool) getNextOrder(todos []types.TodoItem) int {
+	maxOrder := 0
+	for _, todo := range todos {
+		if todo.Order > maxOrder {
+			maxOrder = todo.Order
+		}
+	}
+	return maxOrder + 1
+}
+
+// Helper functions
+func getString(m map[string]interface{}, key string) string {
+	if val, ok := m[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return ""
+}
+
+func getInt(m map[string]interface{}, key string) int {
+	if val, ok := m[key]; ok {
+		if i, ok := val.(int); ok {
+			return i
+		}
+		if f, ok := val.(float64); ok {
+			return int(f)
+		}
+	}
+	return 0
+}
+
+// SessionTodoReadTool provides session-specific read-only access to todos
+type SessionTodoReadTool struct {
+	sessionManager *session.Manager
+}
+
+func NewSessionTodoReadTool(sessionManager *session.Manager) *SessionTodoReadTool {
+	return &SessionTodoReadTool{
+		sessionManager: sessionManager,
 	}
 }
 
-func (t *TodoReadTool) Name() string {
+func (t *SessionTodoReadTool) Name() string {
 	return "todo_read"
 }
 
-func (t *TodoReadTool) Description() string {
-	return "Read and list todo items with filtering by status and priority. Shows task progress and statistics."
+func (t *SessionTodoReadTool) Description() string {
+	return "Read and list todo items from the current session with filtering by status and priority. Shows task progress and statistics."
 }
 
-func (t *TodoReadTool) Parameters() map[string]interface{} {
+func (t *SessionTodoReadTool) Parameters() map[string]interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -505,7 +625,7 @@ func (t *TodoReadTool) Parameters() map[string]interface{} {
 	}
 }
 
-func (t *TodoReadTool) Validate(args map[string]interface{}) error {
+func (t *SessionTodoReadTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
 		AddCustomValidator("status", "Filter by status (pending, in_progress, completed, all)", false, func(value interface{}) error {
 			if value == nil {
@@ -528,10 +648,31 @@ func (t *TodoReadTool) Validate(args map[string]interface{}) error {
 	return validator.Validate(args)
 }
 
-func (t *TodoReadTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	config, err := t.configManager.GetLegacyConfig()
+func (t *SessionTodoReadTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	// Try to get session from context first
+	sessionID := GetSessionFromContext(ctx)
+
+	// If not found in context, try to get from working directory context
+	if sessionID == "" {
+		if workingDir := GetWorkingDirFromContext(ctx); workingDir != "" {
+			// Create a temporary session ID based on working directory
+			sessionID = fmt.Sprintf("wd_%s_%d", strings.ReplaceAll(workingDir, "/", "_"), time.Now().Unix()/3600)
+		}
+	}
+
+	// If still no session ID, create one
+	if sessionID == "" {
+		sessionID = fmt.Sprintf("temp_session_%d", time.Now().Unix())
+	}
+
+	// Get or create session
+	session, err := t.sessionManager.RestoreSession(sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get config: %w", err)
+		// If session doesn't exist, create it
+		session, err = t.sessionManager.StartSession(sessionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create session: %w", err)
+		}
 	}
 
 	statusFilter := "all"
@@ -544,9 +685,12 @@ func (t *TodoReadTool) Execute(ctx context.Context, args map[string]interface{})
 		limit = int(l)
 	}
 
+	// Get todos from session
+	todos := t.getTodosFromSession(session)
+
 	// Filter and sort todos by order
 	var filteredTodos []types.TodoItem
-	for _, todo := range config.Todos {
+	for _, todo := range todos {
 		// Status filter
 		if statusFilter != "all" && todo.Status != statusFilter {
 			continue
@@ -571,14 +715,14 @@ func (t *TodoReadTool) Execute(ctx context.Context, args map[string]interface{})
 
 	// Generate summary
 	var summary strings.Builder
-	summary.WriteString(fmt.Sprintf("📋 Todo List (%d items", len(filteredTodos)))
+	summary.WriteString(fmt.Sprintf("📋 Session Todo List (%d items", len(filteredTodos)))
 	if statusFilter != "all" {
 		summary.WriteString(fmt.Sprintf(", status: %s", statusFilter))
 	}
 	summary.WriteString("):\n\n")
 
 	if len(filteredTodos) == 0 {
-		summary.WriteString("No todos found matching the criteria.")
+		summary.WriteString("No todos found in the current session matching the criteria.")
 	} else {
 		// Group by status for better readability
 		statusGroups := map[string][]types.TodoItem{
@@ -618,13 +762,13 @@ func (t *TodoReadTool) Execute(ctx context.Context, args map[string]interface{})
 
 	// Statistics
 	stats := map[string]int{
-		"total":       len(config.Todos),
+		"total":       len(todos),
 		"pending":     0,
 		"in_progress": 0,
 		"completed":   0,
 	}
 
-	for _, todo := range config.Todos {
+	for _, todo := range todos {
 		stats[todo.Status]++
 	}
 
@@ -642,13 +786,60 @@ func (t *TodoReadTool) Execute(ctx context.Context, args map[string]interface{})
 	}, nil
 }
 
-// getNextOrder returns the next available order number
-func (t *TodoUpdateTool) getNextOrder(config *types.Config) int {
-	maxOrder := 0
-	for _, todo := range config.Todos {
-		if todo.Order > maxOrder {
-			maxOrder = todo.Order
-		}
+func (t *SessionTodoReadTool) getTodosFromSession(session *session.Session) []types.TodoItem {
+	todosInterface, exists := session.GetConfig("todos")
+	if !exists {
+		return []types.TodoItem{}
 	}
-	return maxOrder + 1
+
+	// Convert interface{} to []types.TodoItem
+	if todosList, ok := todosInterface.([]interface{}); ok {
+		var todos []types.TodoItem
+		for _, todoInterface := range todosList {
+			if todoMap, ok := todoInterface.(map[string]interface{}); ok {
+				todo := types.TodoItem{
+					ID:      getString(todoMap, "id"),
+					Content: getString(todoMap, "content"),
+					Status:  getString(todoMap, "status"),
+					Order:   getInt(todoMap, "order"),
+				}
+
+				// Parse timestamps
+				if createdAtStr := getString(todoMap, "created_at"); createdAtStr != "" {
+					if createdAt, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
+						todo.CreatedAt = createdAt
+					}
+				}
+
+				if completedAtStr := getString(todoMap, "completed_at"); completedAtStr != "" {
+					if completedAt, err := time.Parse(time.RFC3339, completedAtStr); err == nil {
+						todo.CompletedAt = &completedAt
+					}
+				}
+
+				todos = append(todos, todo)
+			}
+		}
+		return todos
+	}
+
+	return []types.TodoItem{}
+}
+
+const SessionIDKey ContextKey = "sessionID"
+
+// GetSessionFromContext retrieves the session ID from the context
+func GetSessionFromContext(ctx context.Context) string {
+	if sessionID, ok := ctx.Value(SessionIDKey).(string); ok {
+		return sessionID
+	}
+	return ""
+}
+
+// GetWorkingDirFromContext retrieves the working directory from the context
+func GetWorkingDirFromContext(ctx context.Context) string {
+	if workingDir, ok := ctx.Value(WorkingDirKey).(string); ok {
+		return workingDir
+	}
+	return ""
 }

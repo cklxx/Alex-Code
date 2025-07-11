@@ -1,8 +1,0 @@
-{
-  "agent_path": "../deep-coding-agent",
-  "max_problems": 10,
-  "output_dir": "results",
-  "timeout_seconds": 60,
-  "use_react_agent": false,
-  "use_canonical_solutions": false
-}

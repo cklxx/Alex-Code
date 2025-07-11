@@ -22,7 +22,11 @@ func TestSQLiteStorage_Basic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create SQLite storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -108,7 +112,11 @@ func TestSQLiteStorage_BatchOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create SQLite storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -190,7 +198,11 @@ func TestSQLiteStorage_Vectors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create SQLite storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -296,7 +308,11 @@ func TestSQLiteStorage_Performance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create SQLite storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -373,7 +389,11 @@ func TestSQLiteStorage_ErrorHandling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create SQLite storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -415,7 +435,11 @@ func TestSQLiteStorage_ConcurrentAccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create SQLite storage: %v", err)
 	}
-	defer func() { if err := storage.Close(); err != nil { t.Logf("Error closing storage: %v", err) } }()
+	defer func() {
+		if err := storage.Close(); err != nil {
+			t.Logf("Error closing storage: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 

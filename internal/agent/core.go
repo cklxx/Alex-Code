@@ -68,7 +68,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	}
 
 	// 构建消息列表，基于会话历史
-	systemPrompt := rc.promptHandler.buildToolDrivenTaskPrompt()
+	systemPrompt := rc.promptHandler.buildToolDrivenTaskPrompt(taskCtx)
 	messages := rc.contextHandler.buildMessagesFromSession(sess, task, systemPrompt)
 
 	// 执行工具驱动的ReAct循环
