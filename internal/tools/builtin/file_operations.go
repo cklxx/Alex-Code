@@ -178,24 +178,14 @@ func (t *FileUpdateTool) Parameters() map[string]interface{} {
 			},
 			"mode": map[string]interface{}{
 				"type":        "string",
-				"description": "Update mode: 'append', 'prepend', 'insert', 'create'",
-				"enum":        []string{"append", "prepend", "insert", "create"},
+				"description": "Update mode: append, prepend, create",
+				"enum":        []string{"append", "prepend", "create"},
 				"default":     "append",
-			},
-			"line_number": map[string]interface{}{
-				"type":        "integer",
-				"description": "Line number for insert mode (1-based)",
-				"minimum":     1,
 			},
 			"create_dirs": map[string]interface{}{
 				"type":        "boolean",
 				"description": "Create parent directories if they don't exist",
-				"default":     false,
-			},
-			"backup": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Create backup before updating (filename.bak)",
-				"default":     false,
+				"default":     true,
 			},
 		},
 		"required": []string{"file_path", "content"},
@@ -206,7 +196,7 @@ func (t *FileUpdateTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
 		AddStringField("file_path", "Path to the file to update").
 		AddStringField("content", "Content to add to the file").
-		AddCustomValidator("mode", "Update mode (append, prepend, insert, create)", false, func(value interface{}) error {
+		AddCustomValidator("mode", "Update mode (append, prepend, create)", false, func(value interface{}) error {
 			if value == nil {
 				return nil // Optional field
 			}
@@ -214,7 +204,7 @@ func (t *FileUpdateTool) Validate(args map[string]interface{}) error {
 			if !ok {
 				return fmt.Errorf("mode must be a string")
 			}
-			validModes := []string{"append", "prepend", "insert", "create"}
+			validModes := []string{"append", "prepend", "create"}
 			for _, vm := range validModes {
 				if modeStr == vm {
 					return nil
@@ -222,22 +212,9 @@ func (t *FileUpdateTool) Validate(args map[string]interface{}) error {
 			}
 			return fmt.Errorf("mode must be one of: %v", validModes)
 		}).
-		AddBoolField("create_dirs", "Create parent directories if they don't exist", false).
-		AddOptionalIntField("line_number", "Line number for insert mode", 1, 0)
+		AddBoolField("create_dirs", "Create parent directories if they don't exist", false)
 
-	// First run standard validation
-	if err := validator.Validate(args); err != nil {
-		return err
-	}
-
-	// Additional validation for insert mode
-	if mode, ok := args["mode"]; ok && mode == "insert" {
-		if _, ok := args["line_number"]; !ok {
-			return fmt.Errorf("line_number is required for insert mode")
-		}
-	}
-
-	return nil
+	return validator.Validate(args)
 }
 
 func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
@@ -377,7 +354,7 @@ func (t *FileReplaceTool) Name() string {
 }
 
 func (t *FileReplaceTool) Description() string {
-	return "Replace specific content in a file using pattern matching. Supports text replacement, line replacement, and regex patterns."
+	return "Replace specific text content in a file. Performs case-sensitive exact text matching."
 }
 
 func (t *FileReplaceTool) Parameters() map[string]interface{} {
@@ -390,37 +367,11 @@ func (t *FileReplaceTool) Parameters() map[string]interface{} {
 			},
 			"search": map[string]interface{}{
 				"type":        "string",
-				"description": "Text or pattern to search for",
+				"description": "Text to search for",
 			},
 			"replace": map[string]interface{}{
 				"type":        "string",
 				"description": "Replacement text",
-			},
-			"mode": map[string]interface{}{
-				"type":        "string",
-				"description": "Replacement mode: 'text', 'line', 'regex'",
-				"enum":        []string{"text", "line", "regex"},
-				"default":     "text",
-			},
-			"all_occurrences": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Replace all occurrences (default: false, replace first only)",
-				"default":     false,
-			},
-			"case_sensitive": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Case sensitive search",
-				"default":     true,
-			},
-			"backup": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Create backup before replacing (filename.bak)",
-				"default":     false,
-			},
-			"dry_run": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Show what would be replaced without making changes",
-				"default":     false,
 			},
 		},
 		"required": []string{"file_path", "search", "replace"},
@@ -430,37 +381,8 @@ func (t *FileReplaceTool) Parameters() map[string]interface{} {
 func (t *FileReplaceTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
 		AddStringField("file_path", "Path to the file to modify").
-		AddStringField("search", "Text or pattern to search for").
-		AddCustomValidator("replace", "Replacement text", true, func(value interface{}) error {
-			if value == nil {
-				return fmt.Errorf("replace is required")
-			}
-			_, ok := value.(string)
-			if !ok {
-				return fmt.Errorf("replace must be a string")
-			}
-			return nil
-		}).
-		AddCustomValidator("mode", "Replacement mode (text, line, regex)", false, func(value interface{}) error {
-			if value == nil {
-				return nil // Optional field
-			}
-			mode, ok := value.(string)
-			if !ok {
-				return fmt.Errorf("mode must be a string")
-			}
-			validModes := []string{"text", "line", "regex"}
-			for _, vm := range validModes {
-				if mode == vm {
-					return nil
-				}
-			}
-			return fmt.Errorf("mode must be one of: %v", validModes)
-		}).
-		AddBoolField("all_occurrences", "Replace all occurrences", false).
-		AddBoolField("case_sensitive", "Case sensitive search", false).
-		AddBoolField("backup", "Create backup before replacing", false).
-		AddBoolField("dry_run", "Show what would be replaced without making changes", false)
+		AddStringField("search", "Text to search for").
+		AddStringField("replace", "Replacement text")
 
 	return validator.Validate(args)
 }
@@ -474,31 +396,6 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 	resolver := GetPathResolverFromContext(ctx)
 	resolvedPath := resolver.ResolvePath(filePath)
 
-	mode := "text"
-	if modeArg, ok := args["mode"]; ok {
-		mode, _ = modeArg.(string)
-	}
-
-	allOccurrences := false
-	if allArg, ok := args["all_occurrences"]; ok {
-		allOccurrences, _ = allArg.(bool)
-	}
-
-	caseSensitive := true
-	if caseArg, ok := args["case_sensitive"]; ok {
-		caseSensitive, _ = caseArg.(bool)
-	}
-
-	backup := false
-	if backupArg, ok := args["backup"]; ok {
-		backup, _ = backupArg.(bool)
-	}
-
-	dryRun := false
-	if dryRunArg, ok := args["dry_run"]; ok {
-		dryRun, _ = dryRunArg.(bool)
-	}
-
 	// Check if file exists
 	if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("file does not exist: %s", filePath)
@@ -511,108 +408,23 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 	}
 
 	originalContent := string(content)
-	finalContent := originalContent
+	
+	// Simple case-sensitive first occurrence replacement
+	newContent := strings.Replace(originalContent, search, replace, 1)
 	replacementCount := 0
-
-	switch mode {
-	case "text":
-		searchText := search
-		replaceText := replace
-
-		if !caseSensitive {
-			// For case insensitive, we need to find and replace manually
-			lower := strings.ToLower(originalContent)
-			lowerSearch := strings.ToLower(search)
-
-			if allOccurrences {
-				pos := 0
-				for {
-					idx := strings.Index(lower[pos:], lowerSearch)
-					if idx == -1 {
-						break
-					}
-					actualPos := pos + idx
-					finalContent = finalContent[:actualPos] + replaceText + finalContent[actualPos+len(search):]
-
-					// Adjust positions for the next search
-					lower = lower[:actualPos] + strings.ToLower(replaceText) + lower[actualPos+len(search):]
-					pos = actualPos + len(replaceText)
-					replacementCount++
-				}
-			} else {
-				idx := strings.Index(lower, lowerSearch)
-				if idx != -1 {
-					finalContent = finalContent[:idx] + replaceText + finalContent[idx+len(search):]
-					replacementCount = 1
-				}
-			}
-		} else {
-			if allOccurrences {
-				newContent := strings.ReplaceAll(finalContent, searchText, replaceText)
-				replacementCount = strings.Count(finalContent, searchText)
-				finalContent = newContent
-			} else {
-				newContent := strings.Replace(finalContent, searchText, replaceText, 1)
-				if newContent != finalContent {
-					replacementCount = 1
-				}
-				finalContent = newContent
-			}
-		}
-
-	case "line":
-		lines := strings.Split(originalContent, "\n")
-		for i, line := range lines {
-			matches := false
-			if caseSensitive {
-				matches = strings.Contains(line, search)
-			} else {
-				matches = strings.Contains(strings.ToLower(line), strings.ToLower(search))
-			}
-
-			if matches {
-				lines[i] = replace
-				replacementCount++
-				if !allOccurrences {
-					break
-				}
-			}
-		}
-		finalContent = strings.Join(lines, "\n")
-
-	case "regex":
-		// For regex mode, we'd need to import regexp package
-		// For now, fall back to text mode
-		return nil, fmt.Errorf("regex mode not implemented yet")
-	}
-
-	// Prepare result
-	operation := fmt.Sprintf("replaced %d occurrence(s)", replacementCount)
-	if dryRun {
-		operation = fmt.Sprintf("would replace %d occurrence(s) (dry run)", replacementCount)
+	if newContent != originalContent {
+		replacementCount = 1
 	}
 
 	result := &ToolResult{
-		Content: fmt.Sprintf("File %s: %s of '%s' with '%s'", filePath, operation, search, replace),
+		Content: fmt.Sprintf("File %s: replaced %d occurrence(s) of '%s' with '%s'", filePath, replacementCount, search, replace),
 		Data: map[string]interface{}{
 			"file_path":         filePath,
 			"resolved_path":     resolvedPath,
 			"search_pattern":    search,
 			"replacement":       replace,
-			"mode":              mode,
 			"replacements_made": replacementCount,
-			"dry_run":           dryRun,
-			"case_sensitive":    caseSensitive,
-			"all_occurrences":   allOccurrences,
 		},
-	}
-
-	if dryRun {
-		// Show preview of changes
-		if replacementCount > 0 {
-			result.Data["preview"] = finalContent
-		}
-		return result, nil
 	}
 
 	// No changes needed
@@ -620,17 +432,8 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 		return result, nil
 	}
 
-	// Create backup if requested
-	if backup {
-		backupPath := resolvedPath + ".bak"
-		if err := os.WriteFile(backupPath, content, 0644); err != nil {
-			return nil, fmt.Errorf("failed to create backup: %w", err)
-		}
-		result.Data["backup_created"] = backupPath
-	}
-
 	// Write the modified content
-	err = os.WriteFile(resolvedPath, []byte(finalContent), 0644)
+	err = os.WriteFile(resolvedPath, []byte(newContent), 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write file: %w", err)
 	}
@@ -638,7 +441,7 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 	// Get file info after writing
 	fileInfo, _ := os.Stat(resolvedPath)
 	result.Files = []string{resolvedPath}
-	result.Data["bytes_written"] = len(finalContent)
+	result.Data["bytes_written"] = len(newContent)
 	result.Data["modified"] = fileInfo.ModTime().Unix()
 
 	return result, nil
@@ -673,24 +476,10 @@ func (t *FileListTool) Parameters() map[string]interface{} {
 				"description": "List files recursively",
 				"default":     false,
 			},
-			"depth": map[string]interface{}{
-				"type":        "integer",
-				"description": "Maximum depth to traverse (1=current level, 2=one level deeper, etc.). Only works with recursive=true",
-				"default":     3,
-				"minimum":     1,
-				"maximum":     3,
-			},
 			"show_hidden": map[string]interface{}{
 				"type":        "boolean",
 				"description": "Include hidden files (starting with .)",
 				"default":     false,
-			},
-			"file_types": map[string]interface{}{
-				"type":        "array",
-				"description": "Filter by file extensions (e.g., ['.go', '.ts'])",
-				"items": map[string]interface{}{
-					"type": "string",
-				},
 			},
 		},
 	}
@@ -700,7 +489,6 @@ func (t *FileListTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
 		AddOptionalStringField("path", "Path to list (directory or glob pattern)").
 		AddBoolField("recursive", "List files recursively", false).
-		AddOptionalIntField("depth", "Maximum depth to traverse", 1, 3).
 		AddBoolField("show_hidden", "Include hidden files", false)
 
 	return validator.Validate(args)
@@ -1009,11 +797,6 @@ func (t *DirectoryCreateTool) Parameters() map[string]interface{} {
 				"type":        "string",
 				"description": "Path for the new directory",
 			},
-			"permissions": map[string]interface{}{
-				"type":        "string",
-				"description": "Directory permissions in octal (e.g., '755')",
-				"default":     "755",
-			},
 		},
 		"required": []string{"path"},
 	}
@@ -1021,8 +804,7 @@ func (t *DirectoryCreateTool) Parameters() map[string]interface{} {
 
 func (t *DirectoryCreateTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
-		AddStringField("path", "Path for the new directory").
-		AddOptionalStringField("permissions", "Directory permissions in octal (e.g., '755')")
+		AddStringField("path", "Path for the new directory")
 
 	return validator.Validate(args)
 }

@@ -42,32 +42,13 @@ func (t *GrepTool) Parameters() map[string]interface{} {
 			},
 			"recursive": map[string]interface{}{
 				"type":        "boolean",
-				"description": "Search recursively (-r flag)",
-				"default":     false,
+				"description": "Search recursively",
+				"default":     true,
 			},
 			"ignore_case": map[string]interface{}{
 				"type":        "boolean",
-				"description": "Case insensitive search (-i flag)",
+				"description": "Case insensitive search",
 				"default":     false,
-			},
-			"line_numbers": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Show line numbers (-n flag)",
-				"default":     true,
-			},
-			"context_lines": map[string]interface{}{
-				"type":        "integer",
-				"description": "Lines of context around matches",
-				"default":     0,
-				"minimum":     0,
-				"maximum":     10,
-			},
-			"max_matches": map[string]interface{}{
-				"type":        "integer",
-				"description": "Maximum number of matches to return",
-				"default":     100,
-				"minimum":     1,
-				"maximum":     1000,
 			},
 		},
 		"required": []string{"pattern"},
@@ -79,10 +60,7 @@ func (t *GrepTool) Validate(args map[string]interface{}) error {
 		AddStringField("pattern", "Search pattern (supports regex)").
 		AddOptionalStringField("path", "Directory path to search in").
 		AddBoolField("recursive", "Search recursively", false).
-		AddBoolField("ignore_case", "Case insensitive search", false).
-		AddBoolField("line_numbers", "Show line numbers", false).
-		AddOptionalIntField("context_lines", "Lines of context around matches", 0, 10).
-		AddOptionalIntField("max_matches", "Maximum number of matches", 1, 1000)
+		AddBoolField("ignore_case", "Case insensitive search", false)
 
 	// First run standard validation
 	if err := validator.Validate(args); err != nil {
@@ -393,31 +371,9 @@ func (t *RipgrepTool) Parameters() map[string]interface{} {
 				"description": "Case insensitive search",
 				"default":     false,
 			},
-			"type_filter": map[string]interface{}{
-				"type":        "string",
-				"description": "File type filter (e.g., 'go', 'js', 'py')",
-			},
 			"glob": map[string]interface{}{
 				"type":        "string",
 				"description": "Glob pattern for files to search",
-			},
-			"context": map[string]interface{}{
-				"type":        "integer",
-				"description": "Lines of context around matches",
-				"default":     0,
-				"minimum":     0,
-				"maximum":     10,
-			},
-			"max_count": map[string]interface{}{
-				"type":        "integer",
-				"description": "Maximum number of matches per file",
-				"default":     0,
-				"minimum":     0,
-			},
-			"hidden": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Search hidden files and directories",
-				"default":     false,
 			},
 		},
 		"required": []string{"pattern"},
@@ -429,11 +385,7 @@ func (t *RipgrepTool) Validate(args map[string]interface{}) error {
 		AddStringField("pattern", "Search pattern (supports regex)").
 		AddOptionalStringField("path", "Directory path to search in").
 		AddBoolField("ignore_case", "Case insensitive search", false).
-		AddOptionalStringField("type_filter", "File type filter (e.g., 'go', 'js', 'py')").
-		AddOptionalStringField("glob", "Glob pattern for files to search").
-		AddOptionalIntField("context", "Lines of context around matches", 0, 10).
-		AddOptionalIntField("max_count", "Maximum number of matches per file", 0, 0).
-		AddBoolField("hidden", "Search hidden files and directories", false)
+		AddOptionalStringField("glob", "Glob pattern for files to search")
 
 	return validator.Validate(args)
 }
@@ -448,15 +400,12 @@ func (t *RipgrepTool) Execute(ctx context.Context, args map[string]interface{}) 
 			"recursive": true,
 		}
 
-		// Map some common parameters
+		// Map only the simplified parameters
 		if path, ok := args["path"]; ok {
 			grepArgs["path"] = path
 		}
 		if ignoreCase, ok := args["ignore_case"]; ok {
 			grepArgs["ignore_case"] = ignoreCase
-		}
-		if context, ok := args["context"]; ok {
-			grepArgs["context_lines"] = context
 		}
 
 		result, err := grepTool.Execute(ctx, grepArgs)
@@ -496,28 +445,8 @@ func (t *RipgrepTool) useRipgrep(args map[string]interface{}) (*ToolResult, erro
 		rgArgs = append(rgArgs, "--ignore-case")
 	}
 
-	if typeFilter, ok := args["type_filter"]; ok {
-		rgArgs = append(rgArgs, "--type", typeFilter.(string))
-	}
-
 	if glob, ok := args["glob"]; ok {
 		rgArgs = append(rgArgs, "--glob", glob.(string))
-	}
-
-	if context, ok := args["context"]; ok {
-		if c, ok := context.(float64); ok && c > 0 {
-			rgArgs = append(rgArgs, "--context", fmt.Sprintf("%.0f", c))
-		}
-	}
-
-	if maxCount, ok := args["max_count"]; ok {
-		if mc, ok := maxCount.(float64); ok && mc > 0 {
-			rgArgs = append(rgArgs, "--max-count", fmt.Sprintf("%.0f", mc))
-		}
-	}
-
-	if hidden, ok := args["hidden"]; ok && hidden.(bool) {
-		rgArgs = append(rgArgs, "--hidden")
 	}
 
 	// Add pattern and path

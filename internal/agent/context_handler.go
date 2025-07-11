@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 
 	contextmgr "alex/internal/context"
 	"alex/internal/llm"
@@ -96,7 +95,7 @@ func (h *ContextHandler) handleContextOverflow(ctx context.Context, sess *sessio
 }
 
 // buildMessagesFromSession - 基于会话历史构建消息列表
-func (h *ContextHandler) buildMessagesFromSession(sess *session.Session, currentTask string, systemPrompt string) []llm.Message {
+func (h *ContextHandler) buildMessagesFromSession(_ *session.Session, currentTask string, systemPrompt string) []llm.Message {
 	var messages []llm.Message
 
 	// 添加系统提示
@@ -104,50 +103,6 @@ func (h *ContextHandler) buildMessagesFromSession(sess *session.Session, current
 		Role:    "system",
 		Content: systemPrompt,
 	})
-
-	// 如果有会话历史，添加相关历史消息
-	if sess != nil {
-		historyMessages := sess.GetMessages()
-
-		// 限制历史消息数量，只包含最近的对话
-		maxHistoryMessages := 10
-		startIdx := 0
-		if len(historyMessages) > maxHistoryMessages {
-			startIdx = len(historyMessages) - maxHistoryMessages
-		}
-
-		for i := startIdx; i < len(historyMessages); i++ {
-			msg := historyMessages[i]
-
-			// 跳过空消息
-			if strings.TrimSpace(msg.Content) == "" {
-				continue
-			}
-
-			llmMsg := llm.Message{
-				Role:    msg.Role,
-				Content: msg.Content,
-			}
-
-			// 添加工具调用信息
-			if len(msg.ToolCalls) > 0 {
-				var toolCalls []llm.ToolCall
-				for _, tc := range msg.ToolCalls {
-					toolCalls = append(toolCalls, llm.ToolCall{
-						ID:   tc.ID,
-						Type: "function",
-						Function: llm.Function{
-							Name:      tc.Name,
-							Arguments: fmt.Sprintf("%v", tc.Args),
-						},
-					})
-				}
-				llmMsg.ToolCalls = toolCalls
-			}
-
-			messages = append(messages, llmMsg)
-		}
-	}
 
 	// 添加当前任务
 	messages = append(messages, llm.Message{

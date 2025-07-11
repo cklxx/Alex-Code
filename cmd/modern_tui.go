@@ -56,10 +56,6 @@ var (
 			BorderForeground(lipgloss.Color("#E5E7EB")).
 			Padding(0, 1)
 
-	footerStyle = lipgloss.NewStyle().
-			Foreground(mutedColor).
-			Italic(true)
-
 	sessionTimeStyle = lipgloss.NewStyle().
 				Foreground(mutedColor).
 				Italic(true).
@@ -90,9 +86,8 @@ type ModernChatModel struct {
 	currentInput     string
 	execTimer        ExecutionTimer
 	program          *tea.Program
-	currentMessage   *ChatMessage  // Track current streaming message
-	sessionStartTime time.Time     // Track session start time
-	copyMode         bool          // Track if copy mode is enabled
+	currentMessage   *ChatMessage // Track current streaming message
+	sessionStartTime time.Time    // Track session start time
 }
 
 // ChatMessage represents a chat message with type and content
@@ -179,18 +174,18 @@ func (m ModernChatModel) formatSessionRuntime() string {
 			}
 		}
 	}
-	
+
 	// Fallback to TUI start time if no session info available
 	if startTime.IsZero() {
 		startTime = m.sessionStartTime
 	}
-	
+
 	if startTime.IsZero() {
 		return ""
 	}
-	
+
 	duration := time.Since(startTime)
-	
+
 	// Format duration nicely
 	if duration < time.Minute {
 		return fmt.Sprintf("🕐 Session: %ds", int(duration.Seconds()))
@@ -375,7 +370,7 @@ func (m *ModernChatModel) startTicker() tea.Cmd {
 func (m ModernChatModel) processUserInput(input string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
-		
+
 		// Start processing and send immediate start message
 		go func() {
 			streamCallback := func(chunk agent.StreamChunk) {
@@ -423,7 +418,7 @@ func (m ModernChatModel) processUserInput(input string) tea.Cmd {
 				case "error":
 					// Error will be handled separately
 				}
-				
+
 				// Send streaming update immediately
 				if content != "" {
 					m.program.Send(streamChunkMsg{content: content})
@@ -503,7 +498,7 @@ func (m ModernChatModel) View() string {
 
 	// Join all parts and ensure it fits the screen
 	result := lipgloss.JoinVertical(lipgloss.Left, parts...)
-	
+
 	// If content is too long for screen, only show recent parts
 	if m.height > 0 {
 		lines := strings.Split(result, "\n")

@@ -20,7 +20,6 @@ func GetAllBuiltinTools() []Tool {
 		CreateFileUpdateTool(),
 		CreateFileReplaceTool(),
 		CreateFileListTool(),
-		CreateDirectoryCreateTool(),
 
 		// Search tools
 		CreateGrepTool(),
@@ -53,8 +52,6 @@ func GetToolByName(name string) Tool {
 		return CreateFileReplaceTool()
 	case "file_list":
 		return CreateFileListTool()
-	case "directory_create":
-		return CreateDirectoryCreateTool()
 	case "grep":
 		return CreateGrepTool()
 	case "web_search":
@@ -85,7 +82,6 @@ func GetToolsByCategory() map[string][]Tool {
 			CreateFileUpdateTool(),
 			CreateFileReplaceTool(),
 			CreateFileListTool(),
-			CreateDirectoryCreateTool(),
 		},
 		"search": {
 			CreateGrepTool(),

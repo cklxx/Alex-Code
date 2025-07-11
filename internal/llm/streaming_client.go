@@ -145,8 +145,9 @@ func (c *StreamingLLMClient) ChatStream(ctx context.Context, req *ChatRequest) (
 	if req.Model == "" {
 		req.Model = model
 	}
-
 	jsonData, err := json.Marshal(req)
+	log.Printf("DEBUG: Request: %+v", string(jsonData))
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
@@ -185,7 +186,7 @@ func (c *StreamingLLMClient) ChatStream(ctx context.Context, req *ChatRequest) (
 		scanner := bufio.NewScanner(resp.Body)
 		for scanner.Scan() {
 			line := scanner.Text()
-
+			log.Printf("DEBUG: Line: %s", line)
 			// Skip empty lines and comments
 			if line == "" || strings.HasPrefix(line, ":") {
 				continue

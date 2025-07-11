@@ -176,10 +176,20 @@ func (h *LLMHandler) collectStreamingResponse(ctx context.Context, streamChan <-
 				// 处理工具调用增量
 				if len(choice.Delta.ToolCalls) > 0 {
 					for _, deltaToolCall := range choice.Delta.ToolCalls {
-						if deltaToolCall.ID != "" {
+						// 判断是否为新工具调用：有ID、有函数名、或者函数名与当前工具调用不同
+						isNewToolCall := deltaToolCall.ID != "" || 
+							deltaToolCall.Function.Name != "" ||
+							currentToolCall == nil
+						
+						if isNewToolCall {
 							// 新的工具调用
+							toolCallID := deltaToolCall.ID
+							if toolCallID == "" {
+								// 为空ID生成唯一ID
+								toolCallID = fmt.Sprintf("tool_call_%d", len(toolCalls))
+							}
 							newToolCall := llm.ToolCall{
-								ID:   deltaToolCall.ID,
+								ID:   toolCallID,
 								Type: deltaToolCall.Type,
 								Function: llm.Function{
 									Name:      deltaToolCall.Function.Name,
@@ -189,10 +199,7 @@ func (h *LLMHandler) collectStreamingResponse(ctx context.Context, streamChan <-
 							toolCalls = append(toolCalls, newToolCall)
 							currentToolCall = &toolCalls[len(toolCalls)-1]
 						} else if currentToolCall != nil {
-							// 继续现有工具调用
-							if deltaToolCall.Function.Name != "" {
-								currentToolCall.Function.Name += deltaToolCall.Function.Name
-							}
+							// 继续现有工具调用（仅当只有arguments且没有函数名时）
 							if deltaToolCall.Function.Arguments != "" {
 								currentToolCall.Function.Arguments += deltaToolCall.Function.Arguments
 							}
