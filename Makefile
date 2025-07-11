@@ -90,8 +90,15 @@ test-robust: deps
 .PHONY: fmt
 fmt:
 	@echo "Formatting code..."
-	@go fmt ./internal/... ./pkg/...
-	@go fmt $(SOURCE_MAIN)
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		echo "Using golangci-lint for formatting..."; \
+		golangci-lint run --fix; \
+	else \
+		echo "golangci-lint not found, using go fmt..."; \
+		go fmt ./internal/... ./pkg/... ./cmd/... ./benchmarks/... ./docs/...; \
+		go fmt $(SOURCE_MAIN); \
+	fi
+	@echo "Formatting complete"
 
 # Vet code
 .PHONY: vet

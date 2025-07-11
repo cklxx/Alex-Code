@@ -11,21 +11,21 @@ import (
 
 // BatchProcessorImpl implements the BatchProcessor interface
 type BatchProcessorImpl struct {
-	config      *BatchConfig
-	dataLoader  DatasetLoader
-	workerPool  WorkerPool
+	config       *BatchConfig
+	dataLoader   DatasetLoader
+	workerPool   WorkerPool
 	resultWriter ResultWriter
-	progress    ProgressReporter
-	monitor     Monitor
-	
+	progress     ProgressReporter
+	monitor      Monitor
+
 	// State management
-	mu            sync.RWMutex
-	isRunning     bool
-	totalTasks    int
+	mu             sync.RWMutex
+	isRunning      bool
+	totalTasks     int
 	completedTasks int
-	failedTasks   int
-	startTime     time.Time
-	results       []WorkerResult
+	failedTasks    int
+	startTime      time.Time
+	results        []WorkerResult
 }
 
 // NewBatchProcessor creates a new batch processor
@@ -51,45 +51,57 @@ func (bp *BatchProcessorImpl) ProcessBatch(ctx context.Context, instances []Inst
 	bp.startTime = time.Now()
 	bp.results = make([]WorkerResult, 0, len(instances))
 	bp.mu.Unlock()
-	
+
 	// Start monitoring and progress reporting
 	if err := bp.monitor.StartMonitoring(ctx); err != nil {
 		log.Printf("Warning: Failed to start monitoring: %v", err)
 	}
-	defer bp.monitor.StopMonitoring()
-	
+	defer func() {
+		if err := bp.monitor.StopMonitoring(); err != nil {
+			log.Printf("Warning: Failed to stop monitoring: %v", err)
+		}
+	}()
+
 	if err := bp.progress.Start(ctx); err != nil {
 		log.Printf("Warning: Failed to start progress reporting: %v", err)
 	}
-	defer bp.progress.Stop()
-	
+	defer func() {
+		if err := bp.progress.Stop(); err != nil {
+			log.Printf("Warning: Failed to stop progress: %v", err)
+		}
+	}()
+
 	// Start worker pool
 	if err := bp.workerPool.Start(ctx); err != nil {
 		return nil, fmt.Errorf("failed to start worker pool: %w", err)
 	}
-	defer bp.workerPool.Stop(ctx)
-	
+	defer func() {
+		if err := bp.workerPool.Stop(ctx); err != nil {
+			log.Printf("Warning: Failed to stop worker pool: %v", err)
+		}
+	}()
+
 	// Submit tasks to worker pool
 	go bp.submitTasks(ctx, instances)
-	
+
 	// Collect results
 	results, err := bp.collectResults(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect results: %w", err)
 	}
-	
+
 	// Create batch result
 	batchResult := bp.createBatchResult(results)
-	
+
 	// Write final results
 	if err := bp.resultWriter.WriteResults(ctx, batchResult, config.OutputPath); err != nil {
 		log.Printf("Warning: Failed to write results: %v", err)
 	}
-	
+
 	bp.mu.Lock()
 	bp.isRunning = false
 	bp.mu.Unlock()
-	
+
 	return batchResult, nil
 }
 
@@ -101,27 +113,31 @@ func (bp *BatchProcessorImpl) ProcessInstance(ctx context.Context, instance Inst
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent: %w", err)
 	}
-	defer agent.Close()
-	
+	defer func() {
+		if err := agent.Close(); err != nil {
+			log.Printf("Warning: Failed to close agent: %v", err)
+		}
+	}()
+
 	// Process instance
 	startTime := time.Now()
 	result, err := agent.ProcessInstance(ctx, instance)
 	if err != nil {
 		return &WorkerResult{
-			InstanceID:  instance.ID,
-			Status:      StatusFailed,
-			StartTime:   startTime,
-			EndTime:     time.Now(),
-			Duration:    time.Since(startTime),
-			Error:       err.Error(),
-			ErrorType:   "processing_error",
+			InstanceID: instance.ID,
+			Status:     StatusFailed,
+			StartTime:  startTime,
+			EndTime:    time.Now(),
+			Duration:   time.Since(startTime),
+			Error:      err.Error(),
+			ErrorType:  "processing_error",
 		}, nil
 	}
-	
+
 	result.StartTime = startTime
 	result.EndTime = time.Now()
 	result.Duration = time.Since(startTime)
-	
+
 	return result, nil
 }
 
@@ -132,13 +148,13 @@ func (bp *BatchProcessorImpl) Resume(ctx context.Context, resultPath string, con
 	if err != nil {
 		return nil, fmt.Errorf("failed to read previous results: %w", err)
 	}
-	
+
 	// Load all instances
 	instances, err := bp.dataLoader.LoadInstances(ctx, config.Instances)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load instances: %w", err)
 	}
-	
+
 	// Find completed instance IDs
 	completedIDs := make(map[string]bool)
 	for _, result := range previousResult.Results {
@@ -146,7 +162,7 @@ func (bp *BatchProcessorImpl) Resume(ctx context.Context, resultPath string, con
 			completedIDs[result.InstanceID] = true
 		}
 	}
-	
+
 	// Filter out completed instances
 	remainingInstances := make([]Instance, 0)
 	for _, instance := range instances {
@@ -154,19 +170,19 @@ func (bp *BatchProcessorImpl) Resume(ctx context.Context, resultPath string, con
 			remainingInstances = append(remainingInstances, instance)
 		}
 	}
-	
-	log.Printf("Resuming batch processing: %d completed, %d remaining", 
+
+	log.Printf("Resuming batch processing: %d completed, %d remaining",
 		len(completedIDs), len(remainingInstances))
-	
+
 	// Process remaining instances
 	newResult, err := bp.ProcessBatch(ctx, remainingInstances, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process remaining instances: %w", err)
 	}
-	
+
 	// Merge results
 	mergedResult := bp.mergeResults(previousResult, newResult)
-	
+
 	return mergedResult, nil
 }
 
@@ -182,7 +198,7 @@ func (bp *BatchProcessorImpl) submitTasks(ctx context.Context, instances []Insta
 				delay := time.Duration(rand.Int63n(int64(bp.config.MaxDelay)))
 				time.Sleep(delay)
 			}
-			
+
 			task := WorkerTask{
 				ID:         fmt.Sprintf("task_%d", i),
 				Instance:   instance,
@@ -190,7 +206,7 @@ func (bp *BatchProcessorImpl) submitTasks(ctx context.Context, instances []Insta
 				RetryCount: 0,
 				CreatedAt:  time.Now(),
 			}
-			
+
 			if err := bp.workerPool.SubmitTask(task); err != nil {
 				log.Printf("Failed to submit task %s: %v", task.ID, err)
 				// Handle task submission failure
@@ -204,14 +220,14 @@ func (bp *BatchProcessorImpl) submitTasks(ctx context.Context, instances []Insta
 func (bp *BatchProcessorImpl) collectResults(ctx context.Context) ([]WorkerResult, error) {
 	results := make([]WorkerResult, 0, bp.totalTasks)
 	resultsChan := bp.workerPool.GetResults()
-	
+
 	for len(results) < bp.totalTasks {
 		select {
 		case <-ctx.Done():
 			return results, ctx.Err()
 		case result := <-resultsChan:
 			results = append(results, result)
-			
+
 			bp.mu.Lock()
 			if result.Status == StatusCompleted {
 				bp.completedTasks++
@@ -219,30 +235,30 @@ func (bp *BatchProcessorImpl) collectResults(ctx context.Context) ([]WorkerResul
 				bp.failedTasks++
 			}
 			bp.mu.Unlock()
-			
+
 			// Update progress
 			bp.updateProgress()
-			
+
 			// Handle retries if needed
 			if result.Status == StatusFailed && result.RetryCount < bp.config.MaxRetries {
 				bp.retryTask(result)
 			}
-			
+
 			// Write partial results
 			if err := bp.resultWriter.AppendResult(ctx, result, bp.config.OutputPath); err != nil {
 				log.Printf("Warning: Failed to write partial result: %v", err)
 			}
-			
+
 			// Record metrics
 			bp.recordMetrics(result)
-			
+
 			// Check fail-fast condition
 			if bp.config.FailFast && result.Status == StatusFailed {
 				return results, fmt.Errorf("fail-fast enabled: stopping on first failure")
 			}
 		}
 	}
-	
+
 	return results, nil
 }
 
@@ -250,15 +266,15 @@ func (bp *BatchProcessorImpl) collectResults(ctx context.Context) ([]WorkerResul
 func (bp *BatchProcessorImpl) createBatchResult(results []WorkerResult) *BatchResult {
 	endTime := time.Now()
 	duration := endTime.Sub(bp.startTime)
-	
+
 	var totalTokens int
 	var totalCost float64
 	var totalDuration time.Duration
 	errorSummary := make(map[string]int)
-	
+
 	completedCount := 0
 	failedCount := 0
-	
+
 	for _, result := range results {
 		if result.Status == StatusCompleted {
 			completedCount++
@@ -268,33 +284,33 @@ func (bp *BatchProcessorImpl) createBatchResult(results []WorkerResult) *BatchRe
 				errorSummary[result.ErrorType]++
 			}
 		}
-		
+
 		totalTokens += result.TokensUsed
 		totalCost += result.Cost
 		totalDuration += result.Duration
 	}
-	
+
 	var avgDuration time.Duration
 	if len(results) > 0 {
 		avgDuration = totalDuration / time.Duration(len(results))
 	}
-	
+
 	successRate := float64(completedCount) / float64(len(results)) * 100
-	
+
 	return &BatchResult{
-		Config:        bp.config,
-		StartTime:     bp.startTime,
-		EndTime:       endTime,
-		Duration:      duration,
-		TotalTasks:    len(results),
+		Config:         bp.config,
+		StartTime:      bp.startTime,
+		EndTime:        endTime,
+		Duration:       duration,
+		TotalTasks:     len(results),
 		CompletedTasks: completedCount,
-		FailedTasks:   failedCount,
-		SuccessRate:   successRate,
-		TotalTokens:   totalTokens,
-		TotalCost:     totalCost,
-		AvgDuration:   avgDuration,
-		Results:       results,
-		ErrorSummary:  errorSummary,
+		FailedTasks:    failedCount,
+		SuccessRate:    successRate,
+		TotalTokens:    totalTokens,
+		TotalCost:      totalCost,
+		AvgDuration:    avgDuration,
+		Results:        results,
+		ErrorSummary:   errorSummary,
 	}
 }
 
@@ -307,12 +323,12 @@ func (bp *BatchProcessorImpl) updateProgress() {
 	running := total - completed - failed
 	remaining := total - completed - failed
 	bp.mu.RUnlock()
-	
+
 	var successRate float64
 	if completed+failed > 0 {
 		successRate = float64(completed) / float64(completed+failed) * 100
 	}
-	
+
 	var avgDuration time.Duration
 	if completed > 0 && len(bp.results) > 0 {
 		var totalDuration time.Duration
@@ -323,12 +339,12 @@ func (bp *BatchProcessorImpl) updateProgress() {
 		}
 		avgDuration = totalDuration / time.Duration(completed)
 	}
-	
+
 	var estimatedETA time.Duration
 	if avgDuration > 0 && remaining > 0 {
 		estimatedETA = avgDuration * time.Duration(remaining)
 	}
-	
+
 	update := ProgressUpdate{
 		Timestamp:    time.Now(),
 		Total:        total,
@@ -340,7 +356,7 @@ func (bp *BatchProcessorImpl) updateProgress() {
 		AvgDuration:  avgDuration,
 		EstimatedETA: estimatedETA,
 	}
-	
+
 	if err := bp.progress.Update(update); err != nil {
 		log.Printf("Warning: Failed to update progress: %v", err)
 	}
@@ -349,17 +365,17 @@ func (bp *BatchProcessorImpl) updateProgress() {
 // handleTaskFailure handles task submission failures
 func (bp *BatchProcessorImpl) handleTaskFailure(task WorkerTask, err error) {
 	result := WorkerResult{
-		TaskID:      task.ID,
-		InstanceID:  task.Instance.ID,
-		Status:      StatusFailed,
-		StartTime:   time.Now(),
-		EndTime:     time.Now(),
-		Duration:    0,
-		Error:       err.Error(),
-		ErrorType:   "submission_error",
-		RetryCount:  task.RetryCount,
+		TaskID:     task.ID,
+		InstanceID: task.Instance.ID,
+		Status:     StatusFailed,
+		StartTime:  time.Now(),
+		EndTime:    time.Now(),
+		Duration:   0,
+		Error:      err.Error(),
+		ErrorType:  "submission_error",
+		RetryCount: task.RetryCount,
 	}
-	
+
 	bp.mu.Lock()
 	bp.failedTasks++
 	bp.results = append(bp.results, result)
@@ -371,7 +387,7 @@ func (bp *BatchProcessorImpl) retryTask(result WorkerResult) {
 	// Find original instance
 	var instance Instance
 	// This would need to be implemented based on how we store original instances
-	
+
 	task := WorkerTask{
 		ID:         fmt.Sprintf("%s_retry_%d", result.TaskID, result.RetryCount+1),
 		Instance:   instance,
@@ -379,7 +395,7 @@ func (bp *BatchProcessorImpl) retryTask(result WorkerResult) {
 		RetryCount: result.RetryCount + 1,
 		CreatedAt:  time.Now(),
 	}
-	
+
 	if err := bp.workerPool.SubmitTask(task); err != nil {
 		log.Printf("Failed to retry task %s: %v", task.ID, err)
 	}
@@ -391,11 +407,11 @@ func (bp *BatchProcessorImpl) recordMetrics(result WorkerResult) {
 		"status":      string(result.Status),
 		"instance_id": result.InstanceID,
 	}
-	
+
 	_ = bp.monitor.RecordMetric("task_duration_seconds", result.Duration.Seconds(), tags)
 	_ = bp.monitor.RecordMetric("task_tokens_used", float64(result.TokensUsed), tags)
 	_ = bp.monitor.RecordMetric("task_cost", result.Cost, tags)
-	
+
 	if result.Status == StatusCompleted {
 		_ = bp.monitor.RecordMetric("task_success", 1, tags)
 	} else {
@@ -408,6 +424,6 @@ func (bp *BatchProcessorImpl) mergeResults(previous *BatchResult, new *BatchResu
 	allResults := make([]WorkerResult, 0, len(previous.Results)+len(new.Results))
 	allResults = append(allResults, previous.Results...)
 	allResults = append(allResults, new.Results...)
-	
+
 	return bp.createBatchResult(allResults)
 }

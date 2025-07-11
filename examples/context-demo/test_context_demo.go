@@ -58,12 +58,12 @@ func main() {
 		// 获取当前会话的上下文统计
 		if agent.GetReactCore() != nil {
 			stats := agent.GetReactCore().GetContextStats(sess)
-			fmt.Printf("📊 当前上下文: %d 消息, 约 %d tokens\n", 
+			fmt.Printf("📊 当前上下文: %d 消息, 约 %d tokens\n",
 				stats.TotalMessages, stats.EstimatedTokens)
 
 			// 如果上下文接近限制，显示警告
 			if stats.EstimatedTokens > 6000 {
-				fmt.Printf("⚠️ 上下文接近限制 (%d/%d tokens)\n", 
+				fmt.Printf("⚠️ 上下文接近限制 (%d/%d tokens)\n",
 					stats.EstimatedTokens, stats.MaxTokens)
 			}
 		}
@@ -96,12 +96,12 @@ func main() {
 			stats := agent.GetReactCore().GetContextStats(sess)
 			if stats.EstimatedTokens > 4000 {
 				fmt.Printf("🔄 执行上下文管理检查...\n")
-				
+
 				result, err := agent.GetReactCore().ForceContextSummarization(ctx, sess)
 				if err != nil {
 					fmt.Printf("❌ 上下文总结失败: %v\n", err)
 				} else {
-					fmt.Printf("✅ 上下文已总结: %d → %d 消息 (备份: %s)\n", 
+					fmt.Printf("✅ 上下文已总结: %d → %d 消息 (备份: %s)\n",
 						result.OriginalCount, result.ProcessedCount, result.BackupID)
 				}
 			}

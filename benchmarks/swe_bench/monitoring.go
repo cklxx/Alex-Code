@@ -12,12 +12,12 @@ import (
 
 // ProgressReporterImpl implements the ProgressReporter interface
 type ProgressReporterImpl struct {
-	output   io.Writer
-	ticker   *time.Ticker
-	stopChan chan struct{}
-	mu       sync.RWMutex
+	output     io.Writer
+	ticker     *time.Ticker
+	stopChan   chan struct{}
+	mu         sync.RWMutex
 	lastUpdate ProgressUpdate
-	isRunning bool
+	isRunning  bool
 }
 
 // NewProgressReporter creates a new progress reporter
@@ -32,16 +32,16 @@ func NewProgressReporter() *ProgressReporterImpl {
 func (pr *ProgressReporterImpl) Start(ctx context.Context) error {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
-	
+
 	if pr.isRunning {
 		return fmt.Errorf("progress reporter already running")
 	}
-	
+
 	pr.ticker = time.NewTicker(10 * time.Second)
 	pr.isRunning = true
-	
+
 	go pr.reportingLoop(ctx)
-	
+
 	return nil
 }
 
@@ -49,23 +49,23 @@ func (pr *ProgressReporterImpl) Start(ctx context.Context) error {
 func (pr *ProgressReporterImpl) Stop() error {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
-	
+
 	if !pr.isRunning {
 		return nil
 	}
-	
+
 	select {
 	case <-pr.stopChan:
 		// Channel already closed
 	default:
 		close(pr.stopChan)
 	}
-	
+
 	if pr.ticker != nil {
 		pr.ticker.Stop()
 	}
 	pr.isRunning = false
-	
+
 	return nil
 }
 
@@ -74,7 +74,7 @@ func (pr *ProgressReporterImpl) Update(update ProgressUpdate) error {
 	pr.mu.Lock()
 	pr.lastUpdate = update
 	pr.mu.Unlock()
-	
+
 	return nil
 }
 
@@ -98,11 +98,11 @@ func (pr *ProgressReporterImpl) reportingLoop(ctx context.Context) {
 			update := pr.lastUpdate
 			output := pr.output
 			pr.mu.RUnlock()
-			
+
 			if update.Total > 0 {
 				progress := float64(update.Completed+update.Failed) / float64(update.Total) * 100
-				
-				fmt.Fprintf(output, "[%s] Progress: %.1f%% (%d/%d) | Completed: %d | Failed: %d | Running: %d | Success Rate: %.1f%% | Avg Duration: %s | ETA: %s\n",
+
+				if _, err := fmt.Fprintf(output, "[%s] Progress: %.1f%% (%d/%d) | Completed: %d | Failed: %d | Running: %d | Success Rate: %.1f%% | Avg Duration: %s | ETA: %s\n",
 					update.Timestamp.Format("15:04:05"),
 					progress,
 					update.Completed+update.Failed,
@@ -113,7 +113,9 @@ func (pr *ProgressReporterImpl) reportingLoop(ctx context.Context) {
 					update.SuccessRate,
 					update.AvgDuration.String(),
 					update.EstimatedETA.String(),
-				)
+				); err != nil {
+					log.Printf("Warning: Failed to write progress: %v", err)
+				}
 			}
 		}
 	}
@@ -121,15 +123,15 @@ func (pr *ProgressReporterImpl) reportingLoop(ctx context.Context) {
 
 // MonitorImpl implements the Monitor interface
 type MonitorImpl struct {
-	metrics    map[string]float64
-	events     []MonitorEvent
-	mu         sync.RWMutex
-	isRunning  bool
-	stopChan   chan struct{}
-	
+	metrics   map[string]float64
+	events    []MonitorEvent
+	mu        sync.RWMutex
+	isRunning bool
+	stopChan  chan struct{}
+
 	// File logging
-	logFile    *os.File
-	logPath    string
+	logFile *os.File
+	logPath string
 }
 
 // MonitorEvent represents a monitoring event
@@ -142,9 +144,9 @@ type MonitorEvent struct {
 // NewMonitor creates a new monitor
 func NewMonitor() *MonitorImpl {
 	return &MonitorImpl{
-		metrics:   make(map[string]float64),
-		events:    make([]MonitorEvent, 0),
-		stopChan:  make(chan struct{}),
+		metrics:  make(map[string]float64),
+		events:   make([]MonitorEvent, 0),
+		stopChan: make(chan struct{}),
 	}
 }
 
@@ -152,15 +154,15 @@ func NewMonitor() *MonitorImpl {
 func (m *MonitorImpl) StartMonitoring(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if m.isRunning {
 		return fmt.Errorf("monitor already running")
 	}
-	
+
 	// Setup log file
 	homeDir, _ := os.UserHomeDir()
 	m.logPath = fmt.Sprintf("%s/.alex/logs/batch_monitor_%s.log", homeDir, time.Now().Format("2006-01-02_15-04-05"))
-	
+
 	if err := os.MkdirAll(fmt.Sprintf("%s/.alex/logs", homeDir), 0755); err != nil {
 		log.Printf("Warning: Failed to create log directory: %v", err)
 	} else {
@@ -171,12 +173,12 @@ func (m *MonitorImpl) StartMonitoring(ctx context.Context) error {
 			m.logFile = logFile
 		}
 	}
-	
+
 	m.isRunning = true
-	
+
 	// Start monitoring goroutine
 	go m.monitoringLoop(ctx)
-	
+
 	return nil
 }
 
@@ -184,24 +186,26 @@ func (m *MonitorImpl) StartMonitoring(ctx context.Context) error {
 func (m *MonitorImpl) StopMonitoring() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if !m.isRunning {
 		return nil
 	}
-	
+
 	select {
 	case <-m.stopChan:
 		// Channel already closed
 	default:
 		close(m.stopChan)
 	}
-	
+
 	m.isRunning = false
-	
+
 	if m.logFile != nil {
-		m.logFile.Close()
+		if err := m.logFile.Close(); err != nil {
+			log.Printf("Warning: Failed to close log file: %v", err)
+		}
 	}
-	
+
 	return nil
 }
 
@@ -209,7 +213,7 @@ func (m *MonitorImpl) StopMonitoring() error {
 func (m *MonitorImpl) RecordMetric(name string, value float64, tags map[string]string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	// Create metric key with tags
 	key := name
 	if len(tags) > 0 {
@@ -224,15 +228,17 @@ func (m *MonitorImpl) RecordMetric(name string, value float64, tags map[string]s
 		}
 		key += "}"
 	}
-	
+
 	m.metrics[key] = value
-	
+
 	// Log metric
 	if m.logFile != nil {
 		logEntry := fmt.Sprintf("[%s] METRIC %s = %.4f\n", time.Now().Format(time.RFC3339), key, value)
-		m.logFile.WriteString(logEntry)
+		if _, err := m.logFile.WriteString(logEntry); err != nil {
+			log.Printf("Warning: Failed to write metric to log: %v", err)
+		}
 	}
-	
+
 	return nil
 }
 
@@ -240,21 +246,23 @@ func (m *MonitorImpl) RecordMetric(name string, value float64, tags map[string]s
 func (m *MonitorImpl) RecordEvent(event string, data map[string]interface{}) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	monitorEvent := MonitorEvent{
 		Timestamp: time.Now(),
 		Event:     event,
 		Data:      data,
 	}
-	
+
 	m.events = append(m.events, monitorEvent)
-	
+
 	// Log event
 	if m.logFile != nil {
 		logEntry := fmt.Sprintf("[%s] EVENT %s: %+v\n", monitorEvent.Timestamp.Format(time.RFC3339), event, data)
-		m.logFile.WriteString(logEntry)
+		if _, err := m.logFile.WriteString(logEntry); err != nil {
+			log.Printf("Warning: Failed to write event to log: %v", err)
+		}
 	}
-	
+
 	return nil
 }
 
@@ -262,13 +270,13 @@ func (m *MonitorImpl) RecordEvent(event string, data map[string]interface{}) err
 func (m *MonitorImpl) GetMetrics() map[string]float64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	// Return a copy of the metrics
 	result := make(map[string]float64)
 	for k, v := range m.metrics {
 		result[k] = v
 	}
-	
+
 	return result
 }
 
@@ -276,11 +284,11 @@ func (m *MonitorImpl) GetMetrics() map[string]float64 {
 func (m *MonitorImpl) GetEvents() []MonitorEvent {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	// Return a copy of the events
 	result := make([]MonitorEvent, len(m.events))
 	copy(result, m.events)
-	
+
 	return result
 }
 
@@ -288,7 +296,7 @@ func (m *MonitorImpl) GetEvents() []MonitorEvent {
 func (m *MonitorImpl) monitoringLoop(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -309,13 +317,13 @@ func (m *MonitorImpl) recordSystemMetrics() {
 	tags := map[string]string{
 		"component": "batch_processor",
 	}
-	
+
 	// Record timestamp
 	_ = m.RecordMetric("system_uptime", float64(time.Now().Unix()), tags)
-	
+
 	// Record memory usage (simplified)
 	_ = m.RecordMetric("memory_usage_mb", 0, tags) // Would use actual memory measurement
-	
+
 	// Record event
 	_ = m.RecordEvent("system_health_check", map[string]interface{}{
 		"status":    "ok",
@@ -334,13 +342,17 @@ func (m *MonitorImpl) GetLogPath() string {
 func (m *MonitorImpl) ExportMetrics(filePath string) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create metrics file: %w", err)
 	}
-	defer file.Close()
-	
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Warning: Failed to close metrics file: %v", err)
+		}
+	}()
+
 	// Write metrics in Prometheus format
 	for key, value := range m.metrics {
 		line := fmt.Sprintf("%s %.4f\n", key, value)
@@ -348,7 +360,7 @@ func (m *MonitorImpl) ExportMetrics(filePath string) error {
 			return fmt.Errorf("failed to write metric: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -356,13 +368,17 @@ func (m *MonitorImpl) ExportMetrics(filePath string) error {
 func (m *MonitorImpl) ExportEvents(filePath string) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create events file: %w", err)
 	}
-	defer file.Close()
-	
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Warning: Failed to close events file: %v", err)
+		}
+	}()
+
 	// Write events as JSON lines
 	for _, event := range m.events {
 		line := fmt.Sprintf("{\"timestamp\":\"%s\",\"event\":\"%s\",\"data\":%+v}\n",
@@ -374,7 +390,7 @@ func (m *MonitorImpl) ExportEvents(filePath string) error {
 			return fmt.Errorf("failed to write event: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -382,7 +398,7 @@ func (m *MonitorImpl) ExportEvents(filePath string) error {
 func (m *MonitorImpl) ClearMetrics() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	m.metrics = make(map[string]float64)
 }
 
@@ -390,7 +406,7 @@ func (m *MonitorImpl) ClearMetrics() {
 func (m *MonitorImpl) ClearEvents() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	m.events = make([]MonitorEvent, 0)
 }
 
@@ -398,7 +414,7 @@ func (m *MonitorImpl) ClearEvents() {
 func (m *MonitorImpl) GetStats() MonitorStats {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	return MonitorStats{
 		TotalMetrics: len(m.metrics),
 		TotalEvents:  len(m.events),

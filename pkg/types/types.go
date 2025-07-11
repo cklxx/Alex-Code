@@ -778,13 +778,10 @@ func getTypeScriptVersion(dirPath string) string {
 
 // getCommandVersion 执行命令获取版本信息
 func getCommandVersion(command string, args ...string) string {
-	// 执行命令获取版本信息，设置超时防止hang
-	cmd := exec.Command(command, args...)
-
 	// 设置超时，避免hang住
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	cmd = exec.CommandContext(ctx, command, args...)
+	cmd := exec.CommandContext(ctx, command, args...)
 
 	// 执行命令并获取输出
 	output, err := cmd.CombinedOutput()
