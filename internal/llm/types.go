@@ -13,11 +13,11 @@ type Message struct {
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallId string     `json:"tool_call_id,omitempty"`
 	Name       string     `json:"name,omitempty"`
-	
+
 	// OpenAI reasoning fields (2025 Responses API)
-	Reasoning       string      `json:"reasoning,omitempty"`
-	ReasoningSummary string     `json:"reasoning_summary,omitempty"`
-	Think          string      `json:"think,omitempty"`
+	Reasoning        string `json:"reasoning,omitempty"`
+	ReasoningSummary string `json:"reasoning_summary,omitempty"`
+	Think            string `json:"think,omitempty"`
 }
 
 // ChatRequest represents a request to the LLM
@@ -31,9 +31,8 @@ type ChatRequest struct {
 	// Tool calling support
 	Tools      []Tool `json:"tools,omitempty"`
 	ToolChoice string `json:"tool_choice,omitempty"`
-
-	// Model type selection for multi-model configurations
-	ModelType ModelType `json:"model_type,omitempty"`
+	// Model type selection for multi-model configurations - not serialized to JSON
+	ModelType ModelType `json:"-"`
 
 	// Config for dynamic configuration resolution - not serialized to JSON
 	Config *Config `json:"-"`

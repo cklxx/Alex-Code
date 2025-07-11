@@ -57,11 +57,13 @@ func (c *StreamingLLMClient) getModelConfig(req *ChatRequest) (string, string, s
 	// Try to get specific model config first
 	if config.Models != nil {
 		if modelConfig, exists := config.Models[modelType]; exists {
+			log.Printf("DEBUG: Using model config - BaseURL: %s, APIKey: %s..., Model: %s", modelConfig.BaseURL, modelConfig.APIKey[:15], modelConfig.Model)
 			return modelConfig.BaseURL, modelConfig.APIKey, modelConfig.Model
 		}
 	}
 
 	// Fallback to single model config
+	log.Printf("DEBUG: Using fallback config - BaseURL: %s, APIKey: %s..., Model: %s", config.BaseURL, config.APIKey[:15], config.Model)
 	return config.BaseURL, config.APIKey, config.Model
 }
 
@@ -148,7 +150,6 @@ func (c *StreamingLLMClient) ChatStream(ctx context.Context, req *ChatRequest) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
-
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
@@ -171,7 +172,7 @@ func (c *StreamingLLMClient) ChatStream(ctx context.Context, req *ChatRequest) (
 		return nil, fmt.Errorf("HTTP error %d: %s", resp.StatusCode, string(body))
 	}
 
-	deltaChannel := make(chan StreamDelta, 1000)  // Increased buffer size for better streaming performance
+	deltaChannel := make(chan StreamDelta, 1000) // Increased buffer size for better streaming performance
 
 	go func() {
 		defer close(deltaChannel)
@@ -253,4 +254,5 @@ func (c *StreamingLLMClient) setRequestDefaults(req *ChatRequest) {
 func (c *StreamingLLMClient) setHeaders(req *http.Request, apiKey string) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
+	log.Printf("DEBUG: Set Authorization header with key: %s...", apiKey[:15])
 }

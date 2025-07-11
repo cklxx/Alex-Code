@@ -17,7 +17,6 @@ func GetAllBuiltinTools() []Tool {
 
 		// File tools
 		CreateFileReadTool(),
-		CreateFileWriteTool(),
 		CreateFileUpdateTool(),
 		CreateFileReplaceTool(),
 		CreateFileListTool(),
@@ -25,18 +24,12 @@ func GetAllBuiltinTools() []Tool {
 
 		// Search tools
 		CreateGrepTool(),
-		CreateRipgrepTool(),
-		CreateFindTool(),
 
 		// Web search tools
 		CreateWebSearchTool(),
-		CreateNewsSearchTool(),
-		CreateAcademicSearchTool(),
 
 		// Shell tools
 		CreateBashTool(),
-		CreateScriptRunnerTool(),
-		CreateProcessMonitorTool(),
 		CreateCodeExecutorTool(),
 	}
 }
@@ -54,8 +47,6 @@ func GetToolByName(name string) Tool {
 		return NewTodoReadTool(configManager)
 	case "file_read":
 		return CreateFileReadTool()
-	case "file_write":
-		return CreateFileWriteTool()
 	case "file_update":
 		return CreateFileUpdateTool()
 	case "file_replace":
@@ -66,22 +57,10 @@ func GetToolByName(name string) Tool {
 		return CreateDirectoryCreateTool()
 	case "grep":
 		return CreateGrepTool()
-	case "ripgrep":
-		return CreateRipgrepTool()
-	case "find":
-		return CreateFindTool()
 	case "web_search":
 		return CreateWebSearchTool()
-	case "news_search":
-		return CreateNewsSearchTool()
-	case "academic_search":
-		return CreateAcademicSearchTool()
 	case "bash":
 		return CreateBashTool()
-	case "script_runner":
-		return CreateScriptRunnerTool()
-	case "process_monitor":
-		return CreateProcessMonitorTool()
 	case "code_execute":
 		return CreateCodeExecutorTool()
 	default:
@@ -103,7 +82,6 @@ func GetToolsByCategory() map[string][]Tool {
 		},
 		"file": {
 			CreateFileReadTool(),
-			CreateFileWriteTool(),
 			CreateFileUpdateTool(),
 			CreateFileReplaceTool(),
 			CreateFileListTool(),
@@ -121,8 +99,6 @@ func GetToolsByCategory() map[string][]Tool {
 		},
 		"execution": {
 			CreateBashTool(),
-			CreateScriptRunnerTool(),
-			CreateProcessMonitorTool(),
 			CreateCodeExecutorTool(),
 		},
 	}

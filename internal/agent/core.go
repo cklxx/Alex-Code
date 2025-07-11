@@ -89,14 +89,14 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 		// 构建可用工具列表 - 每轮都包含工具定义以确保模型能调用工具
 		tools := rc.toolHandler.buildToolDefinitions()
-		toolChoice := "auto"
 
 		request := &llm.ChatRequest{
 			Messages:   messages,
 			ModelType:  llm.BasicModel,
 			Tools:      tools,
-			ToolChoice: toolChoice,
+			ToolChoice: "auto",
 			Config:     rc.agent.llmConfig,
+			MaxTokens:  12000,
 		}
 
 		// 获取LLM实例
@@ -146,6 +146,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			return nil, fmt.Errorf("no response choices received at iteration %d - API response format issue", iteration)
 		}
 
+		log.Printf("DEBUG: Response: %+v", response)
 		choice := response.Choices[0]
 		step.Thought = strings.TrimSpace(choice.Message.Content)
 		// 添加assistant消息到对话历史
