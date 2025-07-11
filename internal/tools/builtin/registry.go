@@ -1,13 +1,29 @@
 package builtin
 
 import (
+	"alex/internal/config"
 	"alex/internal/session"
 )
 
 // GetAllBuiltinTools returns a list of all builtin tools
 func GetAllBuiltinTools() []Tool {
+	return GetAllBuiltinToolsWithConfig(nil)
+}
+
+// GetAllBuiltinToolsWithConfig returns a list of all builtin tools with configuration
+func GetAllBuiltinToolsWithConfig(configManager *config.Manager) []Tool {
 	// Create a session manager for session-aware tools
 	sessionManager, _ := session.NewManager()
+
+	// Create web search tool and configure it if config is available
+	webSearchTool := CreateWebSearchTool()
+	if configManager != nil {
+		if apiKey, err := configManager.Get("tavilyApiKey"); err == nil {
+			if apiKeyStr, ok := apiKey.(string); ok && apiKeyStr != "" {
+				webSearchTool.SetAPIKey(apiKeyStr)
+			}
+		}
+	}
 
 	return []Tool{
 		// Thinking and reasoning tools
@@ -27,7 +43,7 @@ func GetAllBuiltinTools() []Tool {
 		CreateGrepTool(),
 
 		// Web search tools
-		CreateWebSearchTool(),
+		webSearchTool,
 
 		// Shell tools
 		CreateBashTool(),
@@ -37,6 +53,11 @@ func GetAllBuiltinTools() []Tool {
 
 // GetToolByName creates a tool instance by name
 func GetToolByName(name string) Tool {
+	return GetToolByNameWithConfig(name, nil)
+}
+
+// GetToolByNameWithConfig creates a tool instance by name with configuration
+func GetToolByNameWithConfig(name string, configManager *config.Manager) Tool {
 	sessionManager, _ := session.NewManager()
 
 	switch name {
@@ -57,7 +78,15 @@ func GetToolByName(name string) Tool {
 	case "grep":
 		return CreateGrepTool()
 	case "web_search":
-		return CreateWebSearchTool()
+		webSearchTool := CreateWebSearchTool()
+		if configManager != nil {
+			if apiKey, err := configManager.Get("tavilyApiKey"); err == nil {
+				if apiKeyStr, ok := apiKey.(string); ok && apiKeyStr != "" {
+					webSearchTool.SetAPIKey(apiKeyStr)
+				}
+			}
+		}
+		return webSearchTool
 	case "bash":
 		return CreateBashTool()
 	case "code_execute":
@@ -69,7 +98,27 @@ func GetToolByName(name string) Tool {
 
 // GetToolsByCategory returns tools grouped by category
 func GetToolsByCategory() map[string][]Tool {
+	return GetToolsByCategoryWithConfig(nil)
+}
+
+// GetToolsByCategoryWithConfig returns tools grouped by category with configuration
+func GetToolsByCategoryWithConfig(configManager *config.Manager) map[string][]Tool {
 	sessionManager, _ := session.NewManager()
+
+	// Create web search tools and configure them if config is available
+	webSearchTool := CreateWebSearchTool()
+	newsSearchTool := CreateNewsSearchTool()
+	academicSearchTool := CreateAcademicSearchTool()
+	
+	if configManager != nil {
+		if apiKey, err := configManager.Get("tavilyApiKey"); err == nil {
+			if apiKeyStr, ok := apiKey.(string); ok && apiKeyStr != "" {
+				webSearchTool.SetAPIKey(apiKeyStr)
+				newsSearchTool.SetAPIKey(apiKeyStr)
+				academicSearchTool.SetAPIKey(apiKeyStr)
+			}
+		}
+	}
 
 	return map[string][]Tool{
 		"reasoning": {
@@ -91,9 +140,9 @@ func GetToolsByCategory() map[string][]Tool {
 			CreateFindTool(),
 		},
 		"web": {
-			CreateWebSearchTool(),
-			CreateNewsSearchTool(),
-			CreateAcademicSearchTool(),
+			webSearchTool,
+			newsSearchTool,
+			academicSearchTool,
 		},
 		"execution": {
 			CreateBashTool(),

@@ -29,6 +29,9 @@ type Config struct {
 
 	// Default model type to use when none specified
 	DefaultModelType llm.ModelType `json:"default_model_type,omitempty"`
+
+	// Tool configuration
+	TavilyAPIKey string `json:"tavilyApiKey,omitempty"`
 }
 
 // Manager handles configuration persistence and retrieval
@@ -85,6 +88,8 @@ func (m *Manager) Get(key string) (interface{}, error) {
 		return m.config.DefaultModelType, nil
 	case "models":
 		return m.config.Models, nil
+	case "tavilyApiKey":
+		return m.config.TavilyAPIKey, nil
 	default:
 		return nil, fmt.Errorf("unknown config key: %s", key)
 	}
