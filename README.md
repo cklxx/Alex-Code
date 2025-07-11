@@ -1,4 +1,4 @@
-# Alex - High-Performance Universal AI Software Engineering Assistant v1.0
+# Alex - High-Performance Universal AI Software Engineering Assistant
 
 **Alex** is a high-performance, universally accessible AI software engineering assistant featuring advanced dual-architecture design with both legacy and modern ReAct (Reasoning and Acting) agent systems. Built in Go for maximum performance and designed for developers at all skill levels, Alex provides an intuitive natural language interface for code analysis, file operations, and development tasks through an intelligent agent architecture with advanced tool calling capabilities, comprehensive security, and streaming responses.
 
