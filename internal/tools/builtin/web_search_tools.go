@@ -131,7 +131,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 			apiKey = envKey
 		}
 	}
-	
+
 	if apiKey == "" {
 		return &ToolResult{
 			Content: "Web search is not configured. Please set the Tavily API key:\n\n" +

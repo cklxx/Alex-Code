@@ -109,7 +109,7 @@ func GetToolsByCategoryWithConfig(configManager *config.Manager) map[string][]To
 	webSearchTool := CreateWebSearchTool()
 	newsSearchTool := CreateNewsSearchTool()
 	academicSearchTool := CreateAcademicSearchTool()
-	
+
 	if configManager != nil {
 		if apiKey, err := configManager.Get("tavilyApiKey"); err == nil {
 			if apiKeyStr, ok := apiKey.(string); ok && apiKeyStr != "" {

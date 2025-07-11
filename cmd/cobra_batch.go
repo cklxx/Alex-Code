@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"alex/benchmarks/swe_bench"
+	"github.com/spf13/cobra"
 )
 
 // newBatchCommand creates the run-batch subcommand
@@ -19,35 +19,35 @@ func newBatchCommand() *cobra.Command {
 	var (
 		// Configuration file
 		configFile string
-		
+
 		// Model configuration
 		modelName        string
 		modelTemperature float64
 		modelMaxTokens   int
-		
+
 		// Agent configuration
 		maxTurns  int
 		costLimit float64
 		timeout   int
-		
+
 		// Dataset configuration
-		datasetType     string
-		datasetSubset   string
-		datasetSplit    string
-		datasetFile     string
-		instanceLimit   int
-		instanceSlice   string
-		instanceIDs     string
-		shuffle         bool
-		
+		datasetType   string
+		datasetSubset string
+		datasetSplit  string
+		datasetFile   string
+		instanceLimit int
+		instanceSlice string
+		instanceIDs   string
+		shuffle       bool
+
 		// Execution configuration
-		numWorkers     int
-		outputPath     string
-		resumeFrom     string
-		enableLogging  bool
-		failFast       bool
-		maxRetries     int
-		
+		numWorkers    int
+		outputPath    string
+		resumeFrom    string
+		enableLogging bool
+		failFast      bool
+		maxRetries    int
+
 		// Output options
 		quiet    bool
 		verbose  bool
@@ -79,14 +79,14 @@ Examples:
   alex run-batch --output ./my_results`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
-			
+
 			// Create configuration manager
 			configManager := swe_bench.NewConfigManager()
-			
+
 			// Load base configuration
 			var config *swe_bench.BatchConfig
 			var err error
-			
+
 			if configFile != "" {
 				config, err = configManager.LoadConfig(configFile)
 				if err != nil {
@@ -95,17 +95,17 @@ Examples:
 			} else {
 				config = swe_bench.DefaultBatchConfig()
 			}
-			
+
 			// Apply command line overrides
 			applyOverrides(config, modelName, modelTemperature, modelMaxTokens, maxTurns, costLimit, timeout,
 				datasetType, datasetSubset, datasetSplit, datasetFile, instanceLimit, instanceSlice, instanceIDs, shuffle,
 				numWorkers, outputPath, resumeFrom, enableLogging, failFast, maxRetries)
-			
+
 			// Validate configuration
 			if err := configManager.ValidateConfig(config); err != nil {
 				return fmt.Errorf("invalid configuration: %w", err)
 			}
-			
+
 			// Setup output
 			if !quiet {
 				fmt.Printf("SWE-bench Batch Processing\n")
@@ -120,23 +120,23 @@ Examples:
 				}
 				fmt.Printf("\n")
 			}
-			
+
 			// Create output directory
 			if err := os.MkdirAll(config.OutputPath, 0755); err != nil {
 				return fmt.Errorf("failed to create output directory: %w", err)
 			}
-			
+
 			// Save configuration to output directory
 			configPath := filepath.Join(config.OutputPath, "config.yaml")
 			if err := configManager.SaveConfig(config, configPath); err != nil {
 				log.Printf("Warning: Failed to save config: %v", err)
 			}
-			
+
 			// Check if resuming from previous run
 			if config.ResumeFrom != "" {
 				return runResumeCommand(ctx, config, quiet, progress)
 			}
-			
+
 			// Run batch processing
 			return runNewBatch(ctx, config, quiet, progress)
 		},
@@ -144,17 +144,17 @@ Examples:
 
 	// Add flags
 	cmd.Flags().StringVar(&configFile, "config", "", "Configuration file path (YAML)")
-	
+
 	// Model configuration
 	cmd.Flags().StringVar(&modelName, "model", "", "Model name (e.g., 'gpt-4o', 'deepseek/deepseek-chat-v3-0324:free')")
 	cmd.Flags().Float64Var(&modelTemperature, "temperature", 0, "Model temperature (0.0-2.0)")
 	cmd.Flags().IntVar(&modelMaxTokens, "max-tokens", 0, "Maximum tokens per request")
-	
+
 	// Agent configuration
 	cmd.Flags().IntVar(&maxTurns, "max-turns", 0, "Maximum turns per instance")
 	cmd.Flags().Float64Var(&costLimit, "cost-limit", 0, "Cost limit per instance")
 	cmd.Flags().IntVar(&timeout, "timeout", 0, "Timeout per instance (seconds)")
-	
+
 	// Dataset configuration
 	cmd.Flags().StringVar(&datasetType, "dataset.type", "", "Dataset type (swe_bench, file, huggingface)")
 	cmd.Flags().StringVar(&datasetSubset, "dataset.subset", "", "Dataset subset (lite, full, verified)")
@@ -164,7 +164,7 @@ Examples:
 	cmd.Flags().StringVar(&instanceSlice, "instance-slice", "", "Instance slice (format: 'start,end')")
 	cmd.Flags().StringVar(&instanceIDs, "instance-ids", "", "Specific instance IDs (comma-separated)")
 	cmd.Flags().BoolVar(&shuffle, "shuffle", false, "Shuffle instances")
-	
+
 	// Execution configuration
 	cmd.Flags().IntVar(&numWorkers, "workers", 0, "Number of worker processes")
 	cmd.Flags().StringVar(&outputPath, "output", "", "Output directory path")
@@ -172,7 +172,7 @@ Examples:
 	cmd.Flags().BoolVar(&enableLogging, "logging", false, "Enable detailed logging")
 	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "Stop on first failure")
 	cmd.Flags().IntVar(&maxRetries, "max-retries", 0, "Maximum retries per instance")
-	
+
 	// Output options
 	cmd.Flags().BoolVar(&quiet, "quiet", false, "Quiet output (errors only)")
 	cmd.Flags().BoolVar(&verbose, "verbose", false, "Verbose output")
@@ -185,7 +185,7 @@ func applyOverrides(config *swe_bench.BatchConfig, modelName string, modelTemper
 	maxTurns int, costLimit float64, timeout int, datasetType, datasetSubset, datasetSplit, datasetFile string,
 	instanceLimit int, instanceSlice, instanceIDs string, shuffle bool, numWorkers int, outputPath, resumeFrom string,
 	enableLogging, failFast bool, maxRetries int) {
-	
+
 	// Model configuration
 	if modelName != "" {
 		config.Agent.Model.Name = modelName
@@ -196,7 +196,7 @@ func applyOverrides(config *swe_bench.BatchConfig, modelName string, modelTemper
 	if modelMaxTokens != 0 {
 		config.Agent.Model.MaxTokens = modelMaxTokens
 	}
-	
+
 	// Agent configuration
 	if maxTurns != 0 {
 		config.Agent.MaxTurns = maxTurns
@@ -207,7 +207,7 @@ func applyOverrides(config *swe_bench.BatchConfig, modelName string, modelTemper
 	if timeout != 0 {
 		config.Agent.Timeout = timeout
 	}
-	
+
 	// Dataset configuration
 	if datasetType != "" {
 		config.Instances.Type = datasetType
@@ -235,7 +235,7 @@ func applyOverrides(config *swe_bench.BatchConfig, modelName string, modelTemper
 	if shuffle {
 		config.Instances.Shuffle = shuffle
 	}
-	
+
 	// Execution configuration
 	if numWorkers != 0 {
 		config.NumWorkers = numWorkers
@@ -262,62 +262,62 @@ func parseInstanceSlice(slice string) ([]int, error) {
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid slice format, expected 'start,end'")
 	}
-	
+
 	start, err := strconv.Atoi(strings.TrimSpace(parts[0]))
 	if err != nil {
 		return nil, fmt.Errorf("invalid start value: %w", err)
 	}
-	
+
 	end, err := strconv.Atoi(strings.TrimSpace(parts[1]))
 	if err != nil {
 		return nil, fmt.Errorf("invalid end value: %w", err)
 	}
-	
+
 	return []int{start, end}, nil
 }
 
 func runNewBatch(ctx context.Context, config *swe_bench.BatchConfig, quiet, progress bool) error {
 	// Create dataset loader
 	dataLoader := swe_bench.NewDatasetLoader()
-	
+
 	// Load instances
 	if !quiet {
 		fmt.Printf("Loading dataset instances...\n")
 	}
-	
+
 	instances, err := dataLoader.LoadInstances(ctx, config.Instances)
 	if err != nil {
 		return fmt.Errorf("failed to load instances: %w", err)
 	}
-	
+
 	if !quiet {
 		fmt.Printf("Loaded %d instances\n\n", len(instances))
 	}
-	
+
 	// Create batch processor
 	processor := swe_bench.NewBatchProcessor(config)
-	
+
 	// Setup progress reporting
 	if progress && !quiet {
 		setupProgressReporting(processor)
 	}
-	
+
 	// Run batch processing
 	if !quiet {
 		fmt.Printf("Starting batch processing...\n")
 	}
-	
+
 	startTime := time.Now()
 	result, err := processor.ProcessBatch(ctx, instances, config)
 	if err != nil {
 		return fmt.Errorf("batch processing failed: %w", err)
 	}
-	
+
 	// Print results summary
 	if !quiet {
 		printResultsSummary(result, time.Since(startTime))
 	}
-	
+
 	return nil
 }
 
@@ -325,27 +325,27 @@ func runResumeCommand(ctx context.Context, config *swe_bench.BatchConfig, quiet,
 	if !quiet {
 		fmt.Printf("Resuming batch processing from: %s\n\n", config.ResumeFrom)
 	}
-	
+
 	// Create batch processor
 	processor := swe_bench.NewBatchProcessor(config)
-	
+
 	// Setup progress reporting
 	if progress && !quiet {
 		setupProgressReporting(processor)
 	}
-	
+
 	// Resume processing
 	startTime := time.Now()
 	result, err := processor.Resume(ctx, config.ResumeFrom, config)
 	if err != nil {
 		return fmt.Errorf("failed to resume batch processing: %w", err)
 	}
-	
+
 	// Print results summary
 	if !quiet {
 		printResultsSummary(result, time.Since(startTime))
 	}
-	
+
 	return nil
 }
 
@@ -366,14 +366,14 @@ func printResultsSummary(result *swe_bench.BatchResult, duration time.Duration) 
 	fmt.Printf("Avg Duration:    %s\n", result.AvgDuration)
 	fmt.Printf("Total Tokens:    %d\n", result.TotalTokens)
 	fmt.Printf("Total Cost:      $%.4f\n", result.TotalCost)
-	
+
 	if len(result.ErrorSummary) > 0 {
 		fmt.Printf("\nError Summary:\n")
 		for errorType, count := range result.ErrorSummary {
 			fmt.Printf("  %s: %d\n", errorType, count)
 		}
 	}
-	
+
 	fmt.Printf("\nResults saved to: %s\n", result.Config.OutputPath)
 	fmt.Printf("  - batch_results.json (full results)\n")
 	fmt.Printf("  - preds.json (SWE-bench format)\n")

@@ -66,7 +66,6 @@ func (ssp *SQLiteStorageProvider) Validate(config StorageConfig) error {
 	return nil
 }
 
-
 // StorageFactory 存储工厂
 type StorageFactory struct {
 	providers map[string]StorageProvider
@@ -172,9 +171,7 @@ func (w *SQLiteStorageWrapper) GetMetrics() StorageMetrics {
 	return w.storage.GetMetrics()
 }
 
-
 // === 便利函数 ===
-
 
 // NewSQLiteDB 创建SQLite数据库的便利函数
 func NewSQLiteDB(path string) (*SQLiteStorage, error) {
