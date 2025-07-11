@@ -1,6 +1,13 @@
 # Alex - High-Performance Universal AI Software Engineering Assistant
 
+[![CI](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml/badge.svg)](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml)
+[![Deploy to GitHub Pages](https://github.com/cklxx/Alex-Code/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/cklxx/Alex-Code/actions/workflows/deploy-pages.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 **Alex** is a high-performance, universally accessible AI software engineering assistant featuring advanced dual-architecture design with both legacy and modern ReAct (Reasoning and Acting) agent systems. Built in Go for maximum performance and designed for developers at all skill levels, Alex provides an intuitive natural language interface for code analysis, file operations, and development tasks through an intelligent agent architecture with advanced tool calling capabilities, comprehensive security, and streaming responses.
+
+🌐 **[Visit our website](https://cklxx.github.io/Alex-Code/)** | 📚 **[Documentation](docs/)** | 🚀 **[Quick Start](#quick-start)**
 
 ## Quick Start
 
@@ -130,6 +137,47 @@ go test ./internal/session/           # Test session management
 ./scripts/docker.sh dev    # Start development environment
 ./scripts/docker.sh test   # Run tests in container
 ```
+
+## 🌐 Website & Documentation
+
+Alex includes a beautiful, modern website that showcases the project features and provides comprehensive documentation.
+
+### Local Development
+```bash
+# Start local website server
+cd docs/
+./deploy.sh               # Choose option 1 for local server
+
+# Or use Python directly
+python -m http.server 8000
+```
+
+### Automated Deployment
+The website automatically deploys to GitHub Pages via CI/CD:
+
+- **🔄 Auto-deploy**: Pushes to `main` branch trigger deployment
+- **⚡ Fast**: Typically deploys in 2-5 minutes  
+- **🔍 Validated**: HTML validation and optimization included
+- **📊 Stats**: Auto-generates project statistics
+
+### Setup GitHub Pages
+```bash
+# One-time setup for GitHub Pages
+./scripts/setup-github-pages.sh
+```
+
+This script will:
+1. ✅ Verify all required files exist
+2. 🔧 Configure repository URLs
+3. 📤 Commit and push changes
+4. 📋 Provide setup instructions
+
+**Manual Setup Steps:**
+1. Go to repository **Settings > Pages**
+2. Set source to **"GitHub Actions"**
+3. Enable **"Read and write permissions"** in **Settings > Actions**
+
+🌐 **Live Website**: [https://cklxx.github.io/Alex-Code/](https://cklxx.github.io/Alex-Code/)
 
 ## Configuration
 

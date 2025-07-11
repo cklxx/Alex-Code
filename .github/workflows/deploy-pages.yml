@@ -1,0 +1,168 @@
+name: Deploy to GitHub Pages
+
+on:
+  # 当推送到main分支时触发
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - '.github/workflows/deploy-pages.yml'
+
+  # 允许手动触发
+  workflow_dispatch:
+
+# 设置GITHUB_TOKEN的权限以允许部署到GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 只允许一个并发部署，跳过正在运行的队列
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # 构建工作
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: 📊 Generate project stats
+        run: |
+          echo "🔢 Generating project statistics..."
+          
+          # 计算代码行数
+          TOTAL_LINES=$(find . -name "*.go" -not -path "./vendor/*" -not -path "./.git/*" | xargs wc -l | tail -1 | awk '{print $1}')
+          GO_FILES=$(find . -name "*.go" -not -path "./vendor/*" -not -path "./.git/*" | wc -l)
+          
+          # 计算包数量
+          PACKAGES=$(find . -name "*.go" -not -path "./vendor/*" -not -path "./.git/*" -exec dirname {} \; | sort -u | wc -l)
+          
+          # 获取最新commit信息
+          LAST_COMMIT=$(git log -1 --pretty=format:"%h - %s (%cr)" || echo "No commits")
+          
+          # 创建stats.json文件
+          cat > docs/stats.json << EOF
+          {
+            "total_lines": ${TOTAL_LINES:-0},
+            "go_files": ${GO_FILES:-0},
+            "packages": ${PACKAGES:-0},
+            "last_commit": "${LAST_COMMIT}",
+            "build_time": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "version": "v1.0.0"
+          }
+          EOF
+          
+          echo "📈 Project stats generated:"
+          cat docs/stats.json
+
+      - name: 🎨 Update website with build info
+        run: |
+          echo "🔄 Updating website with latest build information..."
+          
+          # 读取stats
+          if [ -f docs/stats.json ]; then
+            TOTAL_LINES=$(jq -r '.total_lines' docs/stats.json)
+            BUILD_TIME=$(jq -r '.build_time' docs/stats.json)
+            
+            # 更新HTML中的统计数据（如果需要的话）
+            sed -i "s/Build Time: .*/Build Time: ${BUILD_TIME}/g" docs/index.html || true
+            
+            echo "✅ Website updated with build info"
+          fi
+
+      - name: 🔍 Validate HTML
+        run: |
+          echo "🔍 Validating website files..."
+          
+          # 检查关键文件是否存在
+          if [ ! -f "docs/index.html" ]; then
+            echo "❌ index.html not found!"
+            exit 1
+          fi
+          
+          if [ ! -f "docs/manifest.json" ]; then
+            echo "❌ manifest.json not found!"
+            exit 1
+          fi
+          
+          # 简单的HTML验证
+          if ! grep -q "<title>" docs/index.html; then
+            echo "❌ Missing title tag in index.html"
+            exit 1
+          fi
+          
+          if ! grep -q "viewport" docs/index.html; then
+            echo "❌ Missing viewport meta tag"
+            exit 1
+          fi
+          
+          echo "✅ HTML validation passed"
+
+      - name: 🛠️ Optimize assets
+        run: |
+          echo "🛠️ Optimizing website assets..."
+          
+          # 压缩JavaScript (如果有的话)
+          if command -v uglifyjs &> /dev/null; then
+            find docs/ -name "*.js" -not -name "*.min.js" -exec uglifyjs {} -o {}.min.js \;
+          fi
+          
+          # 确保所有文件权限正确
+          find docs/ -type f -exec chmod 644 {} \;
+          find docs/ -type d -exec chmod 755 {} \;
+          
+          echo "✅ Asset optimization complete"
+
+      - name: 📦 Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./docs
+
+  # 部署工作
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: 📝 Create deployment summary
+        run: |
+          echo "## 🎉 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **Website URL**: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "📅 **Deployed**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "🔄 **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Quick Links" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌐 [Live Website](${{ steps.deployment.outputs.page_url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- 📱 [Mobile View](${{ steps.deployment.outputs.page_url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔧 [Repository](https://github.com/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY
+
+  # 通知工作（可选）
+  notify:
+    runs-on: ubuntu-latest
+    needs: [build, deploy]
+    if: always()
+    steps:
+      - name: 📢 Notify deployment status
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ Website deployed successfully!"
+            echo "🔗 URL: https://${{ github.repository_owner }}.github.io/Alex-Code/"
+          else
+            echo "❌ Deployment failed!"
+            echo "📝 Check the logs for details"
+          fi
