@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  GO_VERSION: '1.18'
+  GO_VERSION: '1.24'
 
 jobs:
   test:
@@ -50,7 +50,7 @@ jobs:
         name: codecov-umbrella
         
     - name: Upload coverage artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: coverage-report
         path: coverage.html
@@ -69,10 +69,10 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         
     - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@v3
+      uses: golangci/golangci-lint-action@v6
       with:
         version: latest
-        args: --timeout=5m
+        args: --timeout=5m --out-format=colored-line-number
 
   build:
     name: Build Multi-Platform
@@ -137,7 +137,7 @@ jobs:
         ls -la
         
     - name: Upload Linux artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: alex-linux-amd64
         path: |
@@ -145,7 +145,7 @@ jobs:
           build/alex-linux-amd64.tar.gz
           
     - name: Upload macOS Intel artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: alex-darwin-amd64
         path: |
@@ -153,7 +153,7 @@ jobs:
           build/alex-darwin-amd64.tar.gz
           
     - name: Upload macOS Apple Silicon artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: alex-darwin-arm64
         path: |
@@ -161,7 +161,7 @@ jobs:
           build/alex-darwin-arm64.tar.gz
           
     - name: Upload Windows artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: alex-windows-amd64
         path: |
@@ -270,9 +270,14 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Run Gosec Security Scanner
-      uses: securecodewarrior/github-action-gosec@master
+      uses: securecodewarrior/github-action-add-sarif@v1
       with:
-        args: '-fmt sarif -out gosec.sarif ./...'
+        sarif-file: gosec.sarif
+        
+    - name: Run Gosec
+      run: |
+        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+        gosec -fmt sarif -out gosec.sarif ./...
         
     - name: Upload SARIF file
       uses: github/codeql-action/upload-sarif@v2
@@ -295,7 +300,7 @@ jobs:
         
     - name: Check for vulnerabilities
       run: |
-        go install golang.org/x/vuln/cmd/govulncheck@latest
+        go install golang.org/x/vuln/cmd/govulncheck@v1.0.4
         govulncheck ./...
         
     - name: Check module tidiness
