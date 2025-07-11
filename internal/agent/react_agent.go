@@ -104,7 +104,7 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 
 	// 初始化工具
 	tools := make(map[string]builtin.Tool)
-	builtinTools := builtin.GetAllBuiltinTools()
+	builtinTools := builtin.GetAllBuiltinToolsWithConfig(configManager)
 	for _, tool := range builtinTools {
 		tools[tool.Name()] = tool
 	}

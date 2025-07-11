@@ -1,0 +1,71 @@
+# SWE-bench Batch Processing Configuration Example
+# This file shows all available configuration options
+
+# Agent configuration
+agent:
+  model:
+    name: "deepseek/deepseek-chat-v3-0324:free"  # Model name
+    temperature: 0.1                             # Creativity/randomness (0.0-2.0)
+    max_tokens: 4000                             # Maximum tokens per request
+  
+  max_turns: 20          # Maximum conversation turns per instance
+  cost_limit: 10.0       # Cost limit per instance (USD)
+  timeout: 300           # Timeout per instance (seconds)
+
+# Dataset configuration
+instances:
+  type: "swe_bench"      # Dataset type: swe_bench, file, huggingface
+  subset: "lite"         # SWE-bench subset: lite, full, verified
+  split: "dev"           # Dataset split: dev, test, train
+  
+  # Optional filtering options
+  # instance_limit: 10              # Limit number of instances
+  # instance_slice: [0, 50]         # Process instances 0-50
+  # instance_ids: ["id1", "id2"]    # Specific instance IDs
+  # shuffle: true                   # Randomize instance order
+  
+  # For file-based datasets
+  # file_path: "/path/to/instances.json"
+  
+  # For Hugging Face datasets
+  # hf_dataset: "princeton-nlp/SWE-bench"
+
+# Execution configuration
+num_workers: 3                    # Number of parallel workers
+output_path: "./batch_results"    # Output directory
+enable_logging: true              # Enable detailed logging
+fail_fast: false                  # Stop on first failure
+max_retries: 2                    # Maximum retries per instance
+max_delay: 5s                     # Maximum delay between tasks
+
+# Examples of different configurations:
+
+# Fast testing configuration:
+# instances:
+#   type: "swe_bench"
+#   subset: "lite"
+#   split: "dev"
+#   instance_limit: 5
+# num_workers: 2
+# agent:
+#   timeout: 60
+
+# Production configuration:
+# instances:
+#   type: "swe_bench"
+#   subset: "full"
+#   split: "test"
+# num_workers: 10
+# agent:
+#   model:
+#     name: "openai/gpt-4o"
+#     temperature: 0.0
+#   max_turns: 50
+#   timeout: 600
+#   cost_limit: 50.0
+
+# Custom dataset configuration:
+# instances:
+#   type: "file"
+#   file_path: "./my_instances.json"
+# output_path: "./my_results"

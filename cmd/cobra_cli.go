@@ -139,6 +139,7 @@ through streaming responses and advanced tool calling capabilities.
 	rootCmd.AddCommand(newConfigCommand(cli))
 	rootCmd.AddCommand(newSessionCommand(cli))
 	rootCmd.AddCommand(createToolsCommands(cli))
+	rootCmd.AddCommand(newBatchCommand())
 
 	// Configure viper
 	viper.SetConfigName("deep-coding-config")
@@ -341,6 +342,15 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 			content = fmt.Sprintf("Unknown chunk type: %s\n", chunk.Type)
 		}
 	}
+
+	// Output the content if it's not empty
+	if content != "" {
+		if cli.currentTermCtrl != nil {
+			cli.currentTermCtrl.PrintInScrollRegion(content)
+		} else {
+			fmt.Print(content)
+		}
+	}
 }
 
 // runSinglePrompt handles single prompt execution
@@ -363,6 +373,13 @@ func (cli *CLI) showConfig() {
 	config += fmt.Sprintf("  %s: %s\n", bold("Temperature"), blue(fmt.Sprintf("%.1f", cfg.Temperature)))
 	config += fmt.Sprintf("  %s: %s\n", bold("Base URL"), blue(cfg.BaseURL))
 	config += fmt.Sprintf("  %s: %s\n", bold("Max Turns"), blue(fmt.Sprintf("%d", cfg.MaxTurns)))
+
+	// Display tool configuration
+	if cfg.TavilyAPIKey != "" {
+		config += fmt.Sprintf("\n%s Tool Configuration:\n", bold("🛠️"))
+		maskedKey := cfg.TavilyAPIKey[:8] + "..." + cfg.TavilyAPIKey[len(cfg.TavilyAPIKey)-8:]
+		config += fmt.Sprintf("  %s: %s\n", bold("Tavily API Key"), blue(maskedKey))
+	}
 
 	// Display multi-model configurations if available
 	if len(cfg.Models) > 0 {

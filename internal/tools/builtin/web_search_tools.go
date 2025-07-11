@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -122,12 +123,20 @@ func (t *WebSearchTool) Validate(args map[string]interface{}) error {
 }
 
 func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	// Note: API key would need to be configured externally
-	// For now, we'll return a helpful message about configuration
-	if t.apiKey == "" {
+	// Check for API key in tool instance, environment, or configuration
+	apiKey := t.apiKey
+	if apiKey == "" {
+		// Check environment variable as fallback
+		if envKey := os.Getenv("TAVILY_API_KEY"); envKey != "" {
+			apiKey = envKey
+		}
+	}
+	
+	if apiKey == "" {
 		return &ToolResult{
-			Content: "Web search is not configured. Please set the Tavily API key in your configuration:\n\n" +
-				"Run: deep-coding config --set tavilyApiKey=\"your-api-key-here\"\n\n" +
+			Content: "Web search is not configured. Please set the Tavily API key:\n\n" +
+				"Option 1: Environment variable: export TAVILY_API_KEY=\"your-api-key\"\n" +
+				"Option 2: Configuration file: Add \"tavilyApiKey\": \"your-api-key\" to ~/.alex-config.json\n\n" +
 				"Get your API key from: https://app.tavily.com/",
 			Data: map[string]interface{}{
 				"configured": false,
@@ -140,7 +149,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 
 	// Build request
 	request := TavilyRequest{
-		APIKey: t.apiKey,
+		APIKey: apiKey,
 		Query:  query,
 	}
 
