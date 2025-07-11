@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -24,31 +25,31 @@ func (rw *ResultWriterImpl) WriteResults(ctx context.Context, result *BatchResul
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
-	
+
 	// Write full batch results
 	batchFile := filepath.Join(path, "batch_results.json")
 	if err := rw.writeJSONFile(batchFile, result); err != nil {
 		return fmt.Errorf("failed to write batch results: %w", err)
 	}
-	
+
 	// Write predictions in SWE-bench format
 	predsFile := filepath.Join(path, "preds.json")
 	if err := rw.writePredictions(predsFile, result.Results); err != nil {
 		return fmt.Errorf("failed to write predictions: %w", err)
 	}
-	
+
 	// Write summary
 	summaryFile := filepath.Join(path, "summary.json")
 	if err := rw.writeSummary(summaryFile, result); err != nil {
 		return fmt.Errorf("failed to write summary: %w", err)
 	}
-	
+
 	// Write detailed results
 	detailedFile := filepath.Join(path, "detailed_results.json")
 	if err := rw.writeDetailedResults(detailedFile, result.Results); err != nil {
 		return fmt.Errorf("failed to write detailed results: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -57,36 +58,36 @@ func (rw *ResultWriterImpl) WritePartialResults(ctx context.Context, results []W
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
-	
+
 	// Write partial predictions
 	predsFile := filepath.Join(path, "preds_partial.json")
 	if err := rw.writePredictions(predsFile, results); err != nil {
 		return fmt.Errorf("failed to write partial predictions: %w", err)
 	}
-	
+
 	// Write partial detailed results
 	detailedFile := filepath.Join(path, "detailed_results_partial.json")
 	if err := rw.writeDetailedResults(detailedFile, results); err != nil {
 		return fmt.Errorf("failed to write partial detailed results: %w", err)
 	}
-	
+
 	return nil
 }
 
 // ReadResults reads previously saved results
 func (rw *ResultWriterImpl) ReadResults(ctx context.Context, path string) (*BatchResult, error) {
 	batchFile := filepath.Join(path, "batch_results.json")
-	
+
 	data, err := os.ReadFile(batchFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read batch results file: %w", err)
 	}
-	
+
 	var result BatchResult
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, fmt.Errorf("failed to parse batch results: %w", err)
 	}
-	
+
 	return &result, nil
 }
 
@@ -95,36 +96,40 @@ func (rw *ResultWriterImpl) AppendResult(ctx context.Context, result WorkerResul
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
-	
+
 	// Append to streaming results file
 	streamFile := filepath.Join(path, "streaming_results.jsonl")
 	file, err := os.OpenFile(streamFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open streaming results file: %w", err)
 	}
-	defer file.Close()
-	
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Warning: Failed to close streaming results file: %v", err)
+		}
+	}()
+
 	// Write result as JSON line
 	data, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("failed to marshal result: %w", err)
 	}
-	
+
 	if _, err := file.Write(data); err != nil {
 		return fmt.Errorf("failed to write result: %w", err)
 	}
-	
+
 	if _, err := file.WriteString("\n"); err != nil {
 		return fmt.Errorf("failed to write newline: %w", err)
 	}
-	
+
 	return nil
 }
 
 // writePredictions writes predictions in SWE-bench format
 func (rw *ResultWriterImpl) writePredictions(filePath string, results []WorkerResult) error {
 	predictions := make([]SWEBenchPrediction, 0, len(results))
-	
+
 	for _, result := range results {
 		prediction := SWEBenchPrediction{
 			InstanceID:   result.InstanceID,
@@ -132,7 +137,7 @@ func (rw *ResultWriterImpl) writePredictions(filePath string, results []WorkerRe
 			Explanation:  result.Explanation,
 			FilesChanged: result.FilesChanged,
 			Commands:     result.Commands,
-			
+
 			// Metadata
 			Status:     string(result.Status),
 			Duration:   result.Duration.Seconds(),
@@ -142,27 +147,27 @@ func (rw *ResultWriterImpl) writePredictions(filePath string, results []WorkerRe
 			ErrorType:  result.ErrorType,
 			RetryCount: result.RetryCount,
 		}
-		
+
 		predictions = append(predictions, prediction)
 	}
-	
+
 	return rw.writeJSONFile(filePath, predictions)
 }
 
 // writeSummary writes a summary of the batch results
 func (rw *ResultWriterImpl) writeSummary(filePath string, result *BatchResult) error {
 	summary := BatchSummary{
-		Timestamp:     result.EndTime.Format(time.RFC3339),
-		Duration:      result.Duration.String(),
-		TotalTasks:    result.TotalTasks,
+		Timestamp:      result.EndTime.Format(time.RFC3339),
+		Duration:       result.Duration.String(),
+		TotalTasks:     result.TotalTasks,
 		CompletedTasks: result.CompletedTasks,
-		FailedTasks:   result.FailedTasks,
-		SuccessRate:   result.SuccessRate,
-		TotalTokens:   result.TotalTokens,
-		TotalCost:     result.TotalCost,
-		AvgDuration:   result.AvgDuration.String(),
-		ErrorSummary:  result.ErrorSummary,
-		
+		FailedTasks:    result.FailedTasks,
+		SuccessRate:    result.SuccessRate,
+		TotalTokens:    result.TotalTokens,
+		TotalCost:      result.TotalCost,
+		AvgDuration:    result.AvgDuration.String(),
+		ErrorSummary:   result.ErrorSummary,
+
 		// Configuration summary
 		ModelName:     result.Config.Agent.Model.Name,
 		NumWorkers:    result.Config.NumWorkers,
@@ -170,7 +175,7 @@ func (rw *ResultWriterImpl) writeSummary(filePath string, result *BatchResult) e
 		DatasetSubset: result.Config.Instances.Subset,
 		DatasetSplit:  result.Config.Instances.Split,
 	}
-	
+
 	return rw.writeJSONFile(filePath, summary)
 }
 
@@ -185,15 +190,19 @@ func (rw *ResultWriterImpl) writeJSONFile(filePath string, data interface{}) err
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %w", filePath, err)
 	}
-	defer file.Close()
-	
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Warning: Failed to close file %s: %v", filePath, err)
+		}
+	}()
+
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
-	
+
 	if err := encoder.Encode(data); err != nil {
 		return fmt.Errorf("failed to encode JSON: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -204,7 +213,7 @@ type SWEBenchPrediction struct {
 	Explanation  string   `json:"explanation,omitempty"`
 	FilesChanged []string `json:"files_changed,omitempty"`
 	Commands     []string `json:"commands,omitempty"`
-	
+
 	// Metadata (not part of standard SWE-bench format)
 	Status     string  `json:"status,omitempty"`
 	Duration   float64 `json:"duration_seconds,omitempty"`
@@ -217,17 +226,17 @@ type SWEBenchPrediction struct {
 
 // BatchSummary represents a summary of batch processing results
 type BatchSummary struct {
-	Timestamp     string         `json:"timestamp"`
-	Duration      string         `json:"duration"`
-	TotalTasks    int            `json:"total_tasks"`
-	CompletedTasks int           `json:"completed_tasks"`
-	FailedTasks   int            `json:"failed_tasks"`
-	SuccessRate   float64        `json:"success_rate"`
-	TotalTokens   int            `json:"total_tokens"`
-	TotalCost     float64        `json:"total_cost"`
-	AvgDuration   string         `json:"avg_duration"`
-	ErrorSummary  map[string]int `json:"error_summary"`
-	
+	Timestamp      string         `json:"timestamp"`
+	Duration       string         `json:"duration"`
+	TotalTasks     int            `json:"total_tasks"`
+	CompletedTasks int            `json:"completed_tasks"`
+	FailedTasks    int            `json:"failed_tasks"`
+	SuccessRate    float64        `json:"success_rate"`
+	TotalTokens    int            `json:"total_tokens"`
+	TotalCost      float64        `json:"total_cost"`
+	AvgDuration    string         `json:"avg_duration"`
+	ErrorSummary   map[string]int `json:"error_summary"`
+
 	// Configuration summary
 	ModelName     string `json:"model_name"`
 	NumWorkers    int    `json:"num_workers"`
@@ -242,14 +251,18 @@ func (rw *ResultWriterImpl) ExportToCSV(filePath string, results []WorkerResult)
 	if err != nil {
 		return fmt.Errorf("failed to create CSV file: %w", err)
 	}
-	defer file.Close()
-	
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Warning: Failed to close CSV file: %v", err)
+		}
+	}()
+
 	// Write CSV header
 	header := "instance_id,status,duration_seconds,tokens_used,cost,error_type,retry_count\n"
 	if _, err := file.WriteString(header); err != nil {
 		return fmt.Errorf("failed to write CSV header: %w", err)
 	}
-	
+
 	// Write data rows
 	for _, result := range results {
 		row := fmt.Sprintf("%s,%s,%.2f,%d,%.4f,%s,%d\n",
@@ -265,7 +278,7 @@ func (rw *ResultWriterImpl) ExportToCSV(filePath string, results []WorkerResult)
 			return fmt.Errorf("failed to write CSV row: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -275,8 +288,12 @@ func (rw *ResultWriterImpl) ExportToMarkdown(filePath string, result *BatchResul
 	if err != nil {
 		return fmt.Errorf("failed to create Markdown file: %w", err)
 	}
-	defer file.Close()
-	
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Warning: Failed to close Markdown file: %v", err)
+		}
+	}()
+
 	// Write Markdown report
 	report := fmt.Sprintf(`# SWE-Bench Batch Processing Report
 
@@ -314,11 +331,11 @@ func (rw *ResultWriterImpl) ExportToMarkdown(filePath string, result *BatchResul
 		result.Config.Instances.Subset,
 		result.Config.Instances.Split,
 	)
-	
+
 	if _, err := file.WriteString(report); err != nil {
 		return fmt.Errorf("failed to write Markdown report: %w", err)
 	}
-	
+
 	// Write error summary table
 	if len(result.ErrorSummary) > 0 {
 		if _, err := file.WriteString("| Error Type | Count |\n"); err != nil {
@@ -327,7 +344,7 @@ func (rw *ResultWriterImpl) ExportToMarkdown(filePath string, result *BatchResul
 		if _, err := file.WriteString("|------------|-------|\n"); err != nil {
 			return err
 		}
-		
+
 		for errorType, count := range result.ErrorSummary {
 			row := fmt.Sprintf("| %s | %d |\n", errorType, count)
 			if _, err := file.WriteString(row); err != nil {
@@ -339,7 +356,7 @@ func (rw *ResultWriterImpl) ExportToMarkdown(filePath string, result *BatchResul
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -348,40 +365,40 @@ func (rw *ResultWriterImpl) ValidateResults(results []WorkerResult) error {
 	if len(results) == 0 {
 		return fmt.Errorf("no results to validate")
 	}
-	
+
 	for i, result := range results {
 		if result.InstanceID == "" {
 			return fmt.Errorf("result %d missing instance_id", i)
 		}
-		
+
 		if result.Status == "" {
 			return fmt.Errorf("result %d missing status", i)
 		}
-		
+
 		if result.Duration <= 0 {
 			return fmt.Errorf("result %d has invalid duration: %v", i, result.Duration)
 		}
-		
+
 		// Check if failed results have error information
 		if result.Status == StatusFailed && result.Error == "" {
 			return fmt.Errorf("result %d has failed status but no error message", i)
 		}
 	}
-	
+
 	return nil
 }
 
 // GetResultsStats returns statistics about the results
 func (rw *ResultWriterImpl) GetResultsStats(results []WorkerResult) ResultsStats {
 	var stats ResultsStats
-	
+
 	stats.Total = len(results)
-	
+
 	var totalDuration time.Duration
 	var totalTokens int
 	var totalCost float64
 	errorCounts := make(map[string]int)
-	
+
 	for _, result := range results {
 		switch result.Status {
 		case StatusCompleted:
@@ -396,34 +413,34 @@ func (rw *ResultWriterImpl) GetResultsStats(results []WorkerResult) ResultsStats
 		case StatusCanceled:
 			stats.Canceled++
 		}
-		
+
 		totalDuration += result.Duration
 		totalTokens += result.TokensUsed
 		totalCost += result.Cost
 	}
-	
+
 	if stats.Total > 0 {
 		stats.SuccessRate = float64(stats.Completed) / float64(stats.Total) * 100
 		stats.AvgDuration = totalDuration / time.Duration(stats.Total)
 	}
-	
+
 	stats.TotalTokens = totalTokens
 	stats.TotalCost = totalCost
 	stats.ErrorCounts = errorCounts
-	
+
 	return stats
 }
 
 // ResultsStats represents statistics about batch processing results
 type ResultsStats struct {
-	Total       int                    `json:"total"`
-	Completed   int                    `json:"completed"`
-	Failed      int                    `json:"failed"`
-	Timeout     int                    `json:"timeout"`
-	Canceled    int                    `json:"canceled"`
-	SuccessRate float64                `json:"success_rate"`
-	AvgDuration time.Duration          `json:"avg_duration"`
-	TotalTokens int                    `json:"total_tokens"`
-	TotalCost   float64                `json:"total_cost"`
-	ErrorCounts map[string]int         `json:"error_counts"`
+	Total       int            `json:"total"`
+	Completed   int            `json:"completed"`
+	Failed      int            `json:"failed"`
+	Timeout     int            `json:"timeout"`
+	Canceled    int            `json:"canceled"`
+	SuccessRate float64        `json:"success_rate"`
+	AvgDuration time.Duration  `json:"avg_duration"`
+	TotalTokens int            `json:"total_tokens"`
+	TotalCost   float64        `json:"total_cost"`
+	ErrorCounts map[string]int `json:"error_counts"`
 }

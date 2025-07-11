@@ -38,13 +38,13 @@ func main() {
 
 	// 创建长消息来快速触发上下文限制
 	longMessage := strings.Repeat("这是一个很长的消息内容，用来测试上下文管理系统。", 100)
-	
+
 	ctx := context.Background()
 
 	// 添加多条长消息直到触发上下文管理
 	for i := 1; i <= 50; i++ {
 		message := fmt.Sprintf("消息 %d: %s", i, longMessage)
-		
+
 		fmt.Printf("\n📝 添加消息 %d (长度: %d)\n", i, len(message))
 
 		// 添加用户消息
@@ -75,15 +75,15 @@ func main() {
 		// 检查当前上下文状态
 		if agent.GetReactCore() != nil {
 			stats := agent.GetReactCore().GetContextStats(sess)
-			fmt.Printf("📊 当前状态: %d 消息, %d tokens (%.1f%% 使用率)\n", 
-				stats.TotalMessages, 
+			fmt.Printf("📊 当前状态: %d 消息, %d tokens (%.1f%% 使用率)\n",
+				stats.TotalMessages,
 				stats.EstimatedTokens,
 				float64(stats.EstimatedTokens)/float64(stats.MaxTokens)*100)
 
 			// 当上下文超过阈值时触发处理
 			if stats.EstimatedTokens > 6000 {
 				fmt.Printf("\n⚠️ 上下文即将溢出，开始处理...\n")
-				
+
 				result, err := agent.GetReactCore().ForceContextSummarization(ctx, sess)
 				if err != nil {
 					fmt.Printf("❌ 上下文总结失败: %v\n", err)
@@ -92,26 +92,26 @@ func main() {
 					fmt.Printf("   • 原始消息: %d\n", result.OriginalCount)
 					fmt.Printf("   • 处理后消息: %d\n", result.ProcessedCount)
 					fmt.Printf("   • 备份ID: %s\n", result.BackupID)
-					
+
 					if result.Summary != nil {
 						fmt.Printf("   • 总结要点: %d 个\n", len(result.Summary.KeyPoints))
 						fmt.Printf("   • 讨论主题: %d 个\n", len(result.Summary.Topics))
 					}
 				}
-				
+
 				// 显示处理后的新状态
 				newStats := agent.GetReactCore().GetContextStats(sess)
-				fmt.Printf("📊 处理后状态: %d 消息, %d tokens (%.1f%% 使用率)\n", 
-					newStats.TotalMessages, 
+				fmt.Printf("📊 处理后状态: %d 消息, %d tokens (%.1f%% 使用率)\n",
+					newStats.TotalMessages,
 					newStats.EstimatedTokens,
 					float64(newStats.EstimatedTokens)/float64(newStats.MaxTokens)*100)
-				
+
 				fmt.Printf("🔍 消息分布:\n")
 				fmt.Printf("   • 系统消息: %d\n", newStats.SystemMessages)
 				fmt.Printf("   • 用户消息: %d\n", newStats.UserMessages)
-				fmt.Printf("   • 助手消息: %d\n", newStats.AssistantMessages) 
+				fmt.Printf("   • 助手消息: %d\n", newStats.AssistantMessages)
 				fmt.Printf("   • 总结消息: %d\n", newStats.SummaryMessages)
-				
+
 				break
 			}
 		}

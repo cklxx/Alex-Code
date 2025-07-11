@@ -11,35 +11,35 @@ import (
 
 // WorkerPoolImpl implements the WorkerPool interface
 type WorkerPoolImpl struct {
-	numWorkers    int
-	taskQueue     chan WorkerTask
-	resultQueue   chan WorkerResult
-	workers       []*Worker
-	agentFactory  AgentFactory
-	
+	numWorkers   int
+	taskQueue    chan WorkerTask
+	resultQueue  chan WorkerResult
+	workers      []*Worker
+	agentFactory AgentFactory
+
 	// State management
-	mu           sync.RWMutex
-	isStarted    bool
-	isStopped    bool
-	activeWorkers int32
-	queuedTasks  int32
+	mu             sync.RWMutex
+	isStarted      bool
+	isStopped      bool
+	activeWorkers  int32
+	queuedTasks    int32
 	completedTasks int32
-	failedTasks  int32
-	
+	failedTasks    int32
+
 	// Coordination
-	wg           sync.WaitGroup
-	ctx          context.Context
-	cancel       context.CancelFunc
+	wg     sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // Worker represents a single worker in the pool
 type Worker struct {
-	id           int
-	pool         *WorkerPoolImpl
-	agent        Agent
-	isActive     bool
-	currentTask  *WorkerTask
-	mu           sync.RWMutex
+	id          int
+	pool        *WorkerPoolImpl
+	agent       Agent
+	isActive    bool
+	currentTask *WorkerTask
+	mu          sync.RWMutex
 }
 
 // NewWorkerPool creates a new worker pool
@@ -50,7 +50,7 @@ func NewWorkerPool(numWorkers int) *WorkerPoolImpl {
 	if numWorkers > 20 {
 		numWorkers = 20
 	}
-	
+
 	return &WorkerPoolImpl{
 		numWorkers:   numWorkers,
 		taskQueue:    make(chan WorkerTask, numWorkers*2), // Buffer for better throughput
@@ -64,14 +64,14 @@ func NewWorkerPool(numWorkers int) *WorkerPoolImpl {
 func (wp *WorkerPoolImpl) Start(ctx context.Context) error {
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
-	
+
 	if wp.isStarted {
 		return fmt.Errorf("worker pool already started")
 	}
-	
+
 	// Create context for worker coordination
 	wp.ctx, wp.cancel = context.WithCancel(ctx)
-	
+
 	// Initialize workers
 	for i := 0; i < wp.numWorkers; i++ {
 		worker := &Worker{
@@ -79,15 +79,15 @@ func (wp *WorkerPoolImpl) Start(ctx context.Context) error {
 			pool: wp,
 		}
 		wp.workers[i] = worker
-		
+
 		// Start worker goroutine
 		wp.wg.Add(1)
 		go wp.workerLoop(worker)
 	}
-	
+
 	wp.isStarted = true
 	log.Printf("Worker pool started with %d workers", wp.numWorkers)
-	
+
 	return nil
 }
 
@@ -100,19 +100,19 @@ func (wp *WorkerPoolImpl) Stop(ctx context.Context) error {
 	}
 	wp.isStopped = true
 	wp.mu.Unlock()
-	
+
 	log.Printf("Stopping worker pool...")
-	
+
 	// Close task queue to signal workers to stop accepting new tasks
 	close(wp.taskQueue)
-	
+
 	// Wait for workers to finish with timeout
 	done := make(chan struct{})
 	go func() {
 		wp.wg.Wait()
 		close(done)
 	}()
-	
+
 	select {
 	case <-done:
 		log.Printf("Worker pool stopped gracefully")
@@ -125,17 +125,19 @@ func (wp *WorkerPoolImpl) Stop(ctx context.Context) error {
 		wp.cancel() // Force cancel all workers
 		wp.wg.Wait()
 	}
-	
+
 	// Close result queue
 	close(wp.resultQueue)
-	
+
 	// Clean up agents
 	for _, worker := range wp.workers {
 		if worker.agent != nil {
-			worker.agent.Close()
+			if err := worker.agent.Close(); err != nil {
+				log.Printf("Warning: Failed to close worker agent: %v", err)
+			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -143,11 +145,11 @@ func (wp *WorkerPoolImpl) Stop(ctx context.Context) error {
 func (wp *WorkerPoolImpl) SubmitTask(task WorkerTask) error {
 	wp.mu.RLock()
 	defer wp.mu.RUnlock()
-	
+
 	if !wp.isStarted || wp.isStopped {
 		return fmt.Errorf("worker pool not running")
 	}
-	
+
 	select {
 	case wp.taskQueue <- task:
 		atomic.AddInt32(&wp.queuedTasks, 1)
@@ -177,24 +179,24 @@ func (wp *WorkerPoolImpl) GetStatus() PoolStatus {
 // workerLoop is the main loop for each worker
 func (wp *WorkerPoolImpl) workerLoop(worker *Worker) {
 	defer wp.wg.Done()
-	
+
 	log.Printf("Worker %d started", worker.id)
-	
+
 	for {
 		select {
 		case <-wp.ctx.Done():
 			log.Printf("Worker %d stopped (context cancelled)", worker.id)
 			return
-			
+
 		case task, ok := <-wp.taskQueue:
 			if !ok {
 				log.Printf("Worker %d stopped (task queue closed)", worker.id)
 				return
 			}
-			
+
 			// Process task
 			result := wp.processTask(worker, task)
-			
+
 			// Send result
 			select {
 			case wp.resultQueue <- result:
@@ -212,28 +214,28 @@ func (wp *WorkerPoolImpl) processTask(worker *Worker, task WorkerTask) WorkerRes
 	atomic.AddInt32(&wp.queuedTasks, -1)
 	atomic.AddInt32(&wp.activeWorkers, 1)
 	defer atomic.AddInt32(&wp.activeWorkers, -1)
-	
+
 	worker.mu.Lock()
 	worker.isActive = true
 	worker.currentTask = &task
 	worker.mu.Unlock()
-	
+
 	defer func() {
 		worker.mu.Lock()
 		worker.isActive = false
 		worker.currentTask = nil
 		worker.mu.Unlock()
 	}()
-	
+
 	log.Printf("Worker %d processing task %s (instance %s)", worker.id, task.ID, task.Instance.ID)
-	
+
 	startTime := time.Now()
-	
+
 	// Create context with timeout
 	timeout := time.Duration(task.Config.Agent.Timeout) * time.Second
 	ctx, cancel := context.WithTimeout(wp.ctx, timeout)
 	defer cancel()
-	
+
 	// Ensure worker has an agent
 	if worker.agent == nil {
 		agent, err := wp.agentFactory.CreateAgent(ctx, task.Config)
@@ -255,17 +257,17 @@ func (wp *WorkerPoolImpl) processTask(worker *Worker, task WorkerTask) WorkerRes
 		}
 		worker.agent = agent
 	}
-	
+
 	// Process instance with timeout handling
 	var result *WorkerResult
 	var err error
-	
+
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		result, err = worker.agent.ProcessInstance(ctx, task.Instance)
 	}()
-	
+
 	select {
 	case <-done:
 		// Processing completed
@@ -305,11 +307,11 @@ func (wp *WorkerPoolImpl) processTask(worker *Worker, task WorkerTask) WorkerRes
 				result.EndTime = time.Now()
 				result.Duration = time.Since(startTime)
 				result.RetryCount = task.RetryCount
-				
+
 				if result.Status == "" {
 					result.Status = StatusCompleted
 				}
-				
+
 				if result.Status == StatusCompleted {
 					atomic.AddInt32(&wp.completedTasks, 1)
 				} else {
@@ -317,7 +319,7 @@ func (wp *WorkerPoolImpl) processTask(worker *Worker, task WorkerTask) WorkerRes
 				}
 			}
 		}
-		
+
 	case <-ctx.Done():
 		// Timeout or cancellation
 		log.Printf("Worker %d timed out processing instance %s", worker.id, task.Instance.ID)
@@ -333,17 +335,19 @@ func (wp *WorkerPoolImpl) processTask(worker *Worker, task WorkerTask) WorkerRes
 			RetryCount: task.RetryCount,
 		}
 		atomic.AddInt32(&wp.failedTasks, 1)
-		
+
 		// Try to cleanup the agent as it might be in a bad state
 		if worker.agent != nil {
-			worker.agent.Close()
+			if err := worker.agent.Close(); err != nil {
+				log.Printf("Warning: Failed to close failed worker agent: %v", err)
+			}
 			worker.agent = nil
 		}
 	}
-	
-	log.Printf("Worker %d completed task %s in %v (status: %s)", 
+
+	log.Printf("Worker %d completed task %s in %v (status: %s)",
 		worker.id, task.ID, result.Duration, result.Status)
-	
+
 	return *result
 }
 
@@ -351,7 +355,7 @@ func (wp *WorkerPoolImpl) processTask(worker *Worker, task WorkerTask) WorkerRes
 func (wp *WorkerPoolImpl) GetWorkerStatus() []WorkerStatus {
 	wp.mu.RLock()
 	defer wp.mu.RUnlock()
-	
+
 	status := make([]WorkerStatus, len(wp.workers))
 	for i, worker := range wp.workers {
 		worker.mu.RLock()
@@ -365,7 +369,7 @@ func (wp *WorkerPoolImpl) GetWorkerStatus() []WorkerStatus {
 		}
 		worker.mu.RUnlock()
 	}
-	
+
 	return status
 }
 
@@ -381,7 +385,7 @@ type WorkerStatus struct {
 func (wp *WorkerPoolImpl) WaitForCompletion(ctx context.Context, expectedTasks int) error {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -389,14 +393,14 @@ func (wp *WorkerPoolImpl) WaitForCompletion(ctx context.Context, expectedTasks i
 		case <-ticker.C:
 			status := wp.GetStatus()
 			completed := status.CompletedTasks + status.FailedTasks
-			
+
 			if completed >= expectedTasks {
-				log.Printf("All tasks completed: %d completed, %d failed", 
+				log.Printf("All tasks completed: %d completed, %d failed",
 					status.CompletedTasks, status.FailedTasks)
 				return nil
 			}
-			
-			log.Printf("Progress: %d/%d tasks completed (%d active, %d queued)", 
+
+			log.Printf("Progress: %d/%d tasks completed (%d active, %d queued)",
 				completed, expectedTasks, status.ActiveWorkers, status.QueuedTasks)
 		}
 	}
@@ -406,28 +410,28 @@ func (wp *WorkerPoolImpl) WaitForCompletion(ctx context.Context, expectedTasks i
 func (wp *WorkerPoolImpl) SetMaxWorkers(maxWorkers int) error {
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
-	
+
 	if wp.isStarted && !wp.isStopped {
 		return fmt.Errorf("cannot change worker count while pool is running")
 	}
-	
+
 	if maxWorkers <= 0 {
 		maxWorkers = 1
 	}
 	if maxWorkers > 20 {
 		maxWorkers = 20
 	}
-	
+
 	wp.numWorkers = maxWorkers
 	wp.workers = make([]*Worker, maxWorkers)
-	
+
 	return nil
 }
 
 // GetMetrics returns performance metrics for the worker pool
 func (wp *WorkerPoolImpl) GetMetrics() WorkerPoolMetrics {
 	status := wp.GetStatus()
-	
+
 	return WorkerPoolMetrics{
 		NumWorkers:     wp.numWorkers,
 		ActiveWorkers:  status.ActiveWorkers,
