@@ -110,6 +110,7 @@ through streaming responses and advanced tool calling capabilities.
 			bold("EXAMPLES:"),
 			bold("FEATURES:")),
 		Version: cobraVersion,
+		Args:    cobra.ArbitraryArgs, // Allow arbitrary arguments for single prompt mode
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return cli.initialize(cmd)
 		},
