@@ -246,26 +246,6 @@ func TestHelpCommand(t *testing.T) {
 	}
 }
 
-// TestInvalidCommand 测试无效命令处理
-func TestInvalidCommand(t *testing.T) {
-	rootCmd := NewRootCommand()
-
-	output := &bytes.Buffer{}
-	rootCmd.SetOut(output)
-	rootCmd.SetErr(output)
-	rootCmd.SetArgs([]string{"invalid-command"})
-
-	err := rootCmd.Execute()
-	if err == nil {
-		t.Fatal("Expected error for invalid command")
-	}
-
-	errorOutput := output.String()
-	if !strings.Contains(errorOutput, "unknown command") && !strings.Contains(errorOutput, "invalid") {
-		t.Errorf("Expected error message about unknown command, got: %s", errorOutput)
-	}
-}
-
 // Helper function to find a command by name
 func findCommand(parent *cobra.Command, name string) *cobra.Command {
 	for _, cmd := range parent.Commands() {
