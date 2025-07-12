@@ -44,15 +44,15 @@ make install                  # Install binary to GOPATH/bin
 # Single prompt mode
 ./alex "Analyze the current directory structure"
 
-# With streaming responses (default)
-./alex -stream "List all Go files"
+# With streaming responses (default behavior)
+./alex "List all Go files"
 
 # Configure model parameters
-./alex -tokens 4000 -temp 0.8 "Complex analysis task"
+./alex --tokens 4000 --temperature 0.8 "Complex analysis task"
 
 # Session management
 ./alex -r session_id -i       # Resume specific session
-./alex -ls                    # List all sessions
+./alex session list           # List all sessions
 
 # Configuration management
 ./alex config show            # Show current configuration

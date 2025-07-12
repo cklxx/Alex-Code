@@ -245,10 +245,12 @@
             border-radius: 12px;
             padding: 2rem;
             margin: 2rem auto;
-            max-width: 600px;
+            max-width: min(75vw, 970px); /* Golden ratio optimization: 600 * 1.618 */
+            min-width: 320px; /* Mobile-first responsive design */
             border: 1px solid var(--border-color);
             position: relative;
             overflow: hidden;
+            aspect-ratio: 16/10; /* Modern widescreen proportion */
         }
 
         .demo-container::before {
@@ -295,8 +297,15 @@
         .terminal-content {
             font-size: 0.9rem;
             line-height: 1.5;
-            height: 300px;
+            height: 60vh; /* Dynamic viewport-based height (Golden ratio: ~38.2% of screen) */
+            max-height: 485px; /* Golden ratio: 300 * 1.618 */
+            min-height: 240px; /* Minimum readable height */
             overflow-y: auto;
+            scroll-behavior: smooth; /* Modern smooth scrolling */
+            scrollbar-width: thin; /* Modern thin scrollbars */
+            scrollbar-color: var(--accent-color) transparent;
+            border-radius: 4px; /* Consistent with modern design */
+            background: linear-gradient(135deg, #000 0%, #0a0a0a 100%); /* Subtle gradient */
         }
 
         .command {
@@ -445,7 +454,61 @@
             color: var(--text-muted);
         }
 
-        /* Responsive */
+        /* Modern Scrollbar Styling */
+        .terminal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .terminal-content::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+        
+        .terminal-content::-webkit-scrollbar-thumb {
+            background: var(--accent-color);
+            border-radius: 4px;
+            transition: background 0.3s ease;
+        }
+        
+        .terminal-content::-webkit-scrollbar-thumb:hover {
+            background: var(--success-color);
+        }
+
+        /* Advanced Responsive Design - Golden Ratio & 70/30 Split */
+        @media (min-width: 1400px) {
+            .demo-container {
+                max-width: 1200px; /* Ultra-wide support */
+                display: grid;
+                grid-template-columns: 70fr 30fr; /* 70/30 split for large screens */
+                gap: 2rem;
+                aspect-ratio: unset;
+            }
+            
+            .terminal {
+                grid-column: 1; /* Main terminal takes 70% */
+            }
+            
+            .demo-sidebar {
+                grid-column: 2; /* Sidebar takes 30% */
+                background: rgba(0, 0, 0, 0.3);
+                border-radius: 8px;
+                padding: 1rem;
+                border-left: 2px solid var(--accent-color);
+            }
+        }
+        
+        @media (max-width: 1024px) {
+            .demo-container {
+                max-width: 85vw; /* Tablet optimization */
+                aspect-ratio: 4/3; /* More square for tablets */
+            }
+            
+            .terminal-content {
+                height: 50vh;
+                max-height: 400px;
+            }
+        }
+        
         @media (max-width: 768px) {
             .hero h1 {
                 font-size: 2.5rem;
@@ -466,6 +529,18 @@
             
             .features-grid {
                 grid-template-columns: 1fr;
+            }
+            
+            .demo-container {
+                max-width: 95vw; /* Mobile optimization */
+                padding: 1rem;
+                aspect-ratio: 1/1; /* Square for mobile */
+            }
+            
+            .terminal-content {
+                height: 40vh;
+                max-height: 300px;
+                font-size: 0.8rem; /* Smaller font for mobile */
             }
         }
 

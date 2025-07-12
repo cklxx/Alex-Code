@@ -22,12 +22,12 @@ make build                    # Builds ./alex binary
 ./alex "Analyze the current directory structure"
 # Output: ✅ Task completed in 1.2s
 
-# With streaming responses (default)
-./alex -stream "List all Go files"
+# With streaming responses (default behavior)
+./alex "List all Go files"
 
 # Session management
 ./alex -r session_id -i       # Resume specific session
-./alex -ls                    # List all sessions
+./alex session list           # List all sessions
 ```
 
 ## Core Features

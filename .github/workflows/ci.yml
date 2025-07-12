@@ -94,28 +94,28 @@ jobs:
         GOARCH: amd64
       run: |
         mkdir -p build
-        go build -ldflags="-w -s" -o "build/alex-linux-amd64" cmd/main.go
+        go build -ldflags="-w -s" -o "build/alex-linux-amd64" ./cmd
         
     - name: Build for macOS (amd64)
       env:
         GOOS: darwin
         GOARCH: amd64
       run: |
-        go build -ldflags="-w -s" -o "build/alex-darwin-amd64" cmd/main.go
+        go build -ldflags="-w -s" -o "build/alex-darwin-amd64" ./cmd
         
     - name: Build for macOS (arm64)
       env:
         GOOS: darwin
         GOARCH: arm64
       run: |
-        go build -ldflags="-w -s" -o "build/alex-darwin-arm64" cmd/main.go
+        go build -ldflags="-w -s" -o "build/alex-darwin-arm64" ./cmd
         
     - name: Build for Windows (amd64)
       env:
         GOOS: windows
         GOARCH: amd64
       run: |
-        go build -ldflags="-w -s" -o "build/alex-windows-amd64.exe" cmd/main.go
+        go build -ldflags="-w -s" -o "build/alex-windows-amd64.exe" ./cmd
         
     - name: Create release packages
       run: |
@@ -187,7 +187,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         
     - name: Build binary
-      run: go build -o alex cmd/main.go
+      run: go build -o alex ./cmd
       
     - name: Make binary executable (Unix)
       if: runner.os != 'Windows'
@@ -221,7 +221,7 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
         
     - name: Build binary
-      run: go build -o alex cmd/main.go
+      run: go build -o alex ./cmd
       
     - name: Create test files
       run: |
