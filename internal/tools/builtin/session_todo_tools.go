@@ -251,7 +251,7 @@ func (t *SessionTodoUpdateTool) createBatchTodos(session *session.Session, args 
 
 	var createdTodos []types.TodoItem
 	var summary strings.Builder
-	summary.WriteString(fmt.Sprintf("✅ Created %d todos:\n", len(tasks)))
+	summary.WriteString(fmt.Sprintf("✅ Created %d todos:\n  ", len(tasks)))
 
 	baseOrder := t.getNextOrder(todos)
 

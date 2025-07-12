@@ -42,6 +42,10 @@ func DeepCodingError(msg string) string {
 }
 
 func DeepCodingAction(msg string) string {
+	return green(msg)
+}
+
+func DeepCodingStatus(msg string) string {
 	return blue(msg)
 }
 
@@ -54,7 +58,7 @@ func DeepCodingReasoning(msg string) string {
 }
 
 func DeepCodingResult(msg string) string {
-	return green("✨ \n" + msg)
+	return green("✨ \n  " + msg)
 }
 
 func DeepCodingSuccess(msg string) string {
@@ -289,7 +293,7 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 
 	switch chunk.Type {
 	case "status":
-		content = "\n" + DeepCodingAction(chunk.Content) + "\n"
+		content = "\n" + DeepCodingStatus(chunk.Content) + "\n"
 	case "thinking_start":
 		content = DeepCodingThinking("Analyzing your request...") + "\n"
 		// Update timer message to "Thinking" (don't restart timer)

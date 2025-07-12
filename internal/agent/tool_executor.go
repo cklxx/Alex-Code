@@ -189,8 +189,8 @@ func (te *ToolExecutor) executeSerialToolsStream(ctx context.Context, toolCalls 
 		} else if result != nil {
 			// 发送工具结果信号
 			var contentStr string
-			if len(result.Content) > 100 {
-				contentStr = result.Content[:100] + "..."
+			if len(result.Content) > 200 {
+				contentStr = result.Content[:200] + "..."
 			} else {
 				contentStr = result.Content
 			}

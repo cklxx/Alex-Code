@@ -362,7 +362,7 @@ func (t *CodeExecutorTool) Execute(ctx context.Context, args map[string]interfac
 	var content string
 	if result.Success {
 		if result.Output != "" {
-			content = fmt.Sprintf("Code executed successfully in %v:\n\n%s", result.ExecutionTime, result.Output)
+			content = fmt.Sprintf("Code executed successfully in %v:\n\n  %s", result.ExecutionTime, result.Output)
 		} else {
 			content = fmt.Sprintf("Code executed successfully in %v (no output)", result.ExecutionTime)
 		}
