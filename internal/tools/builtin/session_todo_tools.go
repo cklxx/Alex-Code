@@ -282,10 +282,11 @@ func (t *SessionTodoUpdateTool) createBatchTodos(session *session.Session, args 
 		todos = append(todos, newTodo)
 		createdTodos = append(createdTodos, newTodo)
 
-		// Add to summary (safely truncate ID to max 8 chars)
+		// Add to summary (safely truncate ID to max 8 chars using rune-based slicing)
 		displayID := id
-		if len(id) > 8 {
-			displayID = id[:8]
+		idRunes := []rune(id)
+		if len(idRunes) > 8 {
+			displayID = string(idRunes[:8])
 		}
 		summary.WriteString(fmt.Sprintf("  %d. [%s] %s\n", order, displayID, content))
 	}
@@ -758,7 +759,13 @@ func (t *SessionTodoReadTool) Execute(ctx context.Context, args map[string]inter
 
 			summary.WriteString(fmt.Sprintf("%s %s (%d):\n", statusIcon, strings.ToUpper(strings.ReplaceAll(status, "_", " ")), len(todos)))
 			for _, todo := range todos {
-				summary.WriteString(fmt.Sprintf("  %d. [%s] %s\n", todo.Order, todo.ID[:8], todo.Content))
+				// Use rune-based slicing to properly handle UTF-8 characters in todo ID
+			idRunes := []rune(todo.ID)
+			displayID := todo.ID
+			if len(idRunes) > 8 {
+				displayID = string(idRunes[:8])
+			}
+			summary.WriteString(fmt.Sprintf("  %d. [%s] %s\n", todo.Order, displayID, todo.Content))
 			}
 			summary.WriteString("\n")
 		}

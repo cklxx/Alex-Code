@@ -188,14 +188,18 @@ func (cm *CacheManager) generateConversationSummary(messages []Message) string {
 		first := messages[0]
 		last := messages[len(messages)-1]
 
-		if len(first.Content) > 100 {
-			parts = append(parts, fmt.Sprintf("Started with: %s...", first.Content[:100]))
+		// Use rune-based slicing to properly handle UTF-8 characters in message content
+		firstRunes := []rune(first.Content)
+		if len(firstRunes) > 100 {
+			parts = append(parts, fmt.Sprintf("Started with: %s...", string(firstRunes[:100])))
 		} else {
 			parts = append(parts, fmt.Sprintf("Started with: %s", first.Content))
 		}
 
-		if len(last.Content) > 100 {
-			parts = append(parts, fmt.Sprintf("Last message: %s...", last.Content[:100]))
+		// Use rune-based slicing to properly handle UTF-8 characters in message content
+		lastRunes := []rune(last.Content)
+		if len(lastRunes) > 100 {
+			parts = append(parts, fmt.Sprintf("Last message: %s...", string(lastRunes[:100])))
 		} else if last.Content != first.Content {
 			parts = append(parts, fmt.Sprintf("Last message: %s", last.Content))
 		}
