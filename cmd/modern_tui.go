@@ -68,6 +68,7 @@ type (
 	streamResponseMsg struct{ content string }
 	streamStartMsg    struct{ input string }
 	streamChunkMsg    struct{ content string }
+	streamContentMsg  struct{ content string; isMarkdown bool } // Enhanced message for markdown content
 	streamCompleteMsg struct{}
 	processingDoneMsg struct{}
 	errorOccurredMsg  struct{ err error }
@@ -76,19 +77,21 @@ type (
 
 // ModernChatModel represents the clean TUI model
 type ModernChatModel struct {
-	textarea         textarea.Model
-	messages         []ChatMessage
-	processing       bool
-	agent            *agent.ReactAgent
-	config           *config.Manager
-	width            int
-	height           int
-	ready            bool
-	currentInput     string
-	execTimer        ExecutionTimer
-	program          *tea.Program
-	currentMessage   *ChatMessage // Track current streaming message
-	sessionStartTime time.Time    // Track session start time
+	textarea            textarea.Model
+	messages            []ChatMessage
+	processing          bool
+	agent               *agent.ReactAgent
+	config              *config.Manager
+	width               int
+	height              int
+	ready               bool
+	currentInput        string
+	execTimer           ExecutionTimer
+	program             *tea.Program
+	currentMessage      *ChatMessage // Track current streaming message
+	sessionStartTime    time.Time    // Track session start time
+	contentBuffer       strings.Builder // Buffer for accumulating streaming content
+	lastRenderedContent string       // Last rendered markdown content to avoid re-rendering
 }
 
 // ChatMessage represents a chat message with type and content
@@ -303,6 +306,34 @@ func (m ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case streamContentMsg:
+		// Handle streaming content with potential markdown rendering
+		if m.currentMessage != nil {
+			// Accumulate content in buffer
+			m.contentBuffer.WriteString(msg.content)
+			currentContent := m.contentBuffer.String()
+			
+			if msg.isMarkdown && m.shouldStreamAsMarkdown(currentContent) {
+				// Try to render as markdown and show incremental updates
+				if globalMarkdownRenderer != nil {
+					renderedContent := globalMarkdownRenderer.RenderIfMarkdown(currentContent)
+					if renderedContent != m.lastRenderedContent {
+						// Calculate the new part to display
+						newPart := m.getNewRenderedContent(renderedContent)
+						m.currentMessage.Content += newPart
+						m.lastRenderedContent = renderedContent
+					}
+				} else {
+					// Fallback to raw content if markdown renderer not available
+					m.currentMessage.Content += msg.content
+				}
+			} else {
+				// For non-markdown content, append directly
+				m.currentMessage.Content += msg.content
+			}
+		}
+		return m, nil
+
 	case streamCompleteMsg:
 		// Add execution time to final message
 		if m.currentMessage != nil && (m.execTimer.Active || !m.execTimer.StartTime.IsZero()) {
@@ -310,6 +341,9 @@ func (m ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentMessage.Content += fmt.Sprintf("\n\n⏱️ Execution time: %v", duration.Truncate(10*time.Millisecond))
 		}
 		m.currentMessage = nil
+		// Reset streaming state for next message
+		m.contentBuffer.Reset()
+		m.lastRenderedContent = ""
 		return m, func() tea.Msg { return processingDoneMsg{} }
 
 	case tickerMsg:
@@ -405,7 +439,9 @@ func (m ModernChatModel) processUserInput(input string) tea.Cmd {
 						content = "✨ " + chunk.Content + "\n"
 					}
 				case "llm_content":
-					content = chunk.Content
+					// Use enhanced streaming for potential markdown content
+					m.program.Send(streamContentMsg{content: chunk.Content, isMarkdown: true})
+					return // Skip the normal content sending below
 				case "complete":
 					if chunk.Content != "" {
 						content = "✅ " + chunk.Content + "\n"
@@ -525,6 +561,57 @@ func (m ModernChatModel) View() string {
 	}
 
 	return result
+}
+
+// shouldStreamAsMarkdown determines if content should be rendered as markdown in real-time (TUI version)
+func (m *ModernChatModel) shouldStreamAsMarkdown(content string) bool {
+	// Don't try streaming markdown for very short content
+	if len(strings.TrimSpace(content)) < 20 {
+		return false
+	}
+	
+	// Check for strong markdown indicators early
+	earlyIndicators := []string{
+		"# ",      // Headers
+		"## ",     // Headers  
+		"### ",    // Headers
+		"```",     // Code blocks
+		"- ",      // Lists
+		"* ",      // Lists
+		"1. ",     // Numbered lists
+	}
+	
+	for _, indicator := range earlyIndicators {
+		if strings.Contains(content, indicator) {
+			return true
+		}
+	}
+	
+	// Check for markdown patterns that benefit from streaming
+	if strings.Contains(content, "**") || strings.Contains(content, "`") {
+		return true
+	}
+	
+	return false
+}
+
+// getNewRenderedContent calculates the new part of rendered content to display (TUI version)
+func (m *ModernChatModel) getNewRenderedContent(newRendered string) string {
+	if m.lastRenderedContent == "" {
+		return newRendered
+	}
+	
+	// Simple approach: if the new content is longer, show the difference
+	if len(newRendered) > len(m.lastRenderedContent) {
+		// Check if the old content is a prefix of the new content
+		if strings.HasPrefix(newRendered, m.lastRenderedContent) {
+			return newRendered[len(m.lastRenderedContent):]
+		}
+	}
+	
+	// If we can't determine the diff reliably, return the new content
+	// This might cause some duplication but ensures content is displayed
+	return newRendered
 }
 
 // Run the modern TUI

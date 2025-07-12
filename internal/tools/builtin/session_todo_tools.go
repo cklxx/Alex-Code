@@ -282,8 +282,12 @@ func (t *SessionTodoUpdateTool) createBatchTodos(session *session.Session, args 
 		todos = append(todos, newTodo)
 		createdTodos = append(createdTodos, newTodo)
 
-		// Add to summary
-		summary.WriteString(fmt.Sprintf("  %d. [%s] %s\n", order, id[:8], content))
+		// Add to summary (safely truncate ID to max 8 chars)
+		displayID := id
+		if len(id) > 8 {
+			displayID = id[:8]
+		}
+		summary.WriteString(fmt.Sprintf("  %d. [%s] %s\n", order, displayID, content))
 	}
 
 	// Save todos to session

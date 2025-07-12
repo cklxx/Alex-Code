@@ -42,7 +42,7 @@ func DeepCodingError(msg string) string {
 }
 
 func DeepCodingAction(msg string) string {
-	return blue("🔧 " + msg)
+	return blue(msg)
 }
 
 func DeepCodingThinking(msg string) string {
@@ -54,7 +54,7 @@ func DeepCodingReasoning(msg string) string {
 }
 
 func DeepCodingResult(msg string) string {
-	return green("✅ " + msg)
+	return green("✨ \n" + msg)
 }
 
 func DeepCodingSuccess(msg string) string {
@@ -62,23 +62,24 @@ func DeepCodingSuccess(msg string) string {
 }
 
 func DeepCodingToolExecution(title, content string) string {
-	return fmt.Sprintf("%s %s:\n%s\n", cyan("🛠️"), title, content)
+	return fmt.Sprintf("%s:%s\n", title, content)
 }
 
 // CLI holds the command line interface state
 type CLI struct {
-	agent            *agent.ReactAgent
-	config           *config.Manager
-	interactive      bool
-	verbose          bool
-	debug            bool
-	useTUI           bool // Whether to use Bubble Tea TUI
-	currentTermCtrl  *TerminalController
-	currentStartTime time.Time
-	contentBuffer    strings.Builder // Buffer for accumulating streaming content (using strings.Builder for better performance)
-	processing       bool            // Whether currently processing
-	currentMessage   string          // Current working message
-	inputQueue       chan string     // Queue for pending inputs during processing
+	agent               *agent.ReactAgent
+	config              *config.Manager
+	interactive         bool
+	verbose             bool
+	debug               bool
+	useTUI              bool // Whether to use Bubble Tea TUI
+	currentTermCtrl     *TerminalController
+	currentStartTime    time.Time
+	contentBuffer       strings.Builder // Buffer for accumulating streaming content (using strings.Builder for better performance)
+	lastRenderedContent string          // Last rendered markdown content to avoid re-rendering
+	processing          bool            // Whether currently processing
+	currentMessage      string          // Current working message
+	inputQueue          chan string     // Queue for pending inputs during processing
 }
 
 // NewRootCommand creates the root cobra command
@@ -288,7 +289,7 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 
 	switch chunk.Type {
 	case "status":
-		content = DeepCodingAction(chunk.Content) + "\n"
+		content = "\n" + DeepCodingAction(chunk.Content) + "\n"
 	case "thinking_start":
 		content = DeepCodingThinking("Analyzing your request...") + "\n"
 		// Update timer message to "Thinking" (don't restart timer)
@@ -326,18 +327,17 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 			cli.updateWorkingIndicatorMessage("Working")
 		}
 	case "tool_start":
-		content = DeepCodingAction(chunk.Content) + "\n"
+		content = "\n" + DeepCodingAction(chunk.Content) + "\n"
 	case "tool_result":
-		content = DeepCodingToolExecution("Tool Result", chunk.Content)
+		content = DeepCodingToolExecution("⎿ ", chunk.Content)
 	case "tool_error":
 		content = DeepCodingError(chunk.Content) + "\n"
 	case "final_answer":
-		content = "\n" + DeepCodingResult(chunk.Content)
+		content = RenderMarkdown(chunk.Content)
+		content = "\n" + DeepCodingResult(content)
 		if !strings.HasSuffix(content, "\n") {
 			content += "\n"
 		}
-	case "task_complete":
-		content = DeepCodingSuccess("Task completed") + "\n"
 	case "iteration":
 		// Handle ReAct iteration chunks - these represent steps in the think-act-observe cycle
 		if cli.debug {
@@ -346,24 +346,20 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 	case "llm_content", "content":
 		// Accumulate streaming content for better markdown processing
 		cli.contentBuffer.WriteString(chunk.Content)
-		// For immediate display, show raw content without markdown processing
-		content = chunk.Content
 	case "error":
 		content = DeepCodingError(chunk.Content) + "\n"
 	case "complete":
-		// Process accumulated content for markdown rendering
+		// Process accumulated content for markdown rendering (fallback for non-streaming content)
 		if cli.contentBuffer.Len() > 0 {
 			bufferedContent := cli.contentBuffer.String()
-			if ShouldRenderAsMarkdown(bufferedContent) {
-				renderedContent := RenderMarkdown(bufferedContent)
-				if cli.currentTermCtrl != nil {
-					cli.currentTermCtrl.PrintInScrollRegion("\n--- Output ---\n" + renderedContent)
-				} else {
-					fmt.Print("\n--- Output ---\n" + renderedContent)
-				}
+			// Only show final markdown rendering if we haven't been streaming markdown
+			if !cli.shouldStreamAsMarkdown(bufferedContent) && ShouldRenderAsMarkdown(bufferedContent) {
+				content = RenderMarkdown(bufferedContent)
 			}
+			// Reset buffers for next use
 			cli.contentBuffer.Reset()
 			cli.contentBuffer.Grow(4096) // Re-allocate buffer after reset for next use
+			cli.lastRenderedContent = "" // Reset rendered content tracking
 		}
 		// Update message to show completion
 		if cli.processing {
@@ -385,21 +381,72 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 	}
 }
 
+// shouldStreamAsMarkdown determines if content should be rendered as markdown in real-time
+func (cli *CLI) shouldStreamAsMarkdown(content string) bool {
+	// Don't try streaming markdown for very short content
+	if len(strings.TrimSpace(content)) < 20 {
+		return false
+	}
+
+	// Check for strong markdown indicators early
+	earlyIndicators := []string{
+		"# ",   // Headers
+		"## ",  // Headers
+		"### ", // Headers
+		"```",  // Code blocks
+		"- ",   // Lists
+		"* ",   // Lists
+		"1. ",  // Numbered lists
+	}
+
+	for _, indicator := range earlyIndicators {
+		if strings.Contains(content, indicator) {
+			return true
+		}
+	}
+
+	// Check for markdown patterns that benefit from streaming
+	if strings.Contains(content, "**") || strings.Contains(content, "`") {
+		return true
+	}
+
+	return false
+}
+
+// getNewRenderedContent calculates the new part of rendered content to display
+func (cli *CLI) getNewRenderedContent(newRendered string) string {
+	if cli.lastRenderedContent == "" {
+		return newRendered
+	}
+
+	// Simple approach: if the new content is longer, show the difference
+	if len(newRendered) > len(cli.lastRenderedContent) {
+		// Check if the old content is a prefix of the new content
+		if strings.HasPrefix(newRendered, cli.lastRenderedContent) {
+			return newRendered[len(cli.lastRenderedContent):]
+		}
+	}
+
+	// If we can't determine the diff reliably, return the new content
+	// This might cause some duplication but ensures content is displayed
+	return newRendered
+}
+
 // runSinglePrompt handles single prompt execution
 func (cli *CLI) runSinglePrompt(prompt string) error {
 	// Record start time
 	startTime := time.Now()
-	
+
 	if cli.verbose {
 		fmt.Printf("%s Processing: %s\n", blue("⚡"), prompt)
 	}
 
 	ctx := context.Background()
 	err := cli.agent.ProcessMessageStream(ctx, prompt, cli.config.GetConfig(), cli.deepCodingStreamCallback)
-	
+
 	// Calculate and display completion time
 	duration := time.Since(startTime)
-	
+
 	// Format duration nicely
 	var durationStr string
 	if duration < time.Second {
@@ -409,14 +456,14 @@ func (cli *CLI) runSinglePrompt(prompt string) error {
 	} else {
 		durationStr = fmt.Sprintf("%.1fm", duration.Minutes())
 	}
-	
+
 	// Display completion message with time
 	if err != nil {
 		fmt.Printf("\n%s Task failed after %s\n", red("❌"), durationStr)
 	} else {
 		fmt.Printf("\n%s Task completed in %s\n", green("✅"), durationStr)
 	}
-	
+
 	return err
 }
 
