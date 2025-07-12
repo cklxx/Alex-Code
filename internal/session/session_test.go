@@ -367,9 +367,14 @@ func TestManager_ListSessions(t *testing.T) {
 	}
 
 	for _, id := range sessionIDs {
-		_, err = manager.StartSession(id)
+		session, err := manager.StartSession(id)
 		if err != nil {
 			t.Fatalf("Failed to start session %s: %v", id, err)
+		}
+		// 保存会话到磁盘以便列出
+		err = manager.SaveSession(session)
+		if err != nil {
+			t.Fatalf("Failed to save session %s: %v", id, err)
 		}
 	}
 
