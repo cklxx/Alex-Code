@@ -295,15 +295,53 @@
         .terminal-content {
             font-size: 0.9rem;
             line-height: 1.5;
+            height: 300px;
+            overflow-y: auto;
         }
 
         .command {
             color: var(--success-color);
+            margin: 0.5rem 0;
+            font-weight: 500;
         }
 
         .output {
             color: var(--text-secondary);
-            margin: 0.5rem 0;
+            margin: 0.25rem 0;
+            padding-left: 0.5rem;
+            position: relative;
+        }
+
+        .output:hover {
+            color: var(--text-primary);
+            transition: color 0.2s ease;
+        }
+
+        /* Special styling for different output types */
+        .output:contains("🧠") {
+            color: var(--accent-color);
+        }
+
+        .output:contains("🛠️") {
+            color: #ffaa00;
+        }
+
+        .output:contains("✅") {
+            color: var(--success-color);
+        }
+
+        .output:contains("⚠️") {
+            color: #ff6666;
+        }
+
+        /* Cursor animation for terminal */
+        .terminal-cursor {
+            display: inline-block;
+            background-color: var(--success-color);
+            width: 8px;
+            height: 1.2em;
+            margin-left: 2px;
+            animation: blink 1s infinite;
         }
 
         .typing-effect {
@@ -486,13 +524,8 @@
                                 <div class="terminal-dot dot-yellow"></div>
                                 <div class="terminal-dot dot-green"></div>
                             </div>
-                            <div class="terminal-content">
-                                <div class="command">$ ./alex "Analyze this Go project structure"</div>
-                                <div class="output">🧠 ReAct Agent: Analyzing project...</div>
-                                <div class="output">🛠️ Tool: file_list - Scanning directories</div>
-                                <div class="output">🔍 Found: 45 Go files, 12 packages</div>
-                                <div class="output">✅ Analysis complete in 23ms</div>
-                                <div class="command typing-effect">$ </div>
+                            <div class="terminal-content" id="terminal-content">
+                                <!-- Terminal content will be dynamically updated -->
                             </div>
                         </div>
                     </div>
@@ -592,45 +625,201 @@
             });
         });
 
-        // Typing effect for terminal
-        const terminalCommand = document.querySelector('.typing-effect');
-        const commands = [
-            '$ ./alex "Review my code"',
-            '$ ./alex "Fix this bug"', 
-            '$ ./alex "Optimize performance"',
-            '$ ./alex "Write unit tests"',
-            '$ ./alex "Search best practices"'
+        // Enhanced terminal demo with realistic Alex interactions
+        const terminalContent = document.getElementById('terminal-content');
+        
+        const demoScenarios = [
+            {
+                command: './alex "Analyze this Go project structure"',
+                output: [
+                    '🧠 ReAct Agent: Starting analysis...',
+                    '🛠️ Tool: file_list - Scanning project directories',
+                    '📊 Found: 45 Go files, 12 packages, 8,432 lines of code',
+                    '🔍 Detected: ReAct agent architecture, builtin tools, session management',
+                    '📁 Key directories: internal/agent, internal/tools, cmd/',
+                    '',
+                    '✅ Task completed in 1.2s'
+                ]
+            },
+            {
+                command: './alex "Search for web development best practices 2025"',
+                output: [
+                    '🧠 ReAct Agent: Planning web search...',
+                    '🛠️ Tool: web_search - Query: "web development best practices 2025"',
+                    '🌐 Tavily API: Searching latest resources...',
+                    '📝 Found 5 relevant articles from authoritative sources',
+                    '💡 Key trends: AI integration, performance optimization, accessibility',
+                    '🔗 Sources: MDN, web.dev, CSS-Tricks, Smashing Magazine',
+                    '',
+                    '✅ Task completed in 2.1s'
+                ]
+            },
+            {
+                command: './alex "Review and optimize this function"',
+                output: [
+                    '🧠 ReAct Agent: Analyzing code...',
+                    '🛠️ Tool: file_read - Reading target file',
+                    '🔍 Code analysis: Function complexity score: 7/10',
+                    '⚠️ Issues found: Potential memory leak, inefficient loop',
+                    '💡 Suggestions: Use sync.Pool, optimize iteration',
+                    '🔧 Applying optimizations...',
+                    '',
+                    '✅ Task completed in 0.8s'
+                ]
+            },
+            {
+                command: './alex "Create unit tests for authentication module"',
+                output: [
+                    '🧠 ReAct Agent: Understanding auth module...',
+                    '🛠️ Tool: file_read - Analyzing auth.go',
+                    '🧪 Generating test cases for login, logout, token validation',
+                    '🛠️ Tool: file_update - Creating auth_test.go',
+                    '📋 Generated 12 test cases with 95% coverage',
+                    '',
+                    '✅ Task completed in 1.5s'
+                ]
+            },
+            {
+                command: './alex config show',
+                output: [
+                    '⚙️ Current Configuration:',
+                    '  Model: deepseek/deepseek-chat-v3-0324:free',
+                    '  Max Tokens: 4000',
+                    '  Base URL: https://openrouter.ai/api/v1',
+                    '🛠️ Tool Configuration:',
+                    '  Tavily API Key: tvly-dev...fuwYKxTE',
+                    '🤖 Multi-Model Support: ✅ Enabled'
+                ]
+            },
+            {
+                command: './alex -i',
+                output: [
+                    '🤖 Alex v1.0 - AI-Powered Coding Assistant',
+                    '🧠 ReAct Agent: Ready for interactive mode',
+                    '📁 Session: alex-demo-2025 (Working dir: /Users/dev/projects)',
+                    '🛠️ Available tools: 11 (file ops, shell, web search, todo)',
+                    '💬 Type your request or "help" for assistance...',
+                    '',
+                    '> How do I optimize this Go HTTP server?',
+                    '🧠 ReAct: Analyzing HTTP server optimization...',
+                    '🛠️ Tool: file_read - Reading server.go',
+                    '💡 Recommendations: Use connection pooling, enable gzip',
+                    '📝 Detailed optimization guide generated',
+                    '',
+                    '✅ Task completed in 3.2s'
+                ]
+            }
         ];
         
-        let commandIndex = 0;
-        let charIndex = 0;
-        let isDeleting = false;
+        let currentScenario = 0;
+        let currentLine = 0;
+        let isTyping = false;
         
-        function typeEffect() {
-            const currentCommand = commands[commandIndex];
-            
-            if (!isDeleting && charIndex <= currentCommand.length) {
-                terminalCommand.textContent = currentCommand.substring(0, charIndex);
-                charIndex++;
-                setTimeout(typeEffect, 100);
-            } else if (isDeleting && charIndex >= 0) {
-                terminalCommand.textContent = currentCommand.substring(0, charIndex);
-                charIndex--;
-                setTimeout(typeEffect, 50);
-            } else if (!isDeleting && charIndex > currentCommand.length) {
+        function clearTerminal() {
+            terminalContent.innerHTML = '';
+        }
+        
+        function addLine(text, className = 'output', delay = 0) {
+            return new Promise(resolve => {
                 setTimeout(() => {
-                    isDeleting = true;
-                    typeEffect();
-                }, 2000);
-            } else if (isDeleting && charIndex < 0) {
-                isDeleting = false;
-                commandIndex = (commandIndex + 1) % commands.length;
-                setTimeout(typeEffect, 500);
+                    const line = document.createElement('div');
+                    line.className = className;
+                    line.textContent = text;
+                    
+                    // Apply special colors based on content
+                    if (text.includes('🧠')) {
+                        line.style.color = 'var(--accent-color)';
+                    } else if (text.includes('🛠️')) {
+                        line.style.color = '#ffaa00';
+                    } else if (text.includes('✅')) {
+                        line.style.color = 'var(--success-color)';
+                    } else if (text.includes('⚠️')) {
+                        line.style.color = '#ff6666';
+                    } else if (text.includes('🔍') || text.includes('📊')) {
+                        line.style.color = '#66ccff';
+                    } else if (text.includes('💡')) {
+                        line.style.color = '#ffdd44';
+                    }
+                    
+                    terminalContent.appendChild(line);
+                    
+                    // Scroll to bottom
+                    terminalContent.scrollTop = terminalContent.scrollHeight;
+                    
+                    resolve();
+                }, delay);
+            });
+        }
+        
+        function typeCommand(command) {
+            return new Promise(resolve => {
+                const commandLine = document.createElement('div');
+                commandLine.className = 'command';
+                commandLine.innerHTML = '$ <span class="terminal-cursor"></span>';
+                terminalContent.appendChild(commandLine);
+                
+                let i = 0;
+                const typeChar = () => {
+                    if (i < command.length) {
+                        commandLine.innerHTML = '$ ' + command.substring(0, i + 1) + '<span class="terminal-cursor"></span>';
+                        i++;
+                        setTimeout(typeChar, 50);
+                    } else {
+                        commandLine.innerHTML = '$ ' + command;
+                        setTimeout(resolve, 200);
+                    }
+                };
+                
+                // Scroll to bottom
+                terminalContent.scrollTop = terminalContent.scrollHeight;
+                setTimeout(typeChar, 100);
+            });
+        }
+        
+        async function runScenario(scenario) {
+            isTyping = true;
+            
+            // Type command
+            await typeCommand(scenario.command);
+            
+            // Add output lines with realistic delays
+            for (let i = 0; i < scenario.output.length; i++) {
+                const delay = scenario.output[i].includes('🧠') ? 300 : 
+                             scenario.output[i].includes('🛠️') ? 500 : 
+                             scenario.output[i].includes('✅') ? 400 : 200;
+                await addLine(scenario.output[i], 'output', delay);
+            }
+            
+            // Add empty line
+            await addLine('', 'output', 800);
+            
+            isTyping = false;
+        }
+        
+        async function runTerminalDemo() {
+            // Wait before starting
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            while (true) {
+                const scenario = demoScenarios[currentScenario];
+                await runScenario(scenario);
+                
+                // Wait before next scenario
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                currentScenario = (currentScenario + 1) % demoScenarios.length;
+                
+                // Clear terminal after completing all scenarios
+                if (currentScenario === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    clearTerminal();
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
             }
         }
         
-        // Start typing effect
-        setTimeout(typeEffect, 2000);
+        // Start the terminal demo
+        runTerminalDemo();
 
         // Parallax effect for background
         window.addEventListener('scroll', () => {

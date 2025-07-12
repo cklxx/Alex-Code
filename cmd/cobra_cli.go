@@ -344,7 +344,7 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 	}
 
 	// Output the content if it's not empty
-	if content != "" {
+	if content != "" && chunk.Type != "complete" {
 		if cli.currentTermCtrl != nil {
 			cli.currentTermCtrl.PrintInScrollRegion(content)
 		} else {
@@ -355,12 +355,37 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 
 // runSinglePrompt handles single prompt execution
 func (cli *CLI) runSinglePrompt(prompt string) error {
+	// Record start time
+	startTime := time.Now()
+	
 	if cli.verbose {
 		fmt.Printf("%s Processing: %s\n", blue("⚡"), prompt)
 	}
 
 	ctx := context.Background()
-	return cli.agent.ProcessMessageStream(ctx, prompt, cli.config.GetConfig(), cli.deepCodingStreamCallback)
+	err := cli.agent.ProcessMessageStream(ctx, prompt, cli.config.GetConfig(), cli.deepCodingStreamCallback)
+	
+	// Calculate and display completion time
+	duration := time.Since(startTime)
+	
+	// Format duration nicely
+	var durationStr string
+	if duration < time.Second {
+		durationStr = fmt.Sprintf("%.0fms", duration.Seconds()*1000)
+	} else if duration < time.Minute {
+		durationStr = fmt.Sprintf("%.1fs", duration.Seconds())
+	} else {
+		durationStr = fmt.Sprintf("%.1fm", duration.Minutes())
+	}
+	
+	// Display completion message with time
+	if err != nil {
+		fmt.Printf("\n%s Task failed after %s\n", red("❌"), durationStr)
+	} else {
+		fmt.Printf("\n%s Task completed in %s\n", green("✅"), durationStr)
+	}
+	
+	return err
 }
 
 func (cli *CLI) showConfig() {

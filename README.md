@@ -18,8 +18,9 @@ make build                    # Builds ./alex binary
 # Interactive conversational mode (ReAct agent by default)
 ./alex -i
 
-# Single prompt mode
+# Single prompt mode (shows completion time)
 ./alex "Analyze the current directory structure"
+# Output: ✅ Task completed in 1.2s
 
 # With streaming responses (default)
 ./alex -stream "List all Go files"
