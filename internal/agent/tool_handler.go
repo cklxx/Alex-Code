@@ -113,15 +113,6 @@ func (h *ToolHandler) generateObservation(toolResult []*types.ReactToolResult) s
 	return "No tool execution result to observe"
 }
 
-// formatToolNames - 格式化工具名称列表
-func (h *ToolHandler) formatToolNames(toolCalls []*types.ReactToolCall) string {
-	var names []string
-	for _, tc := range toolCalls {
-		names = append(names, tc.Name)
-	}
-	return strings.Join(names, ", ")
-}
-
 // cleanToolOutput - 清理工具输出，只保留工具调用格式
 func (h *ToolHandler) cleanToolOutput(content string) string {
 	lines := strings.Split(content, "\n")
@@ -149,12 +140,12 @@ func (h *ToolHandler) truncateContent(content string, maxLen int) string {
 	if maxLen <= 0 {
 		return ""
 	}
-	if len(content) <= maxLen {
+
+	// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
+	runes := []rune(content)
+	if len(runes) <= maxLen {
 		return content
 	}
-	// 确保不会越界
-	if maxLen > len(content) {
-		maxLen = len(content)
-	}
-	return content[:maxLen] + "..."
+
+	return string(runes[:maxLen]) + "..."
 }

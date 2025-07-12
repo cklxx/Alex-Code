@@ -38,7 +38,7 @@ var rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 // GetRandomProcessingMessage 获取随机处理消息
 func GetRandomProcessingMessage() string {
-	return processingMessages[rng.Intn(len(processingMessages))] + "..."
+	return "👾 " + processingMessages[rng.Intn(len(processingMessages))] + "..."
 }
 
 // GetRandomProcessingMessageWithEmoji 获取带emoji的随机处理消息

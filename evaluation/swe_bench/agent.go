@@ -270,10 +270,12 @@ func (sa *SimpleAgent) estimateCost(instance Instance) float64 {
 // Helper functions
 
 func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
-	return s[:maxLen] + "..."
+	return string(runes[:maxLen]) + "..."
 }
 
 func contains(s, substr string) bool {

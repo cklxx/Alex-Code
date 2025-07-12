@@ -159,14 +159,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		if len(toolCalls) > 0 {
 			step.Action = "tool_execution"
 			step.ToolCall = toolCalls[0] // 记录第一个工具调用
-
-			if isStreaming {
-				streamCallback(StreamChunk{
-					Type:     "tool_start",
-					Content:  fmt.Sprintf("⚡ Executing %d tool(s): %s", len(toolCalls), rc.toolHandler.formatToolNames(toolCalls)),
-					Metadata: map[string]any{"iteration": iteration, "tools": rc.toolHandler.formatToolNames(toolCalls)}})
-			}
-
 			// 执行工具调用
 			toolResult := rc.agent.executeSerialToolsStream(ctx, toolCalls, streamCallback)
 

@@ -58,8 +58,10 @@ func (c *StreamingLLMClient) getModelConfig(req *ChatRequest) (string, string, s
 	if config.Models != nil {
 		if modelConfig, exists := config.Models[modelType]; exists {
 			apiKeyPreview := modelConfig.APIKey
-			if len(apiKeyPreview) > 15 {
-				apiKeyPreview = apiKeyPreview[:15] + "..."
+			// Use rune-based slicing to properly handle UTF-8 characters in API key
+			keyRunes := []rune(apiKeyPreview)
+			if len(keyRunes) > 15 {
+				apiKeyPreview = string(keyRunes[:15]) + "..."
 			}
 			log.Printf("DEBUG: Using model config - BaseURL: %s, APIKey: %s, Model: %s", modelConfig.BaseURL, apiKeyPreview, modelConfig.Model)
 			return modelConfig.BaseURL, modelConfig.APIKey, modelConfig.Model
@@ -68,8 +70,10 @@ func (c *StreamingLLMClient) getModelConfig(req *ChatRequest) (string, string, s
 
 	// Fallback to single model config
 	apiKeyPreview := config.APIKey
-	if len(apiKeyPreview) > 15 {
-		apiKeyPreview = apiKeyPreview[:15] + "..."
+	// Use rune-based slicing to properly handle UTF-8 characters in API key
+	keyRunes := []rune(apiKeyPreview)
+	if len(keyRunes) > 15 {
+		apiKeyPreview = string(keyRunes[:15]) + "..."
 	}
 	log.Printf("DEBUG: Using fallback config - BaseURL: %s, APIKey: %s, Model: %s", config.BaseURL, apiKeyPreview, config.Model)
 	return config.BaseURL, config.APIKey, config.Model
@@ -264,8 +268,10 @@ func (c *StreamingLLMClient) setHeaders(req *http.Request, apiKey string) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	apiKeyPreview := apiKey
-	if len(apiKeyPreview) > 15 {
-		apiKeyPreview = apiKeyPreview[:15] + "..."
+	// Use rune-based slicing to properly handle UTF-8 characters in API key
+	keyRunes := []rune(apiKeyPreview)
+	if len(keyRunes) > 15 {
+		apiKeyPreview = string(keyRunes[:15]) + "..."
 	}
 	log.Printf("DEBUG: Set Authorization header with key: %s", apiKeyPreview)
 }

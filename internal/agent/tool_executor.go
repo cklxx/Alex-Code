@@ -189,8 +189,10 @@ func (te *ToolExecutor) executeSerialToolsStream(ctx context.Context, toolCalls 
 		} else if result != nil {
 			// 发送工具结果信号
 			var contentStr string
-			if len(result.Content) > 200 {
-				contentStr = result.Content[:200] + "..."
+			// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
+			runes := []rune(result.Content)
+			if len(runes) > 200 {
+				contentStr = string(runes[:200]) + "..."
 			} else {
 				contentStr = result.Content
 			}
@@ -234,8 +236,10 @@ func (te *ToolExecutor) formatToolCallForDisplay(toolName string, args map[strin
 		switch v := value.(type) {
 		case string:
 			// Truncate long strings and add quotes
-			if len(v) > 50 {
-				valueStr = fmt.Sprintf(`"%s..."`, v[:47])
+			// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
+			runes := []rune(v)
+			if len(runes) > 50 {
+				valueStr = fmt.Sprintf(`"%s..."`, string(runes[:47]))
 			} else {
 				valueStr = fmt.Sprintf(`"%s"`, v)
 			}
@@ -244,8 +248,10 @@ func (te *ToolExecutor) formatToolCallForDisplay(toolName string, args map[strin
 		default:
 			// For complex types, convert to string and truncate
 			str := fmt.Sprintf("%v", v)
-			if len(str) > 30 {
-				valueStr = str[:27] + "..."
+			// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
+			runes := []rune(str)
+			if len(runes) > 30 {
+				valueStr = string(runes[:27]) + "..."
 			} else {
 				valueStr = str
 			}
@@ -254,8 +260,10 @@ func (te *ToolExecutor) formatToolCallForDisplay(toolName string, args map[strin
 	}
 
 	argsStr := strings.Join(argParts, ", ")
-	if len(argsStr) > 100 {
-		argsStr = argsStr[:97] + "..."
+	// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
+	runes := []rune(argsStr)
+	if len(runes) > 100 {
+		argsStr = string(runes[:97]) + "..."
 	}
 
 	return fmt.Sprintf("%s %s(%s)", greenDot, toolName, argsStr)

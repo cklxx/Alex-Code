@@ -466,7 +466,14 @@ func (cli *CLI) showConfig() {
 	// Display tool configuration
 	if cfg.TavilyAPIKey != "" {
 		config += fmt.Sprintf("\n%s Tool Configuration:\n", bold("🛠️"))
-		maskedKey := cfg.TavilyAPIKey[:8] + "..." + cfg.TavilyAPIKey[len(cfg.TavilyAPIKey)-8:]
+		// Use rune-based slicing to properly handle UTF-8 characters in API key
+		keyRunes := []rune(cfg.TavilyAPIKey)
+		var maskedKey string
+		if len(keyRunes) < 16 {
+			maskedKey = "****"
+		} else {
+			maskedKey = string(keyRunes[:8]) + "..." + string(keyRunes[len(keyRunes)-8:])
+		}
 		config += fmt.Sprintf("  %s: %s\n", bold("Tavily API Key"), blue(maskedKey))
 	}
 
@@ -483,7 +490,14 @@ func (cli *CLI) showConfig() {
 			config += fmt.Sprintf("    %s: %s\n", "Base URL", blue(modelConfig.BaseURL))
 			// Mask API key for security
 			if modelConfig.APIKey != "" {
-				maskedKey := modelConfig.APIKey[:8] + "..." + modelConfig.APIKey[len(modelConfig.APIKey)-8:]
+				// Use rune-based slicing to properly handle UTF-8 characters in API key
+				keyRunes := []rune(modelConfig.APIKey)
+				var maskedKey string
+				if len(keyRunes) < 16 {
+					maskedKey = "****"
+				} else {
+					maskedKey = string(keyRunes[:8]) + "..." + string(keyRunes[len(keyRunes)-8:])
+				}
 				config += fmt.Sprintf("    %s: %s\n", "API Key", blue(maskedKey))
 			}
 		}
