@@ -413,25 +413,6 @@ func (cli *CLI) shouldStreamAsMarkdown(content string) bool {
 	return false
 }
 
-// getNewRenderedContent calculates the new part of rendered content to display
-func (cli *CLI) getNewRenderedContent(newRendered string) string {
-	if cli.lastRenderedContent == "" {
-		return newRendered
-	}
-
-	// Simple approach: if the new content is longer, show the difference
-	if len(newRendered) > len(cli.lastRenderedContent) {
-		// Check if the old content is a prefix of the new content
-		if strings.HasPrefix(newRendered, cli.lastRenderedContent) {
-			return newRendered[len(cli.lastRenderedContent):]
-		}
-	}
-
-	// If we can't determine the diff reliably, return the new content
-	// This might cause some duplication but ensures content is displayed
-	return newRendered
-}
-
 // runSinglePrompt handles single prompt execution
 func (cli *CLI) runSinglePrompt(prompt string) error {
 	// Record start time

@@ -1,26 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Alex - AI-Powered Coding Assistant</title>
-    <meta name="description" content="High-performance AI coding assistant with ReAct intelligence. Lightning-fast responses, 8+ built-in tools, and enterprise security. Perfect for developers at all skill levels.">
-    <meta name="keywords" content="AI coding assistant, ReAct, Go programming, developer tools, AI tools, coding productivity, software development">
+    <meta name="description"
+        content="High-performance AI coding assistant with ReAct intelligence. Lightning-fast responses, 8+ built-in tools, and enterprise security. Perfect for developers at all skill levels.">
+    <meta name="keywords"
+        content="AI coding assistant, ReAct, Go programming, developer tools, AI tools, coding productivity, software development">
     <meta name="author" content="Alex Team">
     <meta name="robots" content="index, follow">
-    
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://cklxx.github.io/Alex-Code/">
     <meta property="og:title" content="Alex - AI-Powered Coding Assistant">
-    <meta property="og:description" content="High-performance AI coding assistant with ReAct intelligence. Lightning-fast responses, 8+ built-in tools, and enterprise security.">
+    <meta property="og:description"
+        content="High-performance AI coding assistant with ReAct intelligence. Lightning-fast responses, 8+ built-in tools, and enterprise security.">
     <meta property="og:image" content="https://cklxx.github.io/Alex-Code/og-image.png">
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="https://cklxx.github.io/Alex-Code/">
     <meta property="twitter:title" content="Alex - AI-Powered Coding Assistant">
-    <meta property="twitter:description" content="High-performance AI coding assistant with ReAct intelligence. Lightning-fast responses, 8+ built-in tools, and enterprise security.">
+    <meta property="twitter:description"
+        content="High-performance AI coding assistant with ReAct intelligence. Lightning-fast responses, 8+ built-in tools, and enterprise security.">
     <meta property="twitter:image" content="https://cklxx.github.io/Alex-Code/og-image.png">
 
     <!-- PWA Manifest -->
@@ -29,14 +34,17 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Alex">
-    
+
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNCIgZmlsbD0iIzBhMGEwYSIvPgo8dGV4dCB4PSIxNiIgeT0iMjIiIGZpbGw9IiMwMGQ0ZmYiIGZvbnQtZmFtaWx5PSJJbnRlciIgZm9udC1zaXplPSIxOCIgZm9udC13ZWlnaHQ9IjcwMCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+QTwvdGV4dD4KPHN2Zz4=">
-    
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNCIgZmlsbD0iIzBhMGEwYSIvPgo8dGV4dCB4PSIxNiIgeT0iMjIiIGZpbGw9IiMwMGQ0ZmYiIGZvbnQtZmFtaWx5PSJJbnRlciIgZm9udC1zaXplPSIxOCIgZm9udC13ZWlnaHQ9IjcwMCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+QTwvdGV4dD4KPHN2Zz4=">
+
     <!-- Preload critical resources -->
     <link rel="preload" href="https://fonts.gstatic.com" as="font" type="font/woff2" crossorigin>
-    
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -73,7 +81,7 @@
             width: 100%;
             height: 100%;
             z-index: -1;
-            background: 
+            background:
                 radial-gradient(circle at 20% 20%, var(--accent-glow) 0%, transparent 50%),
                 radial-gradient(circle at 80% 80%, #ff006620 0%, transparent 50%),
                 radial-gradient(circle at 40% 60%, #00ff8820 0%, transparent 50%);
@@ -81,9 +89,19 @@
         }
 
         @keyframes float {
-            0%, 100% { transform: translate(0, 0) rotate(0deg); }
-            33% { transform: translate(30px, -30px) rotate(1deg); }
-            66% { transform: translate(-20px, 20px) rotate(-1deg); }
+
+            0%,
+            100% {
+                transform: translate(0, 0) rotate(0deg);
+            }
+
+            33% {
+                transform: translate(30px, -30px) rotate(1deg);
+            }
+
+            66% {
+                transform: translate(-20px, 20px) rotate(-1deg);
+            }
         }
 
         /* Header */
@@ -164,6 +182,7 @@
                 opacity: 0;
                 transform: translateY(30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -247,14 +266,17 @@
             margin: 2rem auto;
             max-width: min(85vw, 1000px);
             min-width: 320px;
-            width: min(85vw, 1000px); /* Force exact width */
+            width: min(85vw, 1000px);
+            /* Force exact width */
             border: 1px solid var(--border-color);
             position: relative;
             overflow: hidden !important;
             aspect-ratio: 16/9;
             box-sizing: border-box;
-            contain: layout style size; /* Full containment */
-            resize: none; /* Prevent any resizing */
+            contain: layout style size;
+            /* Full containment */
+            resize: none;
+            /* Prevent any resizing */
         }
 
         .demo-container::before {
@@ -269,8 +291,15 @@
         }
 
         @keyframes slide {
-            0%, 100% { transform: translateX(-100%); }
-            50% { transform: translateX(100%); }
+
+            0%,
+            100% {
+                transform: translateX(-100%);
+            }
+
+            50% {
+                transform: translateX(100%);
+            }
         }
 
         .terminal {
@@ -291,7 +320,8 @@
             display: flex;
             flex-direction: column;
             contain: layout style size;
-            min-height: 200px; /* Ensure minimum height for header space */
+            min-height: 200px;
+            /* Ensure minimum height for header space */
         }
 
         .terminal-header {
@@ -301,17 +331,28 @@
             margin-bottom: 1rem;
             padding-bottom: 0.5rem;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            flex-shrink: 0; /* Prevent header from being compressed */
-            min-height: 2rem; /* Ensure minimum height */
+            flex-shrink: 0;
+            /* Prevent header from being compressed */
+            min-height: 2rem;
+            /* Ensure minimum height */
             width: 100%;
             box-sizing: border-box;
+            overflow: hidden;
+            /* Prevent children from overflowing */
+            max-width: 100%;
+            /* Ensure header doesn't exceed parent */
         }
-        
+
         .terminal-title {
             margin-left: auto;
             font-size: 0.8rem;
             color: var(--text-muted);
             font-family: 'Inter', sans-serif;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px;
+            flex-shrink: 1;
         }
 
         .terminal-dot {
@@ -320,9 +361,17 @@
             border-radius: 50%;
         }
 
-        .dot-red { background: #ff5f57; }
-        .dot-yellow { background: #ffbd2e; }
-        .dot-green { background: #28ca42; }
+        .dot-red {
+            background: #ff5f57;
+        }
+
+        .dot-yellow {
+            background: #ffbd2e;
+        }
+
+        .dot-green {
+            background: #28ca42;
+        }
 
         .terminal-content {
             font-size: 0.85rem;
@@ -335,7 +384,8 @@
             scrollbar-color: var(--accent-color) transparent;
             padding: 0.5rem;
             box-sizing: border-box;
-            min-height: 0; /* Allow flex shrinking */
+            min-height: 0;
+            /* Allow flex shrinking */
             position: relative;
             contain: layout style;
             /* Force text wrapping at all costs */
@@ -343,7 +393,8 @@
             overflow-wrap: anywhere;
             hyphens: auto;
             white-space: pre-wrap;
-            margin-top: 0; /* Remove any margin that might compress header */
+            margin-top: 0;
+            /* Remove any margin that might compress header */
         }
 
         .command {
@@ -378,7 +429,7 @@
             hyphens: auto !important;
             max-width: 100% !important;
         }
-        
+
         .loading-text {
             color: var(--text-muted);
             font-style: italic;
@@ -389,7 +440,7 @@
             overflow-wrap: anywhere !important;
             max-width: 100% !important;
         }
-        
+
         .prompt-line {
             color: var(--success-color);
             margin-top: 0.5rem;
@@ -405,48 +456,53 @@
             color: var(--text-primary);
             transition: color 0.2s ease;
         }
-        
+
         /* Enhanced emoji and content styling */
-        .output:has(🧠), .output[style*="--accent-color"] {
+        .output:has(🧠),
+        .output[style*="--accent-color"] {
             color: var(--accent-color) !important;
         }
-        
+
         .output:has(🛠️) {
             color: #ffaa00 !important;
         }
-        
+
         .output:has(✅) {
             color: var(--success-color) !important;
         }
-        
+
         .output:has(⚠️) {
             color: #ff6666 !important;
         }
-        
-        .output:has(🔍), .output:has(📊) {
+
+        .output:has(🔍),
+        .output:has(📊) {
             color: #66ccff !important;
         }
-        
+
         .output:has(💡) {
             color: #ffdd44 !important;
         }
 
         /* Enhanced styling with ultra-fast animations for density */
         .terminal-content .output {
-            animation: fadeInUp 0.15s ease-out; /* Faster animations */
+            animation: fadeInUp 0.15s ease-out;
+            /* Faster animations */
         }
-        
+
         @keyframes fadeInUp {
             from {
                 opacity: 0;
-                transform: translateY(5px); /* Smaller movement for faster feel */
+                transform: translateY(5px);
+                /* Smaller movement for faster feel */
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
             }
         }
-        
+
         /* Nuclear option: Force ALL elements to respect width */
         .demo-container,
         .demo-container *,
@@ -461,7 +517,7 @@
             white-space: pre-wrap !important;
             overflow: hidden !important;
         }
-        
+
         /* Specific override for text content */
         .terminal-content {
             letter-spacing: -0.02em;
@@ -469,16 +525,19 @@
             table-layout: fixed !important;
             width: 100% !important;
         }
-        
+
         /* Ultra-compact mode for maximum information density */
         @media (max-height: 600px) {
             .terminal-content {
-                line-height: 1.0; /* Maximum compression for small height screens */
+                line-height: 1.0;
+                /* Maximum compression for small height screens */
                 padding: 0.4rem;
             }
-            
-            .command, .output {
-                margin: 0.02rem 0; /* Nearly no margins on small screens */
+
+            .command,
+            .output {
+                margin: 0.02rem 0;
+                /* Nearly no margins on small screens */
                 line-height: 1.0;
             }
         }
@@ -500,19 +559,35 @@
         }
 
         @keyframes blink {
-            0%, 45% { opacity: 1; }
-            46%, 100% { opacity: 0.1; }
+
+            0%,
+            45% {
+                opacity: 1;
+            }
+
+            46%,
+            100% {
+                opacity: 0.1;
+            }
         }
-        
+
         /* Ensure cursor is visible during typing */
         .command .terminal-cursor {
             background-color: var(--accent-color);
             animation: fastBlink 0.8s infinite;
         }
-        
+
         @keyframes fastBlink {
-            0%, 60% { opacity: 1; }
-            61%, 100% { opacity: 0.2; }
+
+            0%,
+            60% {
+                opacity: 1;
+            }
+
+            61%,
+            100% {
+                opacity: 0.2;
+            }
         }
 
         /* Features Grid */
@@ -610,18 +685,18 @@
         .terminal-content::-webkit-scrollbar {
             width: 8px;
         }
-        
+
         .terminal-content::-webkit-scrollbar-track {
             background: rgba(0, 0, 0, 0.2);
             border-radius: 4px;
         }
-        
+
         .terminal-content::-webkit-scrollbar-thumb {
             background: var(--accent-color);
             border-radius: 4px;
             transition: background 0.3s ease;
         }
-        
+
         .terminal-content::-webkit-scrollbar-thumb:hover {
             background: var(--success-color);
         }
@@ -629,116 +704,122 @@
         /* Advanced Responsive Design - Golden Ratio & 70/30 Split */
         @media (min-width: 1400px) {
             .demo-container {
-                max-width: 1200px; /* Ultra-wide support */
+                max-width: 1200px;
+                /* Ultra-wide support */
                 aspect-ratio: unset;
             }
-            
+
             .terminal {
-                width: 100%; /* Ensure terminal takes full container width */
-                max-width: none; /* Remove width constraints */
+                width: 100%;
+                /* Ensure terminal takes full container width */
+                max-width: none;
+                /* Remove width constraints */
             }
         }
-        
+
         /* Large desktop optimization (1200px+) */
         @media (min-width: 1200px) {
             .demo-container {
                 max-width: 90vw;
                 aspect-ratio: 16/9;
             }
-            
+
             .terminal {
                 min-height: 400px;
             }
-            
+
             .terminal-content {
                 font-size: 0.9rem;
                 min-height: 350px;
             }
-            
+
             .command {
                 font-size: 0.9rem;
             }
-            
+
             .output {
                 font-size: 0.85rem;
             }
         }
-        
+
         /* Standard desktop optimization (1025px - 1199px) */
         @media (min-width: 1025px) and (max-width: 1199px) {
             .demo-container {
-                max-width: 90vw; /* Better desktop utilization */
-                aspect-ratio: 16/9; /* Standard widescreen ratio */
+                max-width: 90vw;
+                /* Better desktop utilization */
+                aspect-ratio: 16/9;
+                /* Standard widescreen ratio */
             }
-            
+
             .terminal {
                 width: 100%;
                 max-width: none;
             }
-            
+
             .terminal-content {
                 height: 55vh;
                 max-height: 500px;
             }
         }
-        
+
         @media (max-width: 1024px) {
             .demo-container {
                 max-width: 95vw;
                 aspect-ratio: 4/3;
                 padding: 1rem;
             }
-            
+
             .terminal {
                 min-height: 300px;
             }
-            
+
             .terminal-content {
                 min-height: 250px;
                 font-size: 0.8rem;
             }
         }
-        
+
         @media (max-width: 768px) {
             .hero h1 {
                 font-size: 2.5rem;
             }
-            
+
             .hero .subtitle {
                 font-size: 1.1rem;
             }
-            
+
             .nav-links {
                 display: none;
             }
-            
+
             .cta-group {
                 flex-direction: column;
                 align-items: center;
             }
-            
+
             .features-grid {
                 grid-template-columns: 1fr;
             }
-            
+
             .demo-container {
                 max-width: 98vw;
                 padding: 0.5rem;
                 aspect-ratio: 1/1;
             }
-            
+
             .terminal {
                 padding: 0.5rem;
                 min-height: 250px;
             }
-            
+
             .terminal-content {
                 min-height: 200px;
                 font-size: 0.75rem;
                 padding: 0.3rem;
             }
-            
-            .command, .output {
+
+            .command,
+            .output {
                 font-size: 0.7rem;
                 line-height: 1.2;
                 margin: 0.1rem 0;
@@ -757,15 +838,29 @@
         }
 
         @keyframes bounce {
-            0%, 20%, 50%, 80%, 100% { transform: translateX(-50%) translateY(0); }
-            40% { transform: translateX(-50%) translateY(-10px); }
-            60% { transform: translateX(-50%) translateY(-5px); }
+
+            0%,
+            20%,
+            50%,
+            80%,
+            100% {
+                transform: translateX(-50%) translateY(0);
+            }
+
+            40% {
+                transform: translateX(-50%) translateY(-10px);
+            }
+
+            60% {
+                transform: translateX(-50%) translateY(-5px);
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="bg-animation"></div>
-    
+
     <header class="header">
         <nav class="nav">
             <a href="#" class="logo">Alex</a>
@@ -783,7 +878,7 @@
                 <div class="hero-content">
                     <h1>Alex</h1>
                     <p class="subtitle">AI-Powered Coding Assistant with ReAct Intelligence</p>
-                    
+
                     <div class="cta-group">
                         <a href="https://github.com/cklxx/Alex-Code" class="btn btn-primary" target="_blank">
                             ⚡ Get Started
@@ -799,7 +894,7 @@
                                 <div class="terminal-dot dot-red"></div>
                                 <div class="terminal-dot dot-yellow"></div>
                                 <div class="terminal-dot dot-green"></div>
-                                <span class="terminal-title">Alex AI Coding Assistant</span>
+                                <span class="terminal-title">Alex AI Coding</span>
                             </div>
                             <div class="terminal-content" id="terminal-content">
                                 <!-- Loading state -->
@@ -822,33 +917,34 @@
                     <div class="feature-card">
                         <span class="feature-icon">🧠</span>
                         <h3>ReAct Intelligence</h3>
-                        <p>Think-Act-Observe cycle provides intelligent reasoning and contextual problem-solving capabilities.</p>
+                        <p>Think-Act-Observe cycle provides intelligent reasoning and contextual problem-solving
+                            capabilities.</p>
                     </div>
-                    
+
                     <div class="feature-card">
                         <span class="feature-icon">⚡</span>
                         <h3>Lightning Fast</h3>
                         <p>Sub-30ms response times with Go-powered performance. 40-100x faster than alternatives.</p>
                     </div>
-                    
+
                     <div class="feature-card">
                         <span class="feature-icon">🛠️</span>
                         <h3>Rich Tool Ecosystem</h3>
                         <p>8+ built-in tools for file operations, shell commands, web search, and development tasks.</p>
                     </div>
-                    
+
                     <div class="feature-card">
                         <span class="feature-icon">📁</span>
                         <h3>Session Management</h3>
                         <p>Persistent conversations with context-aware todo management across sessions.</p>
                     </div>
-                    
+
                     <div class="feature-card">
                         <span class="feature-icon">🔒</span>
                         <h3>Enterprise Security</h3>
                         <p>Multi-layered security with threat detection, risk assessment, and audit logging.</p>
                     </div>
-                    
+
                     <div class="feature-card">
                         <span class="feature-icon">🌐</span>
                         <h3>Multi-Model Support</h3>
@@ -908,7 +1004,7 @@
         let terminalContent = null;
         let currentScenario = 0;
         let isTyping = false;
-        
+
         // Initialize terminal when DOM is ready
         function initTerminal() {
             terminalContent = document.getElementById('terminal-content');
@@ -918,7 +1014,7 @@
             }
             return true;
         }
-        
+
         const demoScenarios = [
             {
                 command: './alex "Analyze this Go project structure"',
@@ -1001,9 +1097,9 @@
                 ]
             }
         ];
-        
+
         // Variables moved to top
-        
+
         function clearTerminal() {
             if (terminalContent) {
                 terminalContent.innerHTML = '';
@@ -1019,16 +1115,16 @@
                 }, 200);
             }
         }
-        
+
         function addLine(text, className = 'output', delay = 0) {
             return new Promise(resolve => {
                 setTimeout(() => {
                     if (!terminalContent) return resolve();
-                    
+
                     const line = document.createElement('div');
                     line.className = className;
                     line.textContent = text;
-                    
+
                     // Force width constraints on every element
                     line.style.setProperty('max-width', '100%', 'important');
                     line.style.setProperty('box-sizing', 'border-box', 'important');
@@ -1036,7 +1132,7 @@
                     line.style.setProperty('overflow-wrap', 'anywhere', 'important');
                     line.style.setProperty('white-space', 'pre-wrap', 'important');
                     line.style.setProperty('overflow', 'hidden', 'important');
-                    
+
                     // Apply special colors based on content with CSS custom properties
                     if (text.includes('🧠')) {
                         line.style.setProperty('color', 'var(--accent-color)', 'important');
@@ -1053,25 +1149,25 @@
                     } else if (text.includes('🌐')) {
                         line.style.setProperty('color', '#66ccff', 'important');
                     }
-                    
+
                     terminalContent.appendChild(line);
-                    
+
                     // Smooth scroll to bottom
                     terminalContent.scrollTop = terminalContent.scrollHeight;
-                    
+
                     resolve();
                 }, delay);
             });
         }
-        
+
         function typeCommand(command) {
             return new Promise(resolve => {
                 if (!terminalContent) return resolve();
-                
+
                 const commandLine = document.createElement('div');
                 commandLine.className = 'command';
                 commandLine.innerHTML = '$ <span class="terminal-cursor"></span>';
-                
+
                 // Force width constraints immediately
                 commandLine.style.setProperty('max-width', '100%', 'important');
                 commandLine.style.setProperty('box-sizing', 'border-box', 'important');
@@ -1079,19 +1175,19 @@
                 commandLine.style.setProperty('overflow-wrap', 'anywhere', 'important');
                 commandLine.style.setProperty('white-space', 'pre-wrap', 'important');
                 commandLine.style.setProperty('overflow', 'hidden', 'important');
-                
+
                 terminalContent.appendChild(commandLine);
-                
+
                 let i = 0;
                 const typeChar = () => {
                     if (i < command.length) {
                         const currentText = command.substring(0, i + 1);
                         commandLine.innerHTML = `$ ${currentText}<span class="terminal-cursor"></span>`;
                         i++;
-                        
+
                         // Smooth scroll to bottom
                         terminalContent.scrollTop = terminalContent.scrollHeight;
-                        
+
                         setTimeout(typeChar, 40);
                     } else {
                         commandLine.innerHTML = '$ ' + command;
@@ -1100,45 +1196,45 @@
                         setTimeout(resolve, 150);
                     }
                 };
-                
+
                 // Start typing with small delay
                 setTimeout(typeChar, 100);
             });
         }
-        
+
         async function runScenario(scenario) {
             isTyping = true;
-            
+
             // Type command
             await typeCommand(scenario.command);
-            
+
             // Add output lines with ultra-fast delays for maximum info density
             for (let i = 0; i < scenario.output.length; i++) {
-                const delay = scenario.output[i].includes('🧠') ? 100 : 
-                             scenario.output[i].includes('🛠️') ? 150 : 
-                             scenario.output[i].includes('✅') ? 120 : 60;
+                const delay = scenario.output[i].includes('🧠') ? 100 :
+                    scenario.output[i].includes('🛠️') ? 150 :
+                        scenario.output[i].includes('✅') ? 120 : 60;
                 await addLine(scenario.output[i], 'output', delay);
             }
-            
+
             // Add minimal spacing line for density
             await addLine('', 'output', 200); /* Much faster transitions */
-            
+
             isTyping = false;
         }
-        
+
         async function runTerminalDemo() {
             // Immediate start for typewriter effect
             await new Promise(resolve => setTimeout(resolve, 100)); /* Nearly immediate start */
-            
+
             while (true) {
                 const scenario = demoScenarios[currentScenario];
                 await runScenario(scenario);
-                
+
                 // Wait before next scenario
                 await new Promise(resolve => setTimeout(resolve, 1500)); /* Faster scenario transitions */
-                
+
                 currentScenario = (currentScenario + 1) % demoScenarios.length;
-                
+
                 // Clear terminal after completing all scenarios
                 if (currentScenario === 0) {
                     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -1147,7 +1243,7 @@
                 }
             }
         }
-        
+
         // Main initialization function
         function startTerminalDemo() {
             if (initTerminal()) {
@@ -1155,12 +1251,12 @@
                 runTerminalDemo();
             }
         }
-        
+
         // Start the terminal demo when page loads
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             setTimeout(startTerminalDemo, 500);
         });
-        
+
         // Fallback for already loaded DOM
         if (document.readyState !== 'loading') {
             setTimeout(startTerminalDemo, 300);
@@ -1175,14 +1271,15 @@
 
         // Feature cards hover effect
         document.querySelectorAll('.feature-card').forEach(card => {
-            card.addEventListener('mouseenter', function() {
+            card.addEventListener('mouseenter', function () {
                 this.style.background = 'rgba(0, 212, 255, 0.05)';
             });
-            
-            card.addEventListener('mouseleave', function() {
+
+            card.addEventListener('mouseleave', function () {
                 this.style.background = 'rgba(17, 17, 17, 0.5)';
             });
         });
     </script>
 </body>
+
 </html>
