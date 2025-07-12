@@ -188,7 +188,7 @@ func (t *TodoUpdateTool) createTodo(config *types.Config, args map[string]interf
 	}
 
 	// Generate unique ID
-	id := fmt.Sprintf("todo_%d", time.Now().UnixNano())
+	id := fmt.Sprintf("%d", t.getNextID(config))
 
 	// Create new todo
 	newTodo := types.TodoItem{
@@ -227,6 +227,7 @@ func (t *TodoUpdateTool) createBatchTodos(config *types.Config, args map[string]
 	summary.WriteString(fmt.Sprintf("✅ Created %d todos:\n", len(tasks)))
 
 	baseOrder := t.getNextOrder(config)
+	baseID := t.getNextID(config)
 
 	for i, task := range tasks {
 		taskMap := task.(map[string]interface{})
@@ -240,7 +241,7 @@ func (t *TodoUpdateTool) createBatchTodos(config *types.Config, args map[string]
 		}
 
 		// Generate unique ID
-		id := fmt.Sprintf("todo_%d_%d", time.Now().UnixNano(), i)
+		id := fmt.Sprintf("%d", baseID+i)
 
 		// Create new todo
 		newTodo := types.TodoItem{
@@ -651,4 +652,17 @@ func (t *TodoUpdateTool) getNextOrder(config *types.Config) int {
 		}
 	}
 	return maxOrder + 1
+}
+
+// getNextID returns the next available ID number
+func (t *TodoUpdateTool) getNextID(config *types.Config) int {
+	maxID := 0
+	for _, todo := range config.Todos {
+		if id, err := strconv.Atoi(todo.ID); err == nil {
+			if id > maxID {
+				maxID = id
+			}
+		}
+	}
+	return maxID + 1
 }
