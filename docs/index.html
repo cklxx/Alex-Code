@@ -259,48 +259,6 @@
             text-align: center;
         }
 
-        .demo-container {
-            background: var(--secondary-bg);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin: 2rem auto;
-            max-width: min(85vw, 1000px);
-            min-width: 320px;
-            width: min(85vw, 1000px);
-            /* Force exact width */
-            border: 1px solid var(--border-color);
-            position: relative;
-            overflow: hidden !important;
-            aspect-ratio: 16/9;
-            box-sizing: border-box;
-            contain: layout style size;
-            /* Full containment */
-            resize: none;
-            /* Prevent any resizing */
-        }
-
-        .demo-container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--accent-color), #00ff88, var(--accent-color));
-            animation: slide 3s ease-in-out infinite;
-        }
-
-        @keyframes slide {
-
-            0%,
-            100% {
-                transform: translateX(-100%);
-            }
-
-            50% {
-                transform: translateX(100%);
-            }
-        }
 
         .terminal {
             background: linear-gradient(135deg, #000 0%, #0a0a0a 100%);
@@ -308,11 +266,10 @@
             padding: 1rem;
             font-family: 'JetBrains Mono', monospace;
             text-align: left;
-            position: absolute;
-            top: 1.5rem;
-            left: 1.5rem;
-            right: 1.5rem;
-            bottom: 1.5rem;
+            margin: 2rem auto;
+            max-width: min(95vw, 1200px);
+            width: min(95vw, 1200px);
+            min-height: 400px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
             border: 1px solid rgba(255, 255, 255, 0.1);
             box-sizing: border-box;
@@ -320,8 +277,35 @@
             display: flex;
             flex-direction: column;
             contain: layout style size;
-            min-height: 200px;
-            /* Ensure minimum height for header space */
+            position: relative;
+        }
+        
+        .terminal::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, 
+                var(--accent-color) 0%, 
+                #00ff88 25%, 
+                #66ccff 50%, 
+                #00ff88 75%, 
+                var(--accent-color) 100%);
+            background-size: 200% 100%;
+            animation: gradientShift 4s ease-in-out infinite;
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
         }
 
         .terminal-header {
@@ -395,6 +379,9 @@
             white-space: pre-wrap;
             margin-top: 0;
             /* Remove any margin that might compress header */
+            /* Enhanced scrolling performance */
+            will-change: scroll-position;
+            transform: translateZ(0); /* Enable hardware acceleration for smooth scrolling */
         }
 
         .command {
@@ -504,8 +491,6 @@
         }
 
         /* Nuclear option: Force ALL elements to respect width */
-        .demo-container,
-        .demo-container *,
         .terminal,
         .terminal *,
         .terminal-content,
@@ -703,34 +688,41 @@
 
         /* Advanced Responsive Design - Golden Ratio & 70/30 Split */
         @media (min-width: 1400px) {
-            .demo-container {
-                max-width: 1200px;
-                /* Ultra-wide support */
-                aspect-ratio: unset;
-            }
-
             .terminal {
-                width: 100%;
-                /* Ensure terminal takes full container width */
-                max-width: none;
-                /* Remove width constraints */
+                max-width: min(98vw, 1600px);
+                width: min(98vw, 1600px);
+                min-height: 500px; /* Larger terminal for ultra-wide */
+                padding: 2rem;
+            }
+            
+            .terminal-title {
+                max-width: 400px; /* More space for title on ultra-wide */
+                font-size: 0.9rem; /* Slightly larger on wide screens */
+            }
+            
+            .terminal-content {
+                font-size: 1rem; /* Larger text on ultra-wide */
+                padding: 1rem;
+            }
+            
+            .command, .output {
+                font-size: 0.95rem; /* Better readability on wide screens */
             }
         }
 
         /* Large desktop optimization (1200px+) */
-        @media (min-width: 1200px) {
-            .demo-container {
-                max-width: 90vw;
-                aspect-ratio: 16/9;
-            }
-
+        @media (min-width: 1200px) and (max-width: 1399px) {
             .terminal {
-                min-height: 400px;
+                max-width: min(95vw, 1400px);
+                width: min(95vw, 1400px);
+                min-height: 450px;
+                padding: 1.8rem;
             }
 
             .terminal-content {
                 font-size: 0.9rem;
                 min-height: 350px;
+                padding: 0.8rem;
             }
 
             .command {
@@ -740,42 +732,46 @@
             .output {
                 font-size: 0.85rem;
             }
+            
+            .terminal-title {
+                max-width: 300px; /* Better title space for large desktop */
+                font-size: 0.85rem;
+            }
         }
 
         /* Standard desktop optimization (1025px - 1199px) */
         @media (min-width: 1025px) and (max-width: 1199px) {
-            .demo-container {
-                max-width: 90vw;
-                /* Better desktop utilization */
-                aspect-ratio: 16/9;
-                /* Standard widescreen ratio */
-            }
-
             .terminal {
-                width: 100%;
-                max-width: none;
+                max-width: min(90vw, 1200px);
+                width: min(90vw, 1200px);
+                min-height: 400px;
             }
 
             .terminal-content {
-                height: 55vh;
-                max-height: 500px;
+                min-height: 350px;
+                font-size: 0.85rem;
+            }
+            
+            .terminal-title {
+                max-width: 250px;
             }
         }
 
         @media (max-width: 1024px) {
-            .demo-container {
-                max-width: 95vw;
-                aspect-ratio: 4/3;
+            .terminal {
+                max-width: min(95vw, 1000px);
+                width: min(95vw, 1000px);
+                min-height: 350px;
                 padding: 1rem;
             }
 
-            .terminal {
-                min-height: 300px;
-            }
-
             .terminal-content {
-                min-height: 250px;
+                min-height: 280px;
                 font-size: 0.8rem;
+            }
+            
+            .terminal-title {
+                max-width: 200px;
             }
         }
 
@@ -801,21 +797,18 @@
                 grid-template-columns: 1fr;
             }
 
-            .demo-container {
-                max-width: 98vw;
-                padding: 0.5rem;
-                aspect-ratio: 1/1;
-            }
-
             .terminal {
-                padding: 0.5rem;
-                min-height: 250px;
+                max-width: min(98vw, 600px);
+                width: min(98vw, 600px);
+                padding: 0.8rem;
+                min-height: 300px;
+                margin: 1rem auto;
             }
 
             .terminal-content {
-                min-height: 200px;
+                min-height: 220px;
                 font-size: 0.75rem;
-                padding: 0.3rem;
+                padding: 0.4rem;
             }
 
             .command,
@@ -823,6 +816,11 @@
                 font-size: 0.7rem;
                 line-height: 1.2;
                 margin: 0.1rem 0;
+            }
+            
+            .terminal-title {
+                max-width: 150px;
+                font-size: 0.7rem;
             }
         }
 
@@ -888,19 +886,17 @@
                         </a>
                     </div>
 
-                    <div class="demo-container">
-                        <div class="terminal">
-                            <div class="terminal-header">
-                                <div class="terminal-dot dot-red"></div>
-                                <div class="terminal-dot dot-yellow"></div>
-                                <div class="terminal-dot dot-green"></div>
-                                <span class="terminal-title">Alex AI Coding</span>
-                            </div>
-                            <div class="terminal-content" id="terminal-content">
-                                <!-- Loading state -->
-                                <div class="loading-text">🤖 Initializing Alex AI Assistant...</div>
-                                <div class="prompt-line">$ <span class="terminal-cursor"></span></div>
-                            </div>
+                    <div class="terminal">
+                        <div class="terminal-header">
+                            <div class="terminal-dot dot-red"></div>
+                            <div class="terminal-dot dot-yellow"></div>
+                            <div class="terminal-dot dot-green"></div>
+                            <span class="terminal-title">Alex AI Coding Assistant</span>
+                        </div>
+                        <div class="terminal-content" id="terminal-content">
+                            <!-- Loading state -->
+                            <div class="loading-text">🤖 Initializing Alex AI Assistant...</div>
+                            <div class="prompt-line">$ <span class="terminal-cursor"></span></div>
                         </div>
                     </div>
                 </div>
@@ -1012,7 +1008,91 @@
                 console.warn('Terminal content element not found');
                 return false;
             }
+            
+            // Set up auto-scroll behavior
+            setupAutoScroll();
             return true;
+        }
+        
+        // Enhanced auto-scroll functionality
+        function setupAutoScroll() {
+            if (!terminalContent) return;
+            
+            // Smooth scroll function
+            function smoothScrollToBottom() {
+                if (terminalContent.scrollHeight > terminalContent.clientHeight) {
+                    terminalContent.scrollTo({
+                        top: terminalContent.scrollHeight,
+                        behavior: 'smooth'
+                    });
+                }
+            }
+            
+            // Create mutation observer to watch for content changes
+            const observer = new MutationObserver((mutations) => {
+                let shouldScroll = false;
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                        shouldScroll = true;
+                    }
+                    if (mutation.type === 'characterData' || mutation.type === 'attributes') {
+                        shouldScroll = true;
+                    }
+                });
+                
+                if (shouldScroll) {
+                    // Use requestAnimationFrame for smooth performance
+                    requestAnimationFrame(() => {
+                        smoothScrollToBottom();
+                    });
+                }
+            });
+            
+            // Start observing
+            observer.observe(terminalContent, {
+                childList: true,
+                subtree: true,
+                characterData: true,
+                attributes: false
+            });
+            
+            // Store observer for cleanup if needed
+            terminalContent._scrollObserver = observer;
+            
+            // Add scroll detection to pause auto-scroll when user manually scrolls
+            let isUserScrolling = false;
+            let scrollTimeout;
+            
+            terminalContent.addEventListener('scroll', () => {
+                // Check if user is scrolled to bottom
+                const isAtBottom = Math.abs(terminalContent.scrollHeight - terminalContent.clientHeight - terminalContent.scrollTop) < 5;
+                
+                if (!isAtBottom) {
+                    isUserScrolling = true;
+                    // Clear existing timeout
+                    clearTimeout(scrollTimeout);
+                    // Resume auto-scroll after 3 seconds of no manual scrolling
+                    scrollTimeout = setTimeout(() => {
+                        isUserScrolling = false;
+                    }, 3000);
+                } else {
+                    isUserScrolling = false;
+                }
+            });
+            
+            // Enhanced smooth scroll function that respects user scrolling
+            window.scrollToBottom = function() {
+                if (!isUserScrolling && terminalContent) {
+                    requestAnimationFrame(() => {
+                        if (terminalContent.scrollHeight > terminalContent.clientHeight) {
+                            terminalContent.scrollTo({
+                                top: terminalContent.scrollHeight,
+                                behavior: 'smooth'
+                            });
+                        }
+                    });
+                }
+            };
         }
 
         const demoScenarios = [
@@ -1152,8 +1232,15 @@
 
                     terminalContent.appendChild(line);
 
-                    // Smooth scroll to bottom
-                    terminalContent.scrollTop = terminalContent.scrollHeight;
+                    // Enhanced smooth scroll to bottom with animation
+                    requestAnimationFrame(() => {
+                        if (terminalContent.scrollHeight > terminalContent.clientHeight) {
+                            terminalContent.scrollTo({
+                                top: terminalContent.scrollHeight,
+                                behavior: 'smooth'
+                            });
+                        }
+                    });
 
                     resolve();
                 }, delay);
@@ -1185,14 +1272,28 @@
                         commandLine.innerHTML = `$ ${currentText}<span class="terminal-cursor"></span>`;
                         i++;
 
-                        // Smooth scroll to bottom
-                        terminalContent.scrollTop = terminalContent.scrollHeight;
+                        // Enhanced smooth scroll to bottom
+                        requestAnimationFrame(() => {
+                            if (terminalContent.scrollHeight > terminalContent.clientHeight) {
+                                terminalContent.scrollTo({
+                                    top: terminalContent.scrollHeight,
+                                    behavior: 'smooth'
+                                });
+                            }
+                        });
 
                         setTimeout(typeChar, 40);
                     } else {
                         commandLine.innerHTML = '$ ' + command;
-                        // Smooth scroll to bottom
-                        terminalContent.scrollTop = terminalContent.scrollHeight;
+                        // Enhanced smooth scroll to bottom
+                        requestAnimationFrame(() => {
+                            if (terminalContent.scrollHeight > terminalContent.clientHeight) {
+                                terminalContent.scrollTo({
+                                    top: terminalContent.scrollHeight,
+                                    behavior: 'smooth'
+                                });
+                            }
+                        });
                         setTimeout(resolve, 150);
                     }
                 };
