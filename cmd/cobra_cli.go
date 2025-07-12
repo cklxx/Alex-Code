@@ -12,12 +12,18 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/term"
 
 	"alex/internal/agent"
 	"alex/internal/config"
 )
 
 const cobraVersion = "v2.0"
+
+// isTTY checks if the current environment has a TTY available
+func isTTY() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+}
 
 // Color definitions for Claude Code style output
 var (
@@ -111,16 +117,25 @@ through streaming responses and advanced tool calling capabilities.
 			bold("FEATURES:")),
 		Version: cobraVersion,
 		Args:    cobra.ArbitraryArgs, // Allow arbitrary arguments for single prompt mode
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return cli.initialize(cmd)
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
-				// Single prompt mode
+				// Single prompt mode - initialize first
+				if err := cli.initialize(cmd); err != nil {
+					return err
+				}
 				prompt := strings.Join(args, " ")
 				return cli.runSinglePrompt(prompt)
 			}
-			// Always use Bubble Tea TUI for interactive mode
+			// Check if we have a TTY before starting interactive mode
+			if !isTTY() {
+				// No TTY available (CI environment), show help instead
+				return cmd.Help()
+			}
+			// Initialize for interactive mode
+			if err := cli.initialize(cmd); err != nil {
+				return err
+			}
+			// Use Bubble Tea TUI for interactive mode
 			return cli.runTUI()
 		},
 	}
@@ -162,12 +177,29 @@ func newConfigCommand(cli *CLI) *cobra.Command {
 		Use:   "show",
 		Short: "Show current configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Initialize config manager for config commands
+			if err := cli.initializeConfigOnly(); err != nil {
+				return err
+			}
 			cli.showConfig()
 			return nil
 		},
 	})
 
 	return cmd
+}
+
+// initializeConfigOnly sets up only the configuration manager
+func (cli *CLI) initializeConfigOnly() error {
+	// Create configuration manager if not already created
+	if cli.config == nil {
+		configManager, err := config.NewManager()
+		if err != nil {
+			return fmt.Errorf("failed to create config manager: %w", err)
+		}
+		cli.config = configManager
+	}
+	return nil
 }
 
 // initialize sets up the CLI
