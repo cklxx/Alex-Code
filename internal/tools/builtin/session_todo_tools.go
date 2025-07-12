@@ -212,7 +212,7 @@ func (t *SessionTodoUpdateTool) createTodo(session *session.Session, args map[st
 	}
 
 	// Generate simple unique ID
-	id := fmt.Sprintf("todo_%d", len(todos)+1)
+	id := fmt.Sprintf("%d", t.getNextID(todos))
 
 	// Create new todo
 	newTodo := types.TodoItem{
@@ -254,6 +254,7 @@ func (t *SessionTodoUpdateTool) createBatchTodos(session *session.Session, args 
 	summary.WriteString(fmt.Sprintf("✅ Created %d todos:\n  ", len(tasks)))
 
 	baseOrder := t.getNextOrder(todos)
+	baseID := t.getNextID(todos)
 
 	for i, task := range tasks {
 		taskMap := task.(map[string]interface{})
@@ -267,7 +268,7 @@ func (t *SessionTodoUpdateTool) createBatchTodos(session *session.Session, args 
 		}
 
 		// Generate simple unique ID
-		id := fmt.Sprintf("todo_%d", len(todos)+i+1)
+		id := fmt.Sprintf("%d", baseID+i)
 
 		// Create new todo
 		newTodo := types.TodoItem{
@@ -566,6 +567,18 @@ func (t *SessionTodoUpdateTool) getNextOrder(todos []types.TodoItem) int {
 		}
 	}
 	return maxOrder + 1
+}
+
+func (t *SessionTodoUpdateTool) getNextID(todos []types.TodoItem) int {
+	maxID := 0
+	for _, todo := range todos {
+		if id, err := strconv.Atoi(todo.ID); err == nil {
+			if id > maxID {
+				maxID = id
+			}
+		}
+	}
+	return maxID + 1
 }
 
 // Helper functions
