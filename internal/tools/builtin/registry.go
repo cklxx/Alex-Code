@@ -41,6 +41,7 @@ func GetAllBuiltinToolsWithConfig(configManager *config.Manager) []Tool {
 
 		// Search tools
 		CreateGrepTool(),
+		CreateRipgrepTool(),
 
 		// Web search tools
 		webSearchTool,
@@ -77,6 +78,8 @@ func GetToolByNameWithConfig(name string, configManager *config.Manager) Tool {
 		return CreateFileListTool()
 	case "grep":
 		return CreateGrepTool()
+	case "ripgrep":
+		return CreateRipgrepTool()
 	case "web_search":
 		webSearchTool := CreateWebSearchTool()
 		if configManager != nil {
@@ -107,15 +110,11 @@ func GetToolsByCategoryWithConfig(configManager *config.Manager) map[string][]To
 
 	// Create web search tools and configure them if config is available
 	webSearchTool := CreateWebSearchTool()
-	newsSearchTool := CreateNewsSearchTool()
-	academicSearchTool := CreateAcademicSearchTool()
 
 	if configManager != nil {
 		if apiKey, err := configManager.Get("tavilyApiKey"); err == nil {
 			if apiKeyStr, ok := apiKey.(string); ok && apiKeyStr != "" {
 				webSearchTool.SetAPIKey(apiKeyStr)
-				newsSearchTool.SetAPIKey(apiKeyStr)
-				academicSearchTool.SetAPIKey(apiKeyStr)
 			}
 		}
 	}
@@ -137,12 +136,9 @@ func GetToolsByCategoryWithConfig(configManager *config.Manager) map[string][]To
 		"search": {
 			CreateGrepTool(),
 			CreateRipgrepTool(),
-			CreateFindTool(),
 		},
 		"web": {
 			webSearchTool,
-			newsSearchTool,
-			academicSearchTool,
 		},
 		"execution": {
 			CreateBashTool(),
