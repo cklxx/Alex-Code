@@ -110,12 +110,6 @@ jobs:
       run: |
         go build -ldflags="-w -s" -o "build/alex-darwin-arm64" ./cmd
         
-    - name: Build for Windows (amd64)
-      env:
-        GOOS: windows
-        GOARCH: amd64
-      run: |
-        go build -ldflags="-w -s" -o "build/alex-windows-amd64.exe" ./cmd
         
     - name: Create release packages
       run: |
@@ -130,8 +124,6 @@ jobs:
         # Create macOS Apple Silicon package
         tar -czf alex-darwin-arm64.tar.gz alex-darwin-arm64
         
-        # Create Windows package
-        zip alex-windows-amd64.zip alex-windows-amd64.exe
         
         # List all artifacts
         ls -la
@@ -160,13 +152,6 @@ jobs:
           build/alex-darwin-arm64
           build/alex-darwin-arm64.tar.gz
           
-    - name: Upload Windows artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: alex-windows-amd64
-        path: |
-          build/alex-windows-amd64.exe
-          build/alex-windows-amd64.zip
 
   integration-test:
     name: Integration Tests
@@ -175,7 +160,7 @@ jobs:
     
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
     
     steps:
     - name: Check out code
@@ -189,22 +174,14 @@ jobs:
     - name: Build binary
       run: go build -o alex ./cmd
       
-    - name: Make binary executable (Unix)
-      if: runner.os != 'Windows'
+    - name: Make binary executable
       run: chmod +x alex
       
-    - name: Test CLI commands (Unix)
-      if: runner.os != 'Windows'
+    - name: Test CLI commands
       run: |
         ./alex --help
         ./alex config show
-        ./alex -i <<< "exit"
-        
-    - name: Test CLI commands (Windows)
-      if: runner.os == 'Windows'
-      run: |
-        .\alex.exe --help
-        .\alex.exe config show
+        echo "exit" | ./alex -i
 
   performance-test:
     name: Performance Tests

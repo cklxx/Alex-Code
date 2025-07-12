@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"alex/benchmarks/swe_bench"
+	"alex/evaluation/swe_bench"
+
 	"github.com/spf13/cobra"
 )
 

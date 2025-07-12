@@ -21,7 +21,7 @@ Perfect for developers at ANY skill level!
 ## Alternative Versions
 
 ### Technical Focus
-🚀 Just launched **Alex v1.0** - High-performance AI coding assistant built in Go!
+🚀 Just launched **Alex** - High-performance AI coding assistant built in Go!
 
 🔥 Why Alex stands out:
 • Dual-agent architecture (ReAct + Legacy fallback)
