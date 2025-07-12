@@ -13,6 +13,7 @@ import (
 
 	"alex/internal/agent"
 	"alex/internal/config"
+	"alex/internal/utils"
 )
 
 // Modern TUI with clean, professional interface
@@ -535,7 +536,7 @@ func (m ModernChatModel) View() string {
 	// Input area
 	var inputArea string
 	if m.processing {
-		inputArea = inputStyle.Render(processingStyle.Render("⚡ Processing... please wait"))
+		inputArea = inputStyle.Render(processingStyle.Render(utils.GetRandomProcessingMessageWithEmoji()))
 	} else {
 		inputArea = inputStyle.Render(m.textarea.View())
 	}

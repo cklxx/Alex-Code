@@ -10,6 +10,7 @@ import (
 	contextmgr "alex/internal/context"
 	"alex/internal/llm"
 	"alex/internal/session"
+	"alex/internal/utils"
 	"alex/pkg/types"
 )
 
@@ -64,7 +65,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	// 决定是否使用流式处理
 	isStreaming := streamCallback != nil
 	if isStreaming {
-		streamCallback(StreamChunk{Type: "status", Content: "🧠 Starting process...", Metadata: map[string]any{"phase": "initialization"}})
+		streamCallback(StreamChunk{Type: "status", Content: utils.GetRandomProcessingMessage(), Metadata: map[string]any{"phase": "initialization"}})
 	}
 
 	// 构建消息列表，基于会话历史
