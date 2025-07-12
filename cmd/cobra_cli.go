@@ -62,7 +62,7 @@ func DeepCodingSuccess(msg string) string {
 }
 
 func DeepCodingToolExecution(title, content string) string {
-	return fmt.Sprintf("%s:%s\n", title, content)
+	return fmt.Sprintf("%s %s\n", title, content)
 }
 
 // CLI holds the command line interface state

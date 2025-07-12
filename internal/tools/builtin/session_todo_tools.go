@@ -348,7 +348,7 @@ func (t *SessionTodoUpdateTool) updateTodo(session *session.Session, args map[st
 
 	todo := todos[todoIndex]
 	return &ToolResult{
-		Content: fmt.Sprintf("📝 Updated todo: %s (Status: %s, Order: %d)", todo.Content, todo.Status, todo.Order),
+		Content: fmt.Sprintf("Updated todo: %s (Status: %s, Order: %d)", todo.Content, todo.Status, todo.Order),
 		Data: map[string]interface{}{
 			"id":      todo.ID,
 			"content": todo.Content,
