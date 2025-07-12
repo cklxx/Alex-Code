@@ -211,8 +211,8 @@ func (t *SessionTodoUpdateTool) createTodo(session *session.Session, args map[st
 		order = t.getNextOrder(todos)
 	}
 
-	// Generate unique ID
-	id := fmt.Sprintf("todo_%d", time.Now().UnixNano())
+	// Generate simple unique ID
+	id := fmt.Sprintf("todo_%d", len(todos)+1)
 
 	// Create new todo
 	newTodo := types.TodoItem{
@@ -266,8 +266,8 @@ func (t *SessionTodoUpdateTool) createBatchTodos(session *session.Session, args 
 			}
 		}
 
-		// Generate unique ID
-		id := fmt.Sprintf("todo_%d_%d", time.Now().UnixNano(), i)
+		// Generate simple unique ID
+		id := fmt.Sprintf("todo_%d", len(todos)+i+1)
 
 		// Create new todo
 		newTodo := types.TodoItem{

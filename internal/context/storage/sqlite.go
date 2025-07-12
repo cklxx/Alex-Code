@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -18,6 +19,7 @@ type SQLiteStorage struct {
 	db        *sql.DB
 	config    StorageConfig
 	metrics   StorageMetrics
+	mu        sync.RWMutex
 	startTime time.Time
 }
 
@@ -32,6 +34,18 @@ func NewSQLiteStorage(config StorageConfig) (*SQLiteStorage, error) {
 		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
 	}
 
+	// 配置连接池以支持并发访问
+	if config.Path == ":memory:" {
+		// 内存数据库限制连接数避免竞态条件
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+	} else {
+		// 文件数据库支持更多并发连接
+		db.SetMaxOpenConns(25)
+		db.SetMaxIdleConns(5)
+	}
+	db.SetConnMaxLifetime(5 * time.Minute)
+
 	storage := &SQLiteStorage{
 		db:        db,
 		config:    config,
@@ -45,12 +59,28 @@ func NewSQLiteStorage(config StorageConfig) (*SQLiteStorage, error) {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
+	// 验证初始化成功
+	if _, err := storage.Count(context.Background()); err != nil {
+		if err := db.Close(); err != nil {
+			log.Printf("Error closing database: %v", err)
+		}
+		return nil, fmt.Errorf("failed to verify database initialization: %w", err)
+	}
+
 	return storage, nil
 }
 
 // initialize 初始化数据库表结构
 func (s *SQLiteStorage) initialize() error {
 	queries := []string{
+		// SQLite 配置优化
+		`PRAGMA foreign_keys = ON`,
+		`PRAGMA journal_mode = WAL`,
+		`PRAGMA synchronous = NORMAL`,
+		`PRAGMA cache_size = 10000`,
+		`PRAGMA temp_store = memory`,
+		`PRAGMA mmap_size = 268435456`,
+
 		// 文档表
 		`CREATE TABLE IF NOT EXISTS documents (
 			id TEXT PRIMARY KEY,
@@ -121,7 +151,9 @@ func (s *SQLiteStorage) Store(ctx context.Context, doc Document) error {
 		return fmt.Errorf("failed to store document: %w", err)
 	}
 
+	s.mu.Lock()
 	s.metrics.WriteOps++
+	s.mu.Unlock()
 	return nil
 }
 
@@ -150,7 +182,9 @@ func (s *SQLiteStorage) Get(ctx context.Context, id string) (*Document, error) {
 		}
 	}
 
+	s.mu.Lock()
 	s.metrics.ReadOps++
+	s.mu.Unlock()
 	return &doc, nil
 }
 
@@ -171,7 +205,9 @@ func (s *SQLiteStorage) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("document not found: %s", id)
 	}
 
+	s.mu.Lock()
 	s.metrics.WriteOps++
+	s.mu.Unlock()
 	return nil
 }
 
@@ -239,7 +275,9 @@ func (s *SQLiteStorage) BatchStore(ctx context.Context, docs []Document) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	s.mu.Lock()
 	s.metrics.WriteOps += uint64(len(docs))
+	s.mu.Unlock()
 	return nil
 }
 
@@ -293,7 +331,9 @@ func (s *SQLiteStorage) BatchGet(ctx context.Context, ids []string) ([]Document,
 		return nil, fmt.Errorf("rows error: %w", err)
 	}
 
+	s.mu.Lock()
 	s.metrics.ReadOps += uint64(len(docs))
+	s.mu.Unlock()
 	return docs, nil
 }
 
@@ -323,7 +363,9 @@ func (s *SQLiteStorage) BatchDelete(ctx context.Context, ids []string) error {
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
+	s.mu.Lock()
 	s.metrics.WriteOps += uint64(rowsAffected)
+	s.mu.Unlock()
 	return nil
 }
 
@@ -365,7 +407,9 @@ func (s *SQLiteStorage) List(ctx context.Context, limit, offset int) ([]Document
 		return nil, fmt.Errorf("rows error: %w", err)
 	}
 
+	s.mu.Lock()
 	s.metrics.ReadOps += uint64(len(docs))
+	s.mu.Unlock()
 	return docs, nil
 }
 
@@ -380,7 +424,9 @@ func (s *SQLiteStorage) Count(ctx context.Context) (uint64, error) {
 		return 0, fmt.Errorf("failed to count documents: %w", err)
 	}
 
+	s.mu.Lock()
 	s.metrics.DocumentCount = count
+	s.mu.Unlock()
 	return count, nil
 }
 
@@ -602,14 +648,21 @@ func (s *SQLiteStorage) Flush() error {
 
 // GetMetrics 获取存储指标
 func (s *SQLiteStorage) GetMetrics() StorageMetrics {
-	s.metrics.Uptime = time.Since(s.startTime)
-
-	// 更新文档数量
+	// 更新文档数量（在获取锁之前）
 	if count, err := s.Count(context.Background()); err == nil {
+		s.mu.Lock()
 		s.metrics.DocumentCount = count
+		s.mu.Unlock()
 	}
-
-	return s.metrics
+	
+	s.mu.Lock()
+	s.metrics.Uptime = time.Since(s.startTime)
+	
+	// 返回指标的副本以避免竞态条件
+	result := s.metrics
+	s.mu.Unlock()
+	
+	return result
 }
 
 // === 工具函数 ===

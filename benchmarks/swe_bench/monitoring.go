@@ -63,6 +63,7 @@ func (pr *ProgressReporterImpl) Stop() error {
 
 	if pr.ticker != nil {
 		pr.ticker.Stop()
+		pr.ticker = nil
 	}
 	pr.isRunning = false
 
@@ -93,7 +94,15 @@ func (pr *ProgressReporterImpl) reportingLoop(ctx context.Context) {
 			return
 		case <-pr.stopChan:
 			return
-		case <-pr.ticker.C:
+		case <-func() <-chan time.Time {
+			pr.mu.RLock()
+			ticker := pr.ticker
+			pr.mu.RUnlock()
+			if ticker != nil {
+				return ticker.C
+			}
+			return make(chan time.Time) // Return a channel that will never send
+		}():
 			pr.mu.RLock()
 			update := pr.lastUpdate
 			output := pr.output

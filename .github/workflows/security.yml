@@ -47,12 +47,11 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
         
-    - name: Install Gosec
-      run: go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
-        
     - name: Run Gosec Security Scanner
       run: |
-        gosec -fmt sarif -out gosec.sarif ./... || gosec -fmt json -out gosec.json ./... || echo "Gosec scan completed with issues"
+        # Download and install gosec binary directly
+        curl -sfL https://raw.githubusercontent.com/securecodewarrior/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
+        gosec -fmt sarif -out gosec.sarif ./... || echo "Gosec scan completed with issues"
         ls -la gosec.* || echo "No gosec output files found"
       continue-on-error: true
         
