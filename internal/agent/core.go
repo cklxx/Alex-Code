@@ -64,7 +64,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	// 决定是否使用流式处理
 	isStreaming := streamCallback != nil
 	if isStreaming {
-		streamCallback(StreamChunk{Type: "status", Content: "🧠 Starting tool-driven ReAct process...", Metadata: map[string]any{"phase": "initialization"}})
+		streamCallback(StreamChunk{Type: "status", Content: "🧠 Starting process...", Metadata: map[string]any{"phase": "initialization"}})
 	}
 
 	// 构建消息列表，基于会话历史
@@ -186,7 +186,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 					Type:     "final_answer",
 					Content:  finalAnswer,
 					Metadata: map[string]any{"iteration": iteration}})
-				streamCallback(StreamChunk{Type: "complete", Content: "✅ Task completed"})
 			}
 
 			step.Action = "direct_answer"
@@ -209,7 +208,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			Type:     "max_iterations",
 			Content:  fmt.Sprintf("⚠️ Reached maximum iterations (%d)", maxIterations),
 			Metadata: map[string]any{"max_iterations": maxIterations}})
-		streamCallback(StreamChunk{Type: "complete", Content: "⚠️ Maximum iterations reached"})
 	}
 
 	return buildFinalResult(taskCtx, "Maximum iterations reached without completion", 0.5, false), nil
