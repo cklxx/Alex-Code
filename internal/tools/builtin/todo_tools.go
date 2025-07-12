@@ -317,7 +317,7 @@ func (t *TodoUpdateTool) updateTodo(config *types.Config, args map[string]interf
 
 	todo := config.Todos[todoIndex]
 	return &ToolResult{
-		Content: fmt.Sprintf("📝 Updated todo: %s (Status: %s, Order: %d)", todo.Content, todo.Status, todo.Order),
+		Content: fmt.Sprintf("Updated todo: %s (Status: %s, Order: %d)", todo.Content, todo.Status, todo.Order),
 		Data: map[string]interface{}{
 			"id":      todo.ID,
 			"content": todo.Content,

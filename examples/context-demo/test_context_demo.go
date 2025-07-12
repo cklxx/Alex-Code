@@ -53,7 +53,7 @@ func main() {
 	ctx := context.Background()
 
 	for i, msg := range messages {
-		fmt.Printf("\n📝 消息 %d: %s\n", i+1, msg)
+		fmt.Printf("\n 消息 %d: %s\n", i+1, msg)
 
 		// 获取当前会话的上下文统计
 		if agent.GetReactCore() != nil {
