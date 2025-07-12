@@ -16,7 +16,8 @@
 make build                    # Builds ./alex binary
 
 # Interactive conversational mode (ReAct agent by default)
-./alex -i
+./alex                        # Auto-detects TTY and enters interactive mode
+./alex -i                     # Explicit interactive mode
 
 # Single prompt mode (shows completion time)
 ./alex "Analyze the current directory structure"
@@ -44,21 +45,19 @@ make build                    # Builds ./alex binary
 
 ### Interactive Mode - Your AI Coding Partner
 ```bash
-./alex -i
+./alex                        # Auto-detects terminal and enters interactive mode
+./alex -i                     # Explicit interactive mode flag
 ```
 
 ### Configuration Management
 ```bash
-./alex config set api_key sk-...     # Set API key
 ./alex config show                   # Show current configuration
-./alex config list                   # List configuration keys
-./alex config validate              # Validate configuration
 ```
 
 ### Advanced Usage
 ```bash
 # Configure model parameters
-./alex -tokens 4000 -temp 0.8 "Complex analysis task"
+./alex --tokens 4000 --temperature 0.8 "Complex analysis task"
 
 # Architecture selection (automatic fallback)
 USE_REACT_AGENT=true ./alex -i       # Force ReAct agent

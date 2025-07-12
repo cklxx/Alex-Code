@@ -30,7 +30,7 @@ var (
 			Foreground(primaryColor).
 			Bold(true).
 			Padding(0, 1).
-			Margin(0, 0, 1, 0)
+			Margin(0, 0, 0, 0) // Reduced margin for more screen space
 
 	userMsgStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#06B6D4")).
@@ -54,7 +54,8 @@ var (
 	inputStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#E5E7EB")).
-			Padding(0, 1)
+			Padding(0, 1).
+			Margin(0) // Optimized spacing for better proportion
 
 	sessionTimeStyle = lipgloss.NewStyle().
 				Foreground(mutedColor).
@@ -106,13 +107,13 @@ type ExecutionTimer struct {
 
 // NewModernChatModel creates a clean, modern chat interface
 func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) ModernChatModel {
-	// Configure textarea
+	// Configure textarea with 8x8 grid system (Golden ratio optimization)
 	ta := textarea.New()
 	ta.Placeholder = "Ask me anything about coding..."
 	ta.Focus()
 	ta.Prompt = "┃ "
 	ta.CharLimit = 2000
-	ta.SetHeight(3)
+	ta.SetHeight(2) // Reduced from 3 to 2 for better proportion (following 8x8 grid)
 	ta.ShowLineNumbers = false
 	ta.KeyMap.InsertNewline.SetEnabled(false)
 
@@ -212,11 +213,13 @@ func (m ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		if !m.ready {
-			// Initialize dimensions
-			m.textarea.SetWidth(msg.Width - 6)
+			// Initialize dimensions with 8x8 grid alignment
+			textareaWidth := ((msg.Width - 8) / 8) * 8 // Align to 8x8 grid
+			m.textarea.SetWidth(textareaWidth)
 			m.ready = true
 		} else {
-			m.textarea.SetWidth(msg.Width - 6)
+			textareaWidth := ((msg.Width - 8) / 8) * 8 // Maintain 8x8 grid alignment
+			m.textarea.SetWidth(textareaWidth)
 		}
 		m.width = msg.Width
 		m.height = msg.Height
@@ -449,18 +452,24 @@ func (m ModernChatModel) View() string {
 	header := headerStyle.Render("🤖 Deep Coding Agent - AI-Powered Coding Assistant")
 	parts = append(parts, header, "")
 
-	// Session runtime info (displayed at top)
+	// Session runtime info with improved spacing (8px grid aligned)
 	if !m.sessionStartTime.IsZero() {
 		sessionRuntime := m.formatSessionRuntime()
 		copyHint := " • Select text with mouse to copy"
+		// Create compact session info bar optimized for screen real estate
 		sessionInfo := sessionTimeStyle.Render(sessionRuntime + copyHint)
-		parts = append(parts, sessionInfo, "")
+		parts = append(parts, sessionInfo)
+		// Only add spacing if we have sufficient height (following 70/30 rule)
+		if m.height > 20 {
+			parts = append(parts, "")
+		}
 	}
 
-	// Messages content (directly rendered, not in viewport)
+	// Messages content with optimized spacing (70/30 principle)
 	for i, msg := range m.messages {
-		if i > 0 {
-			parts = append(parts, "") // Single line between messages
+		// Dynamic spacing based on screen height (more compact on smaller screens)
+		if i > 0 && m.height > 15 {
+			parts = append(parts, "") // Single line between messages only on larger screens
 		}
 
 		var styledContent string
@@ -482,8 +491,10 @@ func (m ModernChatModel) View() string {
 		parts = append(parts, styledContent)
 	}
 
-	// Add space before input area
-	parts = append(parts, "")
+	// Conditional spacing before input area (responsive design)
+	if m.height > 12 {
+		parts = append(parts, "") // Only add spacing if screen is tall enough
+	}
 
 	// Input area
 	var inputArea string
@@ -499,12 +510,16 @@ func (m ModernChatModel) View() string {
 	// Join all parts and ensure it fits the screen
 	result := lipgloss.JoinVertical(lipgloss.Left, parts...)
 
-	// If content is too long for screen, only show recent parts
+	// Dynamic content height using Golden ratio principle (62% content, 38% input area)
 	if m.height > 0 {
 		lines := strings.Split(result, "\n")
-		if len(lines) > m.height-2 { // Leave some margin
-			// Show last messages that fit on screen
-			visibleLines := lines[len(lines)-(m.height-2):]
+		contentHeight := int(float64(m.height) * 0.618) // Golden ratio for content area
+		if contentHeight < 10 {
+			contentHeight = m.height - 5 // Fallback for very small screens
+		}
+		if len(lines) > contentHeight {
+			// Show last messages that fit in golden ratio proportion
+			visibleLines := lines[len(lines)-contentHeight:]
 			result = strings.Join(visibleLines, "\n")
 		}
 	}

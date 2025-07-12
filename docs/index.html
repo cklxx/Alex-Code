@@ -243,14 +243,18 @@
         .demo-container {
             background: var(--secondary-bg);
             border-radius: 12px;
-            padding: 2rem;
+            padding: 1.5rem;
             margin: 2rem auto;
-            max-width: min(75vw, 970px); /* Golden ratio optimization: 600 * 1.618 */
-            min-width: 320px; /* Mobile-first responsive design */
+            max-width: min(85vw, 1000px);
+            min-width: 320px;
+            width: min(85vw, 1000px); /* Force exact width */
             border: 1px solid var(--border-color);
             position: relative;
-            overflow: hidden;
-            aspect-ratio: 16/10; /* Modern widescreen proportion */
+            overflow: hidden !important;
+            aspect-ratio: 16/9;
+            box-sizing: border-box;
+            contain: layout style size; /* Full containment */
+            resize: none; /* Prevent any resizing */
         }
 
         .demo-container::before {
@@ -270,18 +274,44 @@
         }
 
         .terminal {
-            background: #000;
-            border-radius: 8px;
-            padding: 1.5rem;
+            background: linear-gradient(135deg, #000 0%, #0a0a0a 100%);
+            border-radius: 12px;
+            padding: 1rem;
             font-family: 'JetBrains Mono', monospace;
             text-align: left;
-            position: relative;
+            position: absolute;
+            top: 1.5rem;
+            left: 1.5rem;
+            right: 1.5rem;
+            bottom: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-sizing: border-box;
+            overflow: hidden !important;
+            display: flex;
+            flex-direction: column;
+            contain: layout style size;
+            min-height: 200px; /* Ensure minimum height for header space */
         }
 
         .terminal-header {
             display: flex;
+            align-items: center;
             gap: 0.5rem;
             margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            flex-shrink: 0; /* Prevent header from being compressed */
+            min-height: 2rem; /* Ensure minimum height */
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .terminal-title {
+            margin-left: auto;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-family: 'Inter', sans-serif;
         }
 
         .terminal-dot {
@@ -295,72 +325,194 @@
         .dot-green { background: #28ca42; }
 
         .terminal-content {
-            font-size: 0.9rem;
-            line-height: 1.5;
-            height: 60vh; /* Dynamic viewport-based height (Golden ratio: ~38.2% of screen) */
-            max-height: 485px; /* Golden ratio: 300 * 1.618 */
-            min-height: 240px; /* Minimum readable height */
+            font-size: 0.85rem;
+            line-height: 1.3;
+            flex: 1;
             overflow-y: auto;
-            scroll-behavior: smooth; /* Modern smooth scrolling */
-            scrollbar-width: thin; /* Modern thin scrollbars */
+            overflow-x: hidden !important;
+            scroll-behavior: smooth;
+            scrollbar-width: thin;
             scrollbar-color: var(--accent-color) transparent;
-            border-radius: 4px; /* Consistent with modern design */
-            background: linear-gradient(135deg, #000 0%, #0a0a0a 100%); /* Subtle gradient */
+            padding: 0.5rem;
+            box-sizing: border-box;
+            min-height: 0; /* Allow flex shrinking */
+            position: relative;
+            contain: layout style;
+            /* Force text wrapping at all costs */
+            word-break: break-all;
+            overflow-wrap: anywhere;
+            hyphens: auto;
+            white-space: pre-wrap;
+            margin-top: 0; /* Remove any margin that might compress header */
         }
 
         .command {
             color: var(--success-color);
-            margin: 0.5rem 0;
+            margin: 0.3rem 0;
             font-weight: 500;
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.3;
+            display: block;
+            box-sizing: border-box;
+            /* Ultra-aggressive text breaking */
+            word-break: break-all !important;
+            overflow-wrap: anywhere !important;
+            white-space: pre-wrap !important;
+            hyphens: auto !important;
+            max-width: 100% !important;
         }
 
         .output {
             color: var(--text-secondary);
-            margin: 0.25rem 0;
-            padding-left: 0.5rem;
+            margin: 0.15rem 0;
+            padding-left: 0.3rem;
             position: relative;
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.25;
+            display: block;
+            box-sizing: border-box;
+            /* Ultra-aggressive text breaking */
+            word-break: break-all !important;
+            overflow-wrap: anywhere !important;
+            white-space: pre-wrap !important;
+            hyphens: auto !important;
+            max-width: 100% !important;
+        }
+        
+        .loading-text {
+            color: var(--text-muted);
+            font-style: italic;
+            animation: fadeInUp 0.5s ease-out;
+            display: block;
+            box-sizing: border-box;
+            word-break: break-all !important;
+            overflow-wrap: anywhere !important;
+            max-width: 100% !important;
+        }
+        
+        .prompt-line {
+            color: var(--success-color);
+            margin-top: 0.5rem;
+            animation: fadeInUp 0.8s ease-out;
+            display: block;
+            box-sizing: border-box;
+            word-break: break-all !important;
+            overflow-wrap: anywhere !important;
+            max-width: 100% !important;
         }
 
         .output:hover {
             color: var(--text-primary);
             transition: color 0.2s ease;
         }
-
-        /* Special styling for different output types */
-        .output:contains("🧠") {
-            color: var(--accent-color);
+        
+        /* Enhanced emoji and content styling */
+        .output:has(🧠), .output[style*="--accent-color"] {
+            color: var(--accent-color) !important;
+        }
+        
+        .output:has(🛠️) {
+            color: #ffaa00 !important;
+        }
+        
+        .output:has(✅) {
+            color: var(--success-color) !important;
+        }
+        
+        .output:has(⚠️) {
+            color: #ff6666 !important;
+        }
+        
+        .output:has(🔍), .output:has(📊) {
+            color: #66ccff !important;
+        }
+        
+        .output:has(💡) {
+            color: #ffdd44 !important;
         }
 
-        .output:contains("🛠️") {
-            color: #ffaa00;
+        /* Enhanced styling with ultra-fast animations for density */
+        .terminal-content .output {
+            animation: fadeInUp 0.15s ease-out; /* Faster animations */
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(5px); /* Smaller movement for faster feel */
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Nuclear option: Force ALL elements to respect width */
+        .demo-container,
+        .demo-container *,
+        .terminal,
+        .terminal *,
+        .terminal-content,
+        .terminal-content * {
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            word-break: break-all !important;
+            overflow-wrap: anywhere !important;
+            white-space: pre-wrap !important;
+            overflow: hidden !important;
+        }
+        
+        /* Specific override for text content */
+        .terminal-content {
+            letter-spacing: -0.02em;
+            /* Force table layout to respect width */
+            table-layout: fixed !important;
+            width: 100% !important;
+        }
+        
+        /* Ultra-compact mode for maximum information density */
+        @media (max-height: 600px) {
+            .terminal-content {
+                line-height: 1.0; /* Maximum compression for small height screens */
+                padding: 0.4rem;
+            }
+            
+            .command, .output {
+                margin: 0.02rem 0; /* Nearly no margins on small screens */
+                line-height: 1.0;
+            }
         }
 
-        .output:contains("✅") {
-            color: var(--success-color);
-        }
-
-        .output:contains("⚠️") {
-            color: #ff6666;
-        }
-
-        /* Cursor animation for terminal */
+        /* Enhanced cursor animation for terminal */
         .terminal-cursor {
             display: inline-block;
             background-color: var(--success-color);
             width: 8px;
             height: 1.2em;
             margin-left: 2px;
-            animation: blink 1s infinite;
+            animation: blink 1.2s infinite;
+            border-radius: 1px;
         }
 
         .typing-effect {
             border-right: 2px solid var(--accent-color);
-            animation: blink 1s infinite;
+            animation: blink 1.2s infinite;
         }
 
         @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0; }
+            0%, 45% { opacity: 1; }
+            46%, 100% { opacity: 0.1; }
+        }
+        
+        /* Ensure cursor is visible during typing */
+        .command .terminal-cursor {
+            background-color: var(--accent-color);
+            animation: fastBlink 0.8s infinite;
+        }
+        
+        @keyframes fastBlink {
+            0%, 60% { opacity: 1; }
+            61%, 100% { opacity: 0.2; }
         }
 
         /* Features Grid */
@@ -478,34 +630,72 @@
         @media (min-width: 1400px) {
             .demo-container {
                 max-width: 1200px; /* Ultra-wide support */
-                display: grid;
-                grid-template-columns: 70fr 30fr; /* 70/30 split for large screens */
-                gap: 2rem;
                 aspect-ratio: unset;
             }
             
             .terminal {
-                grid-column: 1; /* Main terminal takes 70% */
+                width: 100%; /* Ensure terminal takes full container width */
+                max-width: none; /* Remove width constraints */
+            }
+        }
+        
+        /* Large desktop optimization (1200px+) */
+        @media (min-width: 1200px) {
+            .demo-container {
+                max-width: 90vw;
+                aspect-ratio: 16/9;
             }
             
-            .demo-sidebar {
-                grid-column: 2; /* Sidebar takes 30% */
-                background: rgba(0, 0, 0, 0.3);
-                border-radius: 8px;
-                padding: 1rem;
-                border-left: 2px solid var(--accent-color);
+            .terminal {
+                min-height: 400px;
+            }
+            
+            .terminal-content {
+                font-size: 0.9rem;
+                min-height: 350px;
+            }
+            
+            .command {
+                font-size: 0.9rem;
+            }
+            
+            .output {
+                font-size: 0.85rem;
+            }
+        }
+        
+        /* Standard desktop optimization (1025px - 1199px) */
+        @media (min-width: 1025px) and (max-width: 1199px) {
+            .demo-container {
+                max-width: 90vw; /* Better desktop utilization */
+                aspect-ratio: 16/9; /* Standard widescreen ratio */
+            }
+            
+            .terminal {
+                width: 100%;
+                max-width: none;
+            }
+            
+            .terminal-content {
+                height: 55vh;
+                max-height: 500px;
             }
         }
         
         @media (max-width: 1024px) {
             .demo-container {
-                max-width: 85vw; /* Tablet optimization */
-                aspect-ratio: 4/3; /* More square for tablets */
+                max-width: 95vw;
+                aspect-ratio: 4/3;
+                padding: 1rem;
+            }
+            
+            .terminal {
+                min-height: 300px;
             }
             
             .terminal-content {
-                height: 50vh;
-                max-height: 400px;
+                min-height: 250px;
+                font-size: 0.8rem;
             }
         }
         
@@ -532,15 +722,26 @@
             }
             
             .demo-container {
-                max-width: 95vw; /* Mobile optimization */
-                padding: 1rem;
-                aspect-ratio: 1/1; /* Square for mobile */
+                max-width: 98vw;
+                padding: 0.5rem;
+                aspect-ratio: 1/1;
+            }
+            
+            .terminal {
+                padding: 0.5rem;
+                min-height: 250px;
             }
             
             .terminal-content {
-                height: 40vh;
-                max-height: 300px;
-                font-size: 0.8rem; /* Smaller font for mobile */
+                min-height: 200px;
+                font-size: 0.75rem;
+                padding: 0.3rem;
+            }
+            
+            .command, .output {
+                font-size: 0.7rem;
+                line-height: 1.2;
+                margin: 0.1rem 0;
             }
         }
 
@@ -598,9 +799,12 @@
                                 <div class="terminal-dot dot-red"></div>
                                 <div class="terminal-dot dot-yellow"></div>
                                 <div class="terminal-dot dot-green"></div>
+                                <span class="terminal-title">Alex AI Coding Assistant</span>
                             </div>
                             <div class="terminal-content" id="terminal-content">
-                                <!-- Terminal content will be dynamically updated -->
+                                <!-- Loading state -->
+                                <div class="loading-text">🤖 Initializing Alex AI Assistant...</div>
+                                <div class="prompt-line">$ <span class="terminal-cursor"></span></div>
                             </div>
                         </div>
                     </div>
@@ -701,7 +905,19 @@
         });
 
         // Enhanced terminal demo with realistic Alex interactions
-        const terminalContent = document.getElementById('terminal-content');
+        let terminalContent = null;
+        let currentScenario = 0;
+        let isTyping = false;
+        
+        // Initialize terminal when DOM is ready
+        function initTerminal() {
+            terminalContent = document.getElementById('terminal-content');
+            if (!terminalContent) {
+                console.warn('Terminal content element not found');
+                return false;
+            }
+            return true;
+        }
         
         const demoScenarios = [
             {
@@ -786,39 +1002,61 @@
             }
         ];
         
-        let currentScenario = 0;
-        let currentLine = 0;
-        let isTyping = false;
+        // Variables moved to top
         
         function clearTerminal() {
-            terminalContent.innerHTML = '';
+            if (terminalContent) {
+                terminalContent.innerHTML = '';
+                // Add a prompt to show terminal is ready
+                const prompt = document.createElement('div');
+                prompt.style.color = 'var(--success-color)';
+                prompt.innerHTML = '$ <span class="terminal-cursor"></span>';
+                terminalContent.appendChild(prompt);
+                setTimeout(() => {
+                    if (terminalContent.contains(prompt)) {
+                        terminalContent.removeChild(prompt);
+                    }
+                }, 200);
+            }
         }
         
         function addLine(text, className = 'output', delay = 0) {
             return new Promise(resolve => {
                 setTimeout(() => {
+                    if (!terminalContent) return resolve();
+                    
                     const line = document.createElement('div');
                     line.className = className;
                     line.textContent = text;
                     
-                    // Apply special colors based on content
+                    // Force width constraints on every element
+                    line.style.setProperty('max-width', '100%', 'important');
+                    line.style.setProperty('box-sizing', 'border-box', 'important');
+                    line.style.setProperty('word-break', 'break-all', 'important');
+                    line.style.setProperty('overflow-wrap', 'anywhere', 'important');
+                    line.style.setProperty('white-space', 'pre-wrap', 'important');
+                    line.style.setProperty('overflow', 'hidden', 'important');
+                    
+                    // Apply special colors based on content with CSS custom properties
                     if (text.includes('🧠')) {
-                        line.style.color = 'var(--accent-color)';
+                        line.style.setProperty('color', 'var(--accent-color)', 'important');
                     } else if (text.includes('🛠️')) {
-                        line.style.color = '#ffaa00';
+                        line.style.setProperty('color', '#ffaa00', 'important');
                     } else if (text.includes('✅')) {
-                        line.style.color = 'var(--success-color)';
+                        line.style.setProperty('color', 'var(--success-color)', 'important');
                     } else if (text.includes('⚠️')) {
-                        line.style.color = '#ff6666';
+                        line.style.setProperty('color', '#ff6666', 'important');
                     } else if (text.includes('🔍') || text.includes('📊')) {
-                        line.style.color = '#66ccff';
+                        line.style.setProperty('color', '#66ccff', 'important');
                     } else if (text.includes('💡')) {
-                        line.style.color = '#ffdd44';
+                        line.style.setProperty('color', '#ffdd44', 'important');
+                    } else if (text.includes('🌐')) {
+                        line.style.setProperty('color', '#66ccff', 'important');
                     }
                     
                     terminalContent.appendChild(line);
                     
-                    // Scroll to bottom
+                    // Smooth scroll to bottom
                     terminalContent.scrollTop = terminalContent.scrollHeight;
                     
                     resolve();
@@ -828,25 +1066,42 @@
         
         function typeCommand(command) {
             return new Promise(resolve => {
+                if (!terminalContent) return resolve();
+                
                 const commandLine = document.createElement('div');
                 commandLine.className = 'command';
                 commandLine.innerHTML = '$ <span class="terminal-cursor"></span>';
+                
+                // Force width constraints immediately
+                commandLine.style.setProperty('max-width', '100%', 'important');
+                commandLine.style.setProperty('box-sizing', 'border-box', 'important');
+                commandLine.style.setProperty('word-break', 'break-all', 'important');
+                commandLine.style.setProperty('overflow-wrap', 'anywhere', 'important');
+                commandLine.style.setProperty('white-space', 'pre-wrap', 'important');
+                commandLine.style.setProperty('overflow', 'hidden', 'important');
+                
                 terminalContent.appendChild(commandLine);
                 
                 let i = 0;
                 const typeChar = () => {
                     if (i < command.length) {
-                        commandLine.innerHTML = '$ ' + command.substring(0, i + 1) + '<span class="terminal-cursor"></span>';
+                        const currentText = command.substring(0, i + 1);
+                        commandLine.innerHTML = `$ ${currentText}<span class="terminal-cursor"></span>`;
                         i++;
-                        setTimeout(typeChar, 50);
+                        
+                        // Smooth scroll to bottom
+                        terminalContent.scrollTop = terminalContent.scrollHeight;
+                        
+                        setTimeout(typeChar, 40);
                     } else {
                         commandLine.innerHTML = '$ ' + command;
-                        setTimeout(resolve, 200);
+                        // Smooth scroll to bottom
+                        terminalContent.scrollTop = terminalContent.scrollHeight;
+                        setTimeout(resolve, 150);
                     }
                 };
                 
-                // Scroll to bottom
-                terminalContent.scrollTop = terminalContent.scrollHeight;
+                // Start typing with small delay
                 setTimeout(typeChar, 100);
             });
         }
@@ -857,30 +1112,30 @@
             // Type command
             await typeCommand(scenario.command);
             
-            // Add output lines with realistic delays
+            // Add output lines with ultra-fast delays for maximum info density
             for (let i = 0; i < scenario.output.length; i++) {
-                const delay = scenario.output[i].includes('🧠') ? 300 : 
-                             scenario.output[i].includes('🛠️') ? 500 : 
-                             scenario.output[i].includes('✅') ? 400 : 200;
+                const delay = scenario.output[i].includes('🧠') ? 100 : 
+                             scenario.output[i].includes('🛠️') ? 150 : 
+                             scenario.output[i].includes('✅') ? 120 : 60;
                 await addLine(scenario.output[i], 'output', delay);
             }
             
-            // Add empty line
-            await addLine('', 'output', 800);
+            // Add minimal spacing line for density
+            await addLine('', 'output', 200); /* Much faster transitions */
             
             isTyping = false;
         }
         
         async function runTerminalDemo() {
-            // Wait before starting
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Immediate start for typewriter effect
+            await new Promise(resolve => setTimeout(resolve, 100)); /* Nearly immediate start */
             
             while (true) {
                 const scenario = demoScenarios[currentScenario];
                 await runScenario(scenario);
                 
                 // Wait before next scenario
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                await new Promise(resolve => setTimeout(resolve, 1500)); /* Faster scenario transitions */
                 
                 currentScenario = (currentScenario + 1) % demoScenarios.length;
                 
@@ -893,8 +1148,23 @@
             }
         }
         
-        // Start the terminal demo
-        runTerminalDemo();
+        // Main initialization function
+        function startTerminalDemo() {
+            if (initTerminal()) {
+                clearTerminal();
+                runTerminalDemo();
+            }
+        }
+        
+        // Start the terminal demo when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(startTerminalDemo, 500);
+        });
+        
+        // Fallback for already loaded DOM
+        if (document.readyState !== 'loading') {
+            setTimeout(startTerminalDemo, 300);
+        }
 
         // Parallax effect for background
         window.addEventListener('scroll', () => {
