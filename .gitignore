@@ -54,3 +54,7 @@ temp/
 
 # Legacy files
 legacy-sample.js
+
+# Test results
+test_results/
+verified_test_results/

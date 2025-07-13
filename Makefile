@@ -264,14 +264,59 @@ swe-bench-full: build
 .PHONY: swe-bench-config
 swe-bench-config:
 	@echo "Creating SWE-Bench configuration template..."
-	@cp benchmarks/swe_bench/config.example.yaml ./swe_bench_config.yaml
+	@cp evaluation/swe_bench/config.yaml ./swe_bench_config.yaml
 	@echo "Configuration template created: swe_bench_config.yaml"
+
+# SWE-Bench Verified targets (500 high-quality verified instances)
+
+# Test SWE-Bench with real instances
+.PHONY: swe-bench-verified-test
+swe-bench-verified-test: build
+	@echo "Testing SWE-Bench with real instances..."
+	@cd evaluation/swe_bench && ./run_evaluation.sh real-test
+	@echo "SWE-Bench real instances test complete"
+
+# Test SWE-Bench Verified with network download (fallback)
+.PHONY: swe-bench-verified-quick
+swe-bench-verified-quick: build
+	@echo "Testing SWE-Bench Verified batch processing..."
+	@cd evaluation/swe_bench && ./run_evaluation.sh quick-test
+	@echo "SWE-Bench Verified test complete"
+
+# Run SWE-Bench Verified small batch (50 instances)
+.PHONY: swe-bench-verified-small
+swe-bench-verified-small: build
+	@echo "Running SWE-Bench Verified small batch..."
+	@cd evaluation/swe_bench && ./run_evaluation.sh small-batch
+	@echo "SWE-Bench Verified small batch complete"
+
+# Run SWE-Bench Verified medium batch (150 instances)
+.PHONY: swe-bench-verified-medium
+swe-bench-verified-medium: build
+	@echo "Running SWE-Bench Verified medium batch..."
+	@cd evaluation/swe_bench && ./run_evaluation.sh medium-batch
+	@echo "SWE-Bench Verified medium batch complete"
+
+# Run SWE-Bench Verified full evaluation (all 500 instances)
+.PHONY: swe-bench-verified-full
+swe-bench-verified-full: build
+	@echo "Running SWE-Bench Verified full evaluation..."
+	@cd evaluation/swe_bench && ./run_evaluation.sh full
+	@echo "SWE-Bench Verified full evaluation complete"
+
+# Generate SWE-Bench Verified configuration
+.PHONY: swe-bench-verified-config
+swe-bench-verified-config:
+	@echo "Creating SWE-Bench Verified configuration..."
+	@cp evaluation/swe_bench/config.yaml ./swe_bench_verified_config.yaml
+	@echo "SWE-Bench Verified configuration created: swe_bench_verified_config.yaml"
 
 # Clean SWE-Bench results
 .PHONY: swe-bench-clean
 swe-bench-clean:
 	@echo "Cleaning SWE-Bench results..."
 	@rm -rf ./test_results ./swe_bench_lite_results ./swe_bench_full_results
+	@rm -rf ./verified_quick_test ./verified_small_batch ./verified_medium_batch ./verified_full_evaluation ./verified_custom
 	@echo "SWE-Bench cleanup complete"
 
 # Help target
@@ -319,5 +364,13 @@ help:
 	@echo "  swe-bench-full     Run SWE-Bench full benchmark"
 	@echo "  swe-bench-config   Generate SWE-Bench configuration template"
 	@echo "  swe-bench-clean    Clean SWE-Bench results"
+	@echo ""
+	@echo "SWE-Bench Verified (500 high-quality instances):"
+	@echo "  swe-bench-verified-test     Test with 3 real SWE-bench instances (recommended)"
+	@echo "  swe-bench-verified-quick    Test with network download (5 instances)"
+	@echo "  swe-bench-verified-small    Run Verified small batch (50 instances)"
+	@echo "  swe-bench-verified-medium   Run Verified medium batch (150 instances)"
+	@echo "  swe-bench-verified-full     Run Verified full evaluation (500 instances)"
+	@echo "  swe-bench-verified-config   Generate Verified configuration template"
 	@echo ""
 	@echo "  help               Show this help message"

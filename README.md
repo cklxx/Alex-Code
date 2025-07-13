@@ -5,7 +5,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Alex** is a high-performance, universally accessible AI software engineering assistant featuring advanced dual-architecture design with both legacy and modern ReAct (Reasoning and Acting) agent systems. Built in Go for maximum performance and designed for developers at all skill levels, Alex provides an intuitive natural language interface for code analysis, file operations, and development tasks through an intelligent agent architecture with advanced tool calling capabilities, comprehensive security, and streaming responses.
+**Alex** is a high-performance, universally accessible AI software engineering assistant featuring advanced dual-architecture design with both legacy and modern ReAct (Reasoning and Acting) agent systems. Built in Go for maximum performance and designed for developers at all skill levels, Alex provides an intuitive natural language interface for code analysis, file operations, and development tasks through an intelligent agent architecture with advanced tool calling capabilities, comprehensive security, streaming responses, and **CodeAct integration** for interactive code learning and execution.
 
 🌐 **[Visit our website](https://cklxx.github.io/Alex-Code/)** | 📚 **[Documentation](docs/)** | 🚀 **[Quick Start](#quick-start)**
 
@@ -34,6 +34,7 @@ make build                    # Builds ./alex binary
 ## Core Features
 
 **🧠 Dual Agent Architecture**: Advanced ReAct (Reasoning and Acting) agent with fallback to legacy mode for maximum reliability  
+**🤖 CodeAct Integration**: Interactive code learning through direct execution and experimentation for enhanced problem solving  
 **🛠 Enhanced Tool Ecosystem**: 8+ built-in tools with intelligent recommendations, concurrent execution, and security validation  
 **🌐 Multi-Model LLM System**: Factory pattern supporting OpenAI, DeepSeek, OpenRouter with BasicModel and ReasoningModel types  
 **🔒 Security-First Design**: Enterprise-grade risk assessment, threat detection, command validation, and path protection  
@@ -69,7 +70,7 @@ make dev-safe                        # Safe development workflow
 make test-functionality              # Quick functionality test
 ```
 
-## Enhanced Tool System
+## Enhanced Tool System & CodeAct Integration
 
 **File Operations**: `file_read`, `file_update`, `file_replace`, `file_list`, `directory_create`  
 **Shell Execution**: `bash`, `script_runner`, `process_monitor` with security controls  
@@ -78,11 +79,31 @@ make test-functionality              # Quick functionality test
 **Web Integration**: `web_search` for information retrieval  
 **Reasoning Tools**: `think` for structured problem solving
 
+### 🤖 CodeAct Agent Integration
+
+Alex implements the **CodeAct** paradigm - an advanced approach where AI agents learn to solve coding tasks through **direct code execution** and **interactive experimentation**. This enables Alex to:
+
+**🔬 Interactive Code Learning**
+- **Execute and Learn**: Runs code snippets to understand behavior and debug issues
+- **Iterative Refinement**: Tests solutions, observes results, and improves code through direct feedback
+- **Real-time Problem Solving**: Adapts solutions based on actual execution results rather than theoretical knowledge
+
+**⚡ Enhanced Code Understanding**
+- **Dynamic Analysis**: Analyzes code behavior through execution rather than static analysis alone
+- **Context-Aware Debugging**: Uses execution results to understand complex codebases and dependencies
+- **Live Testing**: Validates solutions in real-time during development
+
+**🛠 Practical Implementation**
+- **Safety-First Execution**: Secure sandbox environment for code testing and experimentation
+- **Multi-Language Support**: CodeAct capabilities across Go, Python, JavaScript, and other languages
+- **Development Workflow Integration**: Seamlessly integrates with existing development tools and processes
+
 **Tool System Features:**
 - **Intelligent Recommendations**: Task-aware tool suggestions with confidence scoring
 - **Concurrent Execution**: Optimized parallel/sequential execution based on dependencies  
 - **Security Validation**: Comprehensive parameter and execution validation
 - **Performance Metrics**: Usage statistics, error tracking, execution metrics
+- **CodeAct Execution**: Safe code experimentation with learning-based improvements
 
 ## Project Architecture
 
@@ -181,7 +202,18 @@ This script will:
 
 ## Configuration
 
+### Initial Setup
+
+1. **Get OpenRouter API Key**: Visit [OpenRouter](https://openrouter.ai/settings/keys) to create a free account and get your API key
+2. **First Run**: Alex will create default configuration on first use
+3. **Set API Key**: Edit `~/.alex-config.json` and replace `"sk-or-xxx"` with your actual API key
+
 Alex stores configuration in: `~/.alex-config.json`
+
+### Configuration Management
+```bash
+./alex config show                   # Show current configuration
+```
 
 **Default Configuration:**
 ```json
@@ -205,12 +237,34 @@ Alex stores configuration in: `~/.alex-config.json`
 }
 ```
 
-**Environment Variables:**
+### Multi-Model Configuration Explained
+
+- **basic_model**: Used for general tasks and tool calling (lighter, faster)
+- **reasoning_model**: Used for complex problem-solving and analysis (more capable)
+- Alex automatically selects the appropriate model based on task complexity
+
+### Environment Variables
+
+Configuration precedence: **Environment Variables > Config File > Defaults**
+
 ```bash
-export OPENAI_API_KEY="your-key"
-export ALLOWED_TOOLS="file_read,bash"
-export USE_REACT_AGENT="true"     # Force ReAct agent
-export USE_LEGACY_AGENT="true"    # Force legacy agent
+export OPENAI_API_KEY="your-openrouter-key"  # Overrides config file api_key
+export ALLOWED_TOOLS="file_read,bash,grep"   # Restrict available tools 
+export USE_REACT_AGENT="true"                # Force ReAct agent mode
+export USE_LEGACY_AGENT="true"               # Force legacy agent mode
+```
+
+### Common Configuration Tasks
+
+```bash
+# View current configuration
+./alex config show
+
+# Quick start with environment variable (no config file editing needed)
+OPENAI_API_KEY="your-key" ./alex "Hello world"
+
+# Test configuration
+./alex "Test my setup"
 ```
 
 ## Why Alex Excels

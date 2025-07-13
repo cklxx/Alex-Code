@@ -34,19 +34,18 @@ func NewDatasetLoader() *DatasetLoaderImpl {
 		client:   &http.Client{Timeout: 30 * time.Minute},
 		cacheDir: cacheDir,
 		downloadURLs: map[string]string{
-			// SWE-bench Lite dataset URLs
-			"swe_bench_lite_dev":   "https://github.com/princeton-nlp/SWE-bench/releases/download/v1.0.0/swe-bench-lite-dev.json",
-			"swe_bench_lite_test":  "https://github.com/princeton-nlp/SWE-bench/releases/download/v1.0.0/swe-bench-lite-test.json",
-			"swe_bench_lite_train": "https://github.com/princeton-nlp/SWE-bench/releases/download/v1.0.0/swe-bench-lite-train.json",
+			// SWE-bench Lite (300 instances) - Hugging Face API
+			"swe_bench_lite_dev":  "https://datasets-server.huggingface.co/rows?dataset=princeton-nlp/SWE-bench_Lite&config=default&split=test&offset=0&length=300",
+			"swe_bench_lite_test": "https://datasets-server.huggingface.co/rows?dataset=princeton-nlp/SWE-bench_Lite&config=default&split=test&offset=0&length=300",
 
-			// SWE-bench Full dataset URLs
-			"swe_bench_full_dev":   "https://github.com/princeton-nlp/SWE-bench/releases/download/v1.0.0/swe-bench-dev.json",
-			"swe_bench_full_test":  "https://github.com/princeton-nlp/SWE-bench/releases/download/v1.0.0/swe-bench-test.json",
-			"swe_bench_full_train": "https://github.com/princeton-nlp/SWE-bench/releases/download/v1.0.0/swe-bench-train.json",
+			// SWE-bench Full (2,294 instances) - Hugging Face API  
+			"swe_bench_full_dev":   "https://datasets-server.huggingface.co/rows?dataset=princeton-nlp/SWE-bench&config=default&split=test&offset=0&length=2294",
+			"swe_bench_full_test":  "https://datasets-server.huggingface.co/rows?dataset=princeton-nlp/SWE-bench&config=default&split=test&offset=0&length=2294",
+			"swe_bench_full_train": "https://datasets-server.huggingface.co/rows?dataset=princeton-nlp/SWE-bench&config=default&split=train&offset=0&length=23000",
 
-			// SWE-bench Verified dataset URLs
-			"swe_bench_verified_dev":  "https://github.com/princeton-nlp/SWE-bench/releases/download/v1.0.0/swe-bench-verified-dev.json",
-			"swe_bench_verified_test": "https://github.com/princeton-nlp/SWE-bench/releases/download/v1.0.0/swe-bench-verified-test.json",
+			// SWE-bench Verified (500 instances) - Hugging Face API
+			"swe_bench_verified_dev":  "https://datasets-server.huggingface.co/rows?dataset=princeton-nlp/SWE-bench_Verified&config=default&split=test&offset=0&length=500",
+			"swe_bench_verified_test": "https://datasets-server.huggingface.co/rows?dataset=princeton-nlp/SWE-bench_Verified&config=default&split=test&offset=0&length=500",
 		},
 	}
 }
@@ -215,16 +214,23 @@ func (dl *DatasetLoaderImpl) parseInstancesFromFile(filePath string) ([]Instance
 		}
 	}()
 
-	// Try to parse as JSONL first, then as JSON array
-	instances, err := dl.parseJSONL(file)
+	// Try to parse as Hugging Face API response first
+	instances, err := dl.parseHuggingFaceResponse(file)
 	if err != nil {
-		// Reset file position and try JSON array
+		// Reset file position and try JSONL
 		if _, err := file.Seek(0, 0); err != nil {
 			return nil, fmt.Errorf("failed to reset file position: %w", err)
 		}
-		instances, err = dl.parseJSONArray(file)
+		instances, err = dl.parseJSONL(file)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse as JSONL or JSON array: %w", err)
+			// Reset file position and try JSON array
+			if _, err := file.Seek(0, 0); err != nil {
+				return nil, fmt.Errorf("failed to reset file position: %w", err)
+			}
+			instances, err = dl.parseJSONArray(file)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse as Hugging Face response, JSONL, or JSON array: %w", err)
+			}
 		}
 	}
 
@@ -256,6 +262,31 @@ func (dl *DatasetLoaderImpl) parseJSONArray(reader io.Reader) ([]Instance, error
 
 	if err := decoder.Decode(&instances); err != nil {
 		return nil, err
+	}
+
+	return instances, nil
+}
+
+// HuggingFaceResponse represents the response format from Hugging Face API
+type HuggingFaceResponse struct {
+	Rows []struct {
+		RowIdx int      `json:"row_idx"`
+		Row    Instance `json:"row"`
+	} `json:"rows"`
+}
+
+// parseHuggingFaceResponse parses instances from Hugging Face API response format
+func (dl *DatasetLoaderImpl) parseHuggingFaceResponse(reader io.Reader) ([]Instance, error) {
+	var response HuggingFaceResponse
+	decoder := json.NewDecoder(reader)
+
+	if err := decoder.Decode(&response); err != nil {
+		return nil, err
+	}
+
+	instances := make([]Instance, len(response.Rows))
+	for i, row := range response.Rows {
+		instances[i] = row.Row
 	}
 
 	return instances, nil
