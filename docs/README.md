@@ -1,148 +1,91 @@
-# Alex Project Website
+# Deep Coding Agent Documentation
 
-This directory contains the official website for the Alex AI Coding Assistant project.
+Welcome to the Deep Coding Agent documentation. This directory contains comprehensive documentation for the high-performance conversational AI coding assistant.
 
-## 🌟 Features
+## 📋 Documentation Structure
 
-### Ultra-Thin Design
-- Minimalist, clean interface with subtle borders and thin typography
-- Modern grid layouts with optimal spacing
-- Focus on content hierarchy and readability
+### 🏗️ Architecture Documentation
+- **[architecture/01-architecture-overview.md](architecture/01-architecture-overview.md)** - Comprehensive architecture analysis and implementation plan
+- **[architecture/02-react-agent-design.md](architecture/02-react-agent-design.md)** - Detailed ReactAgent design and implementation
+- **[architecture/03-prompt-system.md](architecture/03-prompt-system.md)** - Prompt template system architecture
+- **[architecture/04-prompt-design.md](architecture/04-prompt-design.md)** - System prompts design patterns
 
-### Sci-Fi Tech Aesthetic  
-- Dark theme with neon accent colors (#00d4ff)
-- Gradient backgrounds and glowing effects
-- Futuristic typography (JetBrains Mono + Inter)
-- Animated background particles
+### 🛠️ Implementation Guides
+- **[guides/quickstart.md](guides/quickstart.md)** - Quick start guide for users
+- **[guides/tool-development.md](guides/tool-development.md)** - Tool development guide
+- **[implementation/chromem-local-embeddings-config.md](implementation/chromem-local-embeddings-config.md)** - Local embeddings configuration
+- **[implementation/cli-input-bottom-design.md](implementation/cli-input-bottom-design.md)** - CLI input design patterns
 
-### Interactive Elements
-- Smooth animations and transitions
-- Typing effect in terminal demo
-- Hover effects on feature cards
-- Parallax background scrolling
-- Responsive design for all devices
+### 🔬 Research & Experiments
+- **[research/industry-benchmarks.md](research/industry-benchmarks.md)** - Industry research and benchmarking
+- **[research/execution-flow-analysis.md](research/execution-flow-analysis.md)** - ReAct execution flow analysis
+- **[research/react-architecture-summary.md](research/react-architecture-summary.md)** - ReAct architecture summary
+- **[research/react-patterns.md](research/react-patterns.md)** - ReAct implementation patterns
+- **[research/react-implementation.md](research/react-implementation.md)** - ReAct implementation details
+- **[research/codeact-research-report.md](research/codeact-research-report.md)** - CodeAct research and analysis
+
+### 📊 Analysis & Reports
+- **[analysis/CONTEXT_ENGINEERING_AND_COMPRESSION_RESEARCH.md](analysis/CONTEXT_ENGINEERING_AND_COMPRESSION_RESEARCH.md)** - Context engineering research
+
+### 🧩 CodeAct Integration
+- **[codeact/integration-guide.md](codeact/integration-guide.md)** - Complete CodeAct integration guide
+- **[codeact/api-reference.md](codeact/api-reference.md)** - CodeAct API reference
+- **[codeact/implementation-roadmap.md](codeact/implementation-roadmap.md)** - Implementation roadmap
+
+### 📚 API Reference
+- **[reference/api-reference.md](reference/api-reference.md)** - General API reference
 
 ## 🚀 Quick Start
 
-### Local Development
-```bash
-# Navigate to docs directory
-cd docs/
+1. **Begin with Architecture**: Start with [architecture/01-architecture-overview.md](architecture/01-architecture-overview.md) for a complete understanding of the system
+2. **Implementation Details**: Read [architecture/02-react-agent-design.md](architecture/02-react-agent-design.md) for detailed design patterns
+3. **Getting Started**: Follow [guides/quickstart.md](guides/quickstart.md) for immediate usage
+4. **CodeAct Features**: Explore [codeact/integration-guide.md](codeact/integration-guide.md) for advanced capabilities
 
-# Serve locally (Python 3)
-python -m http.server 8000
+## 📖 Key Features Documented
 
-# Or with Node.js
-npx serve .
+- **Dual-Architecture ReAct Agent**: Think-Act-Observe cycle with streaming support
+- **Multi-Model LLM Integration**: Dynamic model selection with factory pattern
+- **Advanced Tool System**: 8+ built-in tools with extensible registry
+- **Session Management**: Persistent conversation storage and restoration
+- **CodeAct Integration**: Executable Python code as action language
+- **Security Framework**: Multi-layered security with sandbox execution
+- **Performance Optimization**: Go-based implementation with 40-100x improvements
 
-# Open in browser
-open http://localhost:8000
-```
+## 🏗️ Architecture Overview
 
-### Deploy to GitHub Pages
-1. Push the `docs/` folder to your repository
-2. Go to Settings > Pages
-3. Set Source to "Deploy from a branch"
-4. Select "main" branch and "/docs" folder
-5. Your site will be available at `https://yourusername.github.io/Alex-Code`
-
-## 📁 File Structure
+The Deep Coding Agent features a sophisticated dual-architecture design:
 
 ```
-docs/
-├── index.html          # Main landing page
-├── README.md           # This file
-└── assets/             # Static assets (if needed)
-    ├── images/
-    └── icons/
+┌─────────────────────────────────────────────────────────────┐
+│                    Deep Coding Agent                       │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────────┐ │
+│  │   Think     │  │     Act      │  │       Observe       │ │
+│  │  (Reason)   │→ │  (Execute)   │→ │      (Analyze)      │ │
+│  └─────────────┘  └──────────────┘  └─────────────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│ Multi-Model LLM • Tool Registry • Session Management       │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## 🎨 Design System
+## 📝 Contributing
 
-### Colors
-- Primary Background: `#0a0a0a`
-- Secondary Background: `#111111`
-- Accent Color: `#00d4ff` (Neon Blue)
-- Success Color: `#00ff88` (Neon Green)
-- Text Primary: `#ffffff`
-- Text Secondary: `#a0a0a0`
+When contributing to documentation:
 
-### Typography
-- Headlines: `Inter` (300-700 weights)
-- Code/Terminal: `JetBrains Mono`
-- Body Text: `Inter` (400-500 weights)
+1. Follow the established naming convention (numbered prefixes for core docs)
+2. Update this index when adding new documentation
+3. Place research and experimental docs in the `research/` directory
+4. Use clear, descriptive filenames with hyphens for spacing
 
-### Animations
-- Fade-in on scroll
-- Typing effect for terminal
-- Background particle movement
-- Smooth hover transitions
-- Parallax scrolling
+## 🔍 Document Categories
 
-## 🛠 Customization
+- **Architecture**: Core system architecture and design documentation (🏗️)
+- **Implementation**: Implementation guides and configuration details (🛠️)
+- **Research**: Experimental features and research papers (🔬)
+- **Analysis**: Data analysis, reports, and engineering studies (📊)
+- **CodeAct**: CodeAct-specific integration documentation (🧩)
+- **Reference**: API and technical reference materials (📚)
+- **Guides**: User and developer guides for getting started
 
-### Adding New Sections
-1. Add HTML structure to `index.html`
-2. Style with CSS following the existing design system
-3. Add JavaScript interactions if needed
-
-### Modifying Colors
-Update CSS custom properties in the `:root` selector:
-```css
-:root {
-    --accent-color: #your-color;
-    --accent-glow: #your-color33;
-}
-```
-
-### Performance Optimization
-- All assets are optimized for fast loading
-- CSS animations use `transform` for better performance
-- Minimal JavaScript for interactions
-- Web fonts loaded asynchronously
-
-## 📱 Browser Support
-
-- Chrome 90+
-- Firefox 88+
-- Safari 14+
-- Edge 90+
-
-## 🔧 Technical Notes
-
-- Uses CSS Grid and Flexbox for layouts
-- CSS Custom Properties for theming
-- Intersection Observer for scroll animations
-- No external dependencies except Google Fonts
-- Fully responsive design
-
-## 📈 Analytics (Optional)
-
-To add analytics, insert your tracking code before the closing `</head>` tag:
-
-```html
-<!-- Google Analytics -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=GA_TRACKING_ID"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'GA_TRACKING_ID');
-</script>
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes to the website
-4. Test on multiple devices/browsers
-5. Submit a pull request
-
-## 📄 License
-
-This website follows the same license as the Alex project (MIT License).
-
----
-
-For more information about the Alex AI Coding Assistant, visit the [main repository](https://github.com/cklxx/Alex-Code).
+For support and questions, refer to the main project README or contact the development team.
