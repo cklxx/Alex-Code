@@ -2,139 +2,112 @@
 
 ## Main Promotional Tweet
 
-🤖 Introducing **Alex** - Your AI-Powered Coding Assistant! 
+🤖 **Alex** - AI Coding Assistant with CodeAct Learning! 
 
 ✨ Features:
-🧠 ReAct Intelligence (Think-Act-Observe)
-🤖 CodeAct Learning (Interactive code execution)
-🌊 Real-time Streaming Responses  
-🛠️ 8+ Built-in Tools (File ops, Shell, Web search)
-📁 Persistent Session Management
-⚡ Lightning Fast (Go-powered)
-🔒 Enterprise Security
+🧠 ReAct Intelligence 
+🤖 Interactive code execution
+⚡ <30ms responses (Go-powered)
+🛠️ 8+ tools (files, shell, web)
+📁 Session management
+🔒 Enterprise security
 
-Perfect for developers at ANY skill level! 
+Perfect for all skill levels! 
 
-⭐ Star and try: https://github.com/cklxx/Alex-Code
-🌐 Website: https://cklxx.github.io/Alex-Code/
+🚀 https://github.com/cklxx/Alex-Code
+🌐 https://cklxx.github.io/Alex-Code/
 
-#AI #CodingAssistant #Golang #ReAct #CodeAct #DevTools
+#AI #CodingAssistant #CodeAct #ReAct #DevTools
 
 ---
 
 ## Alternative Versions
 
 ### Technical Focus
-🚀 Just launched **Alex** - High-performance AI coding assistant built in Go!
+🚀 **Alex** - High-performance AI coding assistant!
 
-🔥 Why Alex stands out:
-• Dual-agent architecture (ReAct + Legacy fallback)
-• CodeAct learning through interactive code execution
-• Sub-30ms response times (40-100x faster than alternatives)
-• Multi-model LLM support (OpenAI, DeepSeek, Gemini)
-• Session-aware todo management
-• Zero dependencies, maximum reliability
+🔥 Key features:
+• Dual ReAct + CodeAct architecture
+• <30ms responses (100x faster)
+• Multi-model LLM support
+• Zero dependencies
+• Interactive code execution
 
-🚀 GitHub: https://github.com/cklxx/Alex-Code
-🌐 Live Demo: https://cklxx.github.io/Alex-Code/
+🚀 https://github.com/cklxx/Alex-Code
+🌐 https://cklxx.github.io/Alex-Code/
 
-#GoLang #AIAssistant #CodeAct #PerformanceFirst
+#GoLang #CodeAct #Performance
 
 ### Beginner-Friendly Focus
-💡 Tired of complex coding tools? Meet **Alex** - the AI assistant that speaks YOUR language!
+💡 **Alex** - AI assistant that speaks YOUR language!
 
-🎯 No special syntax needed
-🤝 Natural conversation interface
-🤖 CodeAct learning through real code execution
-📚 Perfect for learning & expert development
-🔧 Handles file operations, searches, shell commands
-💬 Remembers your conversation context
+🎯 No special syntax
+🤝 Natural conversation
+🤖 Interactive code learning
+📚 Perfect for all levels
+🔧 File ops, shell, search
 
-Code smarter, not harder! 
+Code smarter! 
 
-🚀 Start coding: https://github.com/cklxx/Alex-Code
-🌐 Learn more: https://cklxx.github.io/Alex-Code/
+🚀 https://github.com/cklxx/Alex-Code
+🌐 https://cklxx.github.io/Alex-Code/
 
-#LearnToCode #CodeAct #AIHelper #DeveloperLife
+#LearnToCode #CodeAct #AIHelper
 
 ### Feature Highlight - CodeAct Learning
-🤖 **Alex's CodeAct Learning** is revolutionary! 
+🤖 **Alex's CodeAct Learning** - Revolutionary AI coding!
 
-Now Alex can:
-• Execute code snippets to understand behavior
-• Debug through interactive experimentation  
-• Learn from actual execution results
-• Adapt solutions based on real feedback
-• Test and refine code in real-time
+Alex now:
+• Executes code to understand behavior
+• Debugs through experimentation  
+• Learns from real execution results
+• Adapts solutions with feedback
 
-Plus: ReAct intelligence, session management, file operations & more!
+AI coding evolution! 🎉
 
-The future of AI-powered coding is here! 🎉
+🚀 https://github.com/cklxx/Alex-Code
+🌐 https://cklxx.github.io/Alex-Code/
 
-🚀 Experience it: https://github.com/cklxx/Alex-Code
-🌐 Live Demo: https://cklxx.github.io/Alex-Code/
-
-#CodeAct #InteractiveLearning #AIInnovation #CodingTools
+#CodeAct #AIInnovation
 
 ---
 
 ## Thread Version (Multiple Tweets)
 
-**Tweet 1/4** 🧵
-Meet Alex - the AI coding assistant that thinks AND learns like you do! 
+**Tweet 1/3** 🧵
+Meet **Alex** - AI coding assistant with CodeAct learning! 
 
-Built with ReAct (Reasoning and Acting) + CodeAct learning, Alex doesn't just generate code - it executes, experiments, and learns from real results. Revolutionary! 🧠🤖
+ReAct + CodeAct = AI that executes, experiments & learns from real code results. Revolutionary! 🧠🤖
 
-**Tweet 2/4**
-🔥 CodeAct Learning in action:
-• Executes code to understand behavior
-• Debugs through interactive experimentation
-• Adapts solutions based on actual results
-• Tests and refines in real-time
+**Tweet 2/3**
+🔥 Alex features:
+• <30ms responses (Go-powered)
+• Interactive code execution
+• 8+ tools (files, shell, web)
+• Multi-model support
+• Enterprise security
 
-This is how AI should work with code! ⚡
+**Tweet 3/3** 
+Perfect for beginners to experts. Alex adapts to YOUR workflow.
 
-**Tweet 3/4**
-What makes Alex special:
-⚡ Go-powered performance (<30ms response)
-🛠️ Rich tool ecosystem (file ops, shell, web search)  
-📁 Persistent sessions (never lose context)
-🔒 Enterprise-grade security
-🌐 Multi-model support (OpenAI, DeepSeek, etc.)
+🚀 https://github.com/cklxx/Alex-Code
+🌐 https://cklxx.github.io/Alex-Code/
 
-**Tweet 4/4** 
-Whether you're a beginner learning to code or an expert building complex systems, Alex adapts to YOUR workflow.
-
-🚀 GitHub: https://github.com/cklxx/Alex-Code
-🌐 Live Demo: https://cklxx.github.io/Alex-Code/
-
-#AI #Coding #GoLang #ReAct #CodeAct #OpenSource
+#AI #CodeAct #ReAct #OpenSource
 
 ---
 
 ## Hashtag Collections
 
 ### Primary Tags
-#AI #CodingAssistant #GoLang #ReAct #CodeAct #DevTools #OpenSource
+#AI #CodeAct #ReAct #GoLang #OpenSource
 
 ### Secondary Tags  
-#Programming #MachineLearning #SoftwareDevelopment #CLI #TerminalTools #InteractiveLearning
-
-### Trending Tags
-#AITools #DeveloperProductivity #CodeAssistant #TechInnovation #OpenSourceAI #CodeExecution
-
----
+#Programming #DevTools #CLI #AITools
 
 ## Call-to-Action Variations
 
-• "🚀 GitHub: https://github.com/cklxx/Alex-Code"
-• "🌐 Live Demo: https://cklxx.github.io/Alex-Code/"
-• "🚀 Try Alex: https://github.com/cklxx/Alex-Code"
-• "🌐 Explore: https://cklxx.github.io/Alex-Code/"
+• "🚀 https://github.com/cklxx/Alex-Code"
+• "🌐 https://cklxx.github.io/Alex-Code/"
 • "⭐ Star & Try: https://github.com/cklxx/Alex-Code"
-• "🎯 Experience CodeAct: https://cklxx.github.io/Alex-Code/"
-• "🚀 GitHub: https://github.com/cklxx/Alex-Code | 🌐 Demo: https://cklxx.github.io/Alex-Code/"
-
-### Combined Call-to-Actions
-• "🚀 GitHub: https://github.com/cklxx/Alex-Code\n🌐 Website: https://cklxx.github.io/Alex-Code/"
-• "Try Alex today!\n🚀 https://github.com/cklxx/Alex-Code\n🌐 https://cklxx.github.io/Alex-Code/"
+• "🚀 GitHub | 🌐 Demo: https://cklxx.github.io/Alex-Code/"
