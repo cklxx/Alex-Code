@@ -98,8 +98,9 @@ func (ms *MessageSummarizer) SummarizeMessages(ctx context.Context, messages []*
 		}
 	}
 
-	// Add metadata
-	summary.TokensUsed = response.Usage.TotalTokens
+	// Add metadata using compatible method
+	usage := response.GetUsage()
+	summary.TokensUsed = usage.GetTotalTokens()
 	summary.CreatedAt = time.Now()
 
 	return summary, nil

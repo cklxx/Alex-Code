@@ -83,6 +83,7 @@ func (h *LLMHandler) collectStreamingResponse(ctx context.Context, streamChan <-
 	contentBuilder.Grow(8192) // Pre-allocate 8KB for better performance
 	var toolCalls []llm.ToolCall
 	var currentToolCall *llm.ToolCall
+	var finalUsage llm.Usage // Track token usage throughout streaming
 
 	// 检查是否有流回调需要通知
 	hasStreamCallback := h.streamCallback != nil
@@ -106,6 +107,10 @@ func (h *LLMHandler) collectStreamingResponse(ctx context.Context, streamChan <-
 						response.Choices[0].Message.ToolCalls = toolCalls
 					}
 				}
+
+				// 设置最终的token usage信息
+				response.Usage = finalUsage
+
 				return response, nil
 			}
 
@@ -211,6 +216,12 @@ func (h *LLMHandler) collectStreamingResponse(ctx context.Context, streamChan <-
 				if choice.FinishReason != "" {
 					response.Choices[0].FinishReason = choice.FinishReason
 				}
+			}
+
+			// 处理token usage信息（如果在此delta中可用）
+			deltaUsage := delta.GetUsage()
+			if deltaUsage.GetTotalTokens() > 0 {
+				finalUsage = deltaUsage
 			}
 
 		}

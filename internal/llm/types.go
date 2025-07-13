@@ -39,13 +39,35 @@ type ChatRequest struct {
 }
 
 // ChatResponse represents a response from the LLM
+// Supports both OpenAI and Gemini API response formats
 type ChatResponse struct {
 	ID      string   `json:"id"`
 	Object  string   `json:"object"`
 	Created int64    `json:"created"`
 	Model   string   `json:"model"`
 	Choices []Choice `json:"choices"`
-	Usage   Usage    `json:"usage,omitempty"`
+	
+	// OpenAI format
+	Usage Usage `json:"usage,omitempty"`
+	
+	// Gemini format - for compatibility
+	UsageMetadata Usage `json:"usageMetadata,omitempty"`
+}
+
+// GetUsage returns the usage information, supporting both OpenAI and Gemini formats
+func (r *ChatResponse) GetUsage() Usage {
+	// Check if OpenAI format has any token data
+	if r.Usage.GetTotalTokens() > 0 {
+		return r.Usage
+	}
+	
+	// Fall back to Gemini format
+	if r.UsageMetadata.GetTotalTokens() > 0 {
+		return r.UsageMetadata
+	}
+	
+	// Return empty usage if neither format has data
+	return Usage{}
 }
 
 // Choice represents a choice in the response
@@ -57,19 +79,62 @@ type Choice struct {
 }
 
 // Usage represents token usage information
+// Supports both OpenAI and Gemini API response formats
 type Usage struct {
+	// OpenAI format (snake_case)
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+	
+	// Gemini format (camelCase) - for compatibility
+	PromptTokenCount     int `json:"promptTokenCount"`
+	CandidatesTokenCount int `json:"candidatesTokenCount"`
+	TotalTokenCount      int `json:"totalTokenCount"`
+}
+
+// GetPromptTokens returns the prompt tokens count, supporting both API formats
+func (u *Usage) GetPromptTokens() int {
+	if u.PromptTokens > 0 {
+		return u.PromptTokens
+	}
+	return u.PromptTokenCount
+}
+
+// GetCompletionTokens returns the completion tokens count, supporting both API formats
+func (u *Usage) GetCompletionTokens() int {
+	if u.CompletionTokens > 0 {
+		return u.CompletionTokens
+	}
+	return u.CandidatesTokenCount
+}
+
+// GetTotalTokens returns the total tokens count, supporting both API formats
+func (u *Usage) GetTotalTokens() int {
+	if u.TotalTokens > 0 {
+		return u.TotalTokens
+	}
+	return u.TotalTokenCount
 }
 
 // StreamDelta represents a streaming response chunk
+// Supports both OpenAI and other provider streaming formats
 type StreamDelta struct {
 	ID      string   `json:"id"`
 	Object  string   `json:"object"`
 	Created int64    `json:"created"`
 	Model   string   `json:"model"`
 	Choices []Choice `json:"choices"`
+	
+	// Usage information in streaming responses (when available)
+	Usage Usage `json:"usage,omitempty"`
+	
+	// Additional provider-specific fields
+	Provider string `json:"provider,omitempty"`
+}
+
+// GetUsage returns the usage information from streaming delta
+func (d *StreamDelta) GetUsage() Usage {
+	return d.Usage
 }
 
 // ModelType represents different model usage types

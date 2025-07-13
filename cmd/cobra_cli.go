@@ -84,6 +84,10 @@ type CLI struct {
 	processing          bool            // Whether currently processing
 	currentMessage      string          // Current working message
 	inputQueue          chan string     // Queue for pending inputs during processing
+	currentTokensUsed   int             // Current task's token usage
+	totalTokensUsed     int             // Total tokens used in session
+	totalPromptTokens   int             // Total prompt tokens used
+	totalCompletionTokens int           // Total completion tokens used
 }
 
 // NewRootCommand creates the root cobra command
@@ -292,6 +296,17 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 	var content string
 
 	switch chunk.Type {
+	case "token_usage":
+		// Update token counters
+		cli.currentTokensUsed = chunk.TokensUsed
+		cli.totalTokensUsed = chunk.TotalTokensUsed
+		// Display token usage information in a subtle way
+		content = gray(fmt.Sprintf("💎 %s", chunk.Content)) + "\n"
+		// Update working indicator with current token usage
+		if cli.processing && cli.currentTermCtrl != nil {
+			indicator := cli.formatWorkingIndicator(cli.currentMessage, cli.currentStartTime, cli.totalTokensUsed)
+			cli.currentTermCtrl.UpdateWorkingIndicator(indicator)
+		}
 	case "status":
 		content = "\n" + DeepCodingStatus(chunk.Content) + "\n"
 	case "thinking_start":
@@ -353,6 +368,17 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 	case "error":
 		content = DeepCodingError(chunk.Content) + "\n"
 	case "complete":
+		// Update final token count from chunk if available
+		if chunk.TotalTokensUsed > 0 {
+			cli.totalTokensUsed = chunk.TotalTokensUsed
+		}
+		// Update detailed token counts if available
+		if chunk.PromptTokens > 0 {
+			cli.totalPromptTokens = chunk.PromptTokens
+		}
+		if chunk.CompletionTokens > 0 {
+			cli.totalCompletionTokens = chunk.CompletionTokens
+		}
 		// Process accumulated content for markdown rendering (fallback for non-streaming content)
 		if cli.contentBuffer.Len() > 0 {
 			bufferedContent := cli.contentBuffer.String()
@@ -365,7 +391,7 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 			cli.contentBuffer.Grow(4096) // Re-allocate buffer after reset for next use
 			cli.lastRenderedContent = "" // Reset rendered content tracking
 		}
-		// Update message to show completion
+		// Update message to show completion with final token count
 		if cli.processing {
 			cli.updateWorkingIndicatorMessage("Completed")
 		}
@@ -419,6 +445,12 @@ func (cli *CLI) shouldStreamAsMarkdown(content string) bool {
 
 // runSinglePrompt handles single prompt execution
 func (cli *CLI) runSinglePrompt(prompt string) error {
+	// Reset token counters for new task
+	cli.currentTokensUsed = 0
+	cli.totalTokensUsed = 0
+	cli.totalPromptTokens = 0
+	cli.totalCompletionTokens = 0
+	
 	// Record start time
 	startTime := time.Now()
 
@@ -442,14 +474,31 @@ func (cli *CLI) runSinglePrompt(prompt string) error {
 		durationStr = fmt.Sprintf("%.1fm", duration.Minutes())
 	}
 
-	// Display completion message with time
+	// Display completion message with time and token usage
 	if err != nil {
-		fmt.Printf("\n%s Task failed after %s\n", red("❌"), durationStr)
+		fmt.Printf("\n%s Task failed after %s", red("❌"), durationStr)
+		if cli.totalTokensUsed > 0 {
+			fmt.Printf(" (%s)", cli.formatTokenUsage())
+		}
+		fmt.Println()
 	} else {
-		fmt.Printf("\n%s Task completed in %s\n", green("✅"), durationStr)
+		fmt.Printf("\n%s Task completed in %s", green("✅"), durationStr)
+		if cli.totalTokensUsed > 0 {
+			fmt.Printf(" · %s", cyan(cli.formatTokenUsage()))
+		}
+		fmt.Println()
 	}
 
 	return err
+}
+
+// formatTokenUsage formats token usage information with input/output breakdown
+func (cli *CLI) formatTokenUsage() string {
+	if cli.totalPromptTokens > 0 && cli.totalCompletionTokens > 0 {
+		return fmt.Sprintf("%d tokens (in: %d, out: %d)", 
+			cli.totalTokensUsed, cli.totalPromptTokens, cli.totalCompletionTokens)
+	}
+	return fmt.Sprintf("%d tokens", cli.totalTokensUsed)
 }
 
 func (cli *CLI) showConfig() {

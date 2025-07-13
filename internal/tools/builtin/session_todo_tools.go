@@ -109,7 +109,14 @@ func (t *SessionTodoUpdateTool) Validate(args map[string]interface{}) error {
 	}
 
 	// Get validated action
-	action := args["action"].(string)
+	actionValue, ok := args["action"]
+	if !ok || actionValue == nil {
+		return fmt.Errorf("missing or nil action parameter")
+	}
+	action, ok := actionValue.(string)
+	if !ok {
+		return fmt.Errorf("action parameter must be a string, got %T", actionValue)
+	}
 
 	// Additional action-specific validation
 	switch action {
@@ -174,7 +181,14 @@ func (t *SessionTodoUpdateTool) Execute(ctx context.Context, args map[string]int
 		}
 	}
 
-	action := args["action"].(string)
+	actionValue, ok := args["action"]
+	if !ok || actionValue == nil {
+		return nil, fmt.Errorf("missing or nil action parameter")
+	}
+	action, ok := actionValue.(string)
+	if !ok {
+		return nil, fmt.Errorf("action parameter must be a string, got %T", actionValue)
+	}
 
 	switch action {
 	case "create":
@@ -195,7 +209,14 @@ func (t *SessionTodoUpdateTool) Execute(ctx context.Context, args map[string]int
 }
 
 func (t *SessionTodoUpdateTool) createTodo(session *session.Session, args map[string]interface{}) (*ToolResult, error) {
-	content := args["content"].(string)
+	contentValue, ok := args["content"]
+	if !ok || contentValue == nil {
+		return nil, fmt.Errorf("missing or nil content parameter")
+	}
+	content, ok := contentValue.(string)
+	if !ok {
+		return nil, fmt.Errorf("content parameter must be a string, got %T", contentValue)
+	}
 	order := 1
 	if o, ok := args["order"]; ok {
 		if orderFloat, ok := o.(float64); ok {
@@ -308,7 +329,14 @@ func (t *SessionTodoUpdateTool) createBatchTodos(session *session.Session, args 
 }
 
 func (t *SessionTodoUpdateTool) updateTodo(session *session.Session, args map[string]interface{}) (*ToolResult, error) {
-	id := args["id"].(string)
+	idValue, ok := args["id"]
+	if !ok || idValue == nil {
+		return nil, fmt.Errorf("missing or nil id parameter")
+	}
+	id, ok := idValue.(string)
+	if !ok {
+		return nil, fmt.Errorf("id parameter must be a string, got %T", idValue)
+	}
 
 	// Get current todos from session
 	todos := t.getTodosFromSession(session)
@@ -361,7 +389,14 @@ func (t *SessionTodoUpdateTool) updateTodo(session *session.Session, args map[st
 }
 
 func (t *SessionTodoUpdateTool) completeTodo(session *session.Session, args map[string]interface{}) (*ToolResult, error) {
-	id := args["id"].(string)
+	idValue, ok := args["id"]
+	if !ok || idValue == nil {
+		return nil, fmt.Errorf("missing or nil id parameter")
+	}
+	id, ok := idValue.(string)
+	if !ok {
+		return nil, fmt.Errorf("id parameter must be a string, got %T", idValue)
+	}
 
 	// Get current todos from session
 	todos := t.getTodosFromSession(session)
@@ -402,7 +437,14 @@ func (t *SessionTodoUpdateTool) completeTodo(session *session.Session, args map[
 }
 
 func (t *SessionTodoUpdateTool) deleteTodo(session *session.Session, args map[string]interface{}) (*ToolResult, error) {
-	id := args["id"].(string)
+	idValue, ok := args["id"]
+	if !ok || idValue == nil {
+		return nil, fmt.Errorf("missing or nil id parameter")
+	}
+	id, ok := idValue.(string)
+	if !ok {
+		return nil, fmt.Errorf("id parameter must be a string, got %T", idValue)
+	}
 
 	// Get current todos from session
 	todos := t.getTodosFromSession(session)
@@ -441,7 +483,14 @@ func (t *SessionTodoUpdateTool) deleteTodo(session *session.Session, args map[st
 }
 
 func (t *SessionTodoUpdateTool) setProgress(session *session.Session, args map[string]interface{}) (*ToolResult, error) {
-	id := args["id"].(string)
+	idValue, ok := args["id"]
+	if !ok || idValue == nil {
+		return nil, fmt.Errorf("missing or nil id parameter")
+	}
+	id, ok := idValue.(string)
+	if !ok {
+		return nil, fmt.Errorf("id parameter must be a string, got %T", idValue)
+	}
 
 	// Get current todos from session
 	todos := t.getTodosFromSession(session)

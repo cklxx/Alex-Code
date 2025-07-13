@@ -149,6 +149,32 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		log.Printf("DEBUG: Response: %+v", response)
 		choice := response.Choices[0]
 		step.Thought = strings.TrimSpace(choice.Message.Content)
+		
+		// Extract token usage from response using compatible method
+		usage := response.GetUsage()
+		tokensUsed := usage.GetTotalTokens()
+		promptTokens := usage.GetPromptTokens()
+		completionTokens := usage.GetCompletionTokens()
+		
+		// Update task context with token usage
+		taskCtx.TokensUsed += tokensUsed
+		taskCtx.PromptTokens += promptTokens
+		taskCtx.CompletionTokens += completionTokens
+		step.TokensUsed = tokensUsed
+		
+		// Send token usage via stream callback
+		if isStreaming && tokensUsed > 0 {
+			streamCallback(StreamChunk{
+				Type:             "token_usage",
+				Content:          fmt.Sprintf("Tokens used: %d (prompt: %d, completion: %d)", tokensUsed, promptTokens, completionTokens),
+				TokensUsed:       tokensUsed,
+				TotalTokensUsed:  taskCtx.TokensUsed,
+				PromptTokens:     promptTokens,
+				CompletionTokens: completionTokens,
+				Metadata:         map[string]any{"iteration": iteration, "phase": "token_accounting"},
+			})
+		}
+		
 		// 添加assistant消息到对话历史
 		if len(choice.Message.Content) > 0 {
 			messages = append(messages, choice.Message)
@@ -176,9 +202,10 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 			if isStreaming {
 				streamCallback(StreamChunk{
-					Type:     "final_answer",
-					Content:  finalAnswer,
-					Metadata: map[string]any{"iteration": iteration}})
+					Type:            "final_answer",
+					Content:         finalAnswer,
+					TotalTokensUsed: taskCtx.TokensUsed,
+					Metadata:        map[string]any{"iteration": iteration}})
 			}
 
 			step.Action = "direct_answer"
@@ -186,7 +213,9 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			step.Duration = time.Since(step.Timestamp)
 			taskCtx.History = append(taskCtx.History, step)
 
-			return buildFinalResult(taskCtx, finalAnswer, 0.8, true), nil
+			result := buildFinalResult(taskCtx, finalAnswer, 0.8, true)
+			result.TokensUsed = taskCtx.TokensUsed
+			return result, nil
 		}
 
 		step.Duration = time.Since(step.Timestamp)

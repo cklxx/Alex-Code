@@ -74,6 +74,11 @@ type StreamChunk struct {
 	Content  string                 `json:"content"`
 	Complete bool                   `json:"complete,omitempty"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	// Token usage information
+	TokensUsed       int `json:"tokens_used,omitempty"`        // Current operation token usage
+	TotalTokensUsed  int `json:"total_tokens_used,omitempty"`  // Cumulative token usage in session
+	PromptTokens     int `json:"prompt_tokens,omitempty"`      // Tokens used for prompt
+	CompletionTokens int `json:"completion_tokens,omitempty"`  // Tokens used for completion
 }
 
 // StreamCallback - 流式回调函数
@@ -260,18 +265,22 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 		Role:    "assistant",
 		Content: result.Answer,
 		Metadata: map[string]interface{}{
-			"timestamp":  time.Now().Unix(),
-			"streaming":  true,
-			"confidence": result.Confidence,
+			"timestamp":   time.Now().Unix(),
+			"streaming":   true,
+			"confidence":  result.Confidence,
+			"tokens_used": result.TokensUsed,
 		},
 		Timestamp: time.Now(),
 	}
 	currentSession.AddMessage(assistantMsg)
 
 	callback(StreamChunk{
-		Type:     "complete",
-		Content:  "Task completed",
-		Complete: true,
+		Type:             "complete",
+		Content:          "Task completed",
+		Complete:         true,
+		TotalTokensUsed:  result.TokensUsed,
+		PromptTokens:     result.PromptTokens,
+		CompletionTokens: result.CompletionTokens,
 	})
 
 	return nil

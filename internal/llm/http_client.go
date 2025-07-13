@@ -148,11 +148,10 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 		// Add assistant response
 		newMessages = append(newMessages, chatResp.Choices[0].Message)
 
-		// Calculate approximate token usage
-		tokensUsed := 0
-		if chatResp.Usage.TotalTokens > 0 {
-			tokensUsed = chatResp.Usage.TotalTokens
-		} else {
+		// Calculate approximate token usage using compatible method
+		usage := chatResp.GetUsage()
+		tokensUsed := usage.GetTotalTokens()
+		if tokensUsed == 0 {
 			// Rough estimation: ~4 chars per token
 			for _, msg := range newMessages {
 				tokensUsed += len(msg.Content) / 4

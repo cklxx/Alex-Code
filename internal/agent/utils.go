@@ -18,11 +18,13 @@ func buildFinalResult(taskCtx *types.ReactTaskContext, answer string, confidence
 	totalDuration := time.Since(taskCtx.StartTime)
 
 	return &types.ReactTaskResult{
-		Success:    success,
-		Answer:     answer,
-		Confidence: confidence,
-		Steps:      taskCtx.History,
-		Duration:   totalDuration,
-		TokensUsed: taskCtx.TokensUsed,
+		Success:          success,
+		Answer:           answer,
+		Confidence:       confidence,
+		Steps:            taskCtx.History,
+		Duration:         totalDuration,
+		TokensUsed:       taskCtx.TokensUsed,
+		PromptTokens:     taskCtx.PromptTokens,
+		CompletionTokens: taskCtx.CompletionTokens,
 	}
 }
