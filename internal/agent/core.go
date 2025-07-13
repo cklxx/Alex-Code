@@ -99,7 +99,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			Config:     rc.agent.llmConfig,
 			MaxTokens:  12000,
 		}
-
 		// 获取LLM实例
 		client, err := llm.GetLLMInstance(llm.BasicModel)
 		if err != nil {
@@ -166,7 +165,8 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 			// 将工具结果添加到对话历史
 			if toolResult != nil {
-				toolMessages := rc.toolHandler.buildToolMessages(toolResult)
+				isGemini := strings.Contains(request.Config.BaseURL, "googleapis")
+				toolMessages := rc.toolHandler.buildToolMessages(toolResult, isGemini)
 				messages = append(messages, toolMessages...)
 
 				step.Observation = rc.toolHandler.generateObservation(toolResult)

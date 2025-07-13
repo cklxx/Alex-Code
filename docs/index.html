@@ -444,31 +444,57 @@
             transition: color 0.2s ease;
         }
 
-        /* Enhanced emoji and content styling */
-        .output:has(🧠),
-        .output[style*="--accent-color"] {
+        /* Enhanced emoji and content styling for actual CLI format */
+        .output:has(👾) {
             color: var(--accent-color) !important;
+            font-weight: 500;
+        }
+
+        .output:has(⏺) {
+            color: var(--success-color) !important;
+            font-weight: 500;
+        }
+
+        .output:has(⎿) {
+            color: var(--text-secondary) !important;
+            padding-left: 1rem;
+        }
+
+        .output:has(✨) {
+            color: #ffdd44 !important;
+            font-weight: 500;
+        }
+
+        .output:has(✅) {
+            color: var(--success-color) !important;
+            font-weight: 600;
+        }
+
+        .output:has(⚙️) {
+            color: var(--accent-color) !important;
+            font-weight: 500;
         }
 
         .output:has(🛠️) {
             color: #ffaa00 !important;
         }
 
-        .output:has(✅) {
-            color: var(--success-color) !important;
+        .output:has(🔒) {
+            color: #66ccff !important;
         }
 
         .output:has(⚠️) {
             color: #ff6666 !important;
         }
 
-        .output:has(🔍),
-        .output:has(📊) {
-            color: #66ccff !important;
+        .output:has(📁),
+        .output:has(📄) {
+            color: var(--text-secondary) !important;
         }
 
-        .output:has(💡) {
-            color: #ffdd44 !important;
+        .output:has(💬) {
+            color: var(--text-muted) !important;
+            font-style: italic;
         }
 
         /* Enhanced styling with ultra-fast animations for density */
@@ -490,11 +516,31 @@
             }
         }
 
-        /* Nuclear option: Force ALL elements to respect width */
-        .terminal,
-        .terminal *,
-        .terminal-content,
-        .terminal-content * {
+        /* Individual classes for each element type */
+        .terminal-container {
+            overflow: hidden !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+
+        .terminal-header-wrapper {
+            overflow: hidden !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            flex-shrink: 0;
+        }
+
+        .terminal-scrollable-content {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            flex: 1 1 0 !important;
+            min-height: 0 !important;
+            max-height: none !important;
+        }
+
+        .terminal-command-line {
             max-width: 100% !important;
             box-sizing: border-box !important;
             word-break: break-all !important;
@@ -503,13 +549,34 @@
             overflow: hidden !important;
         }
 
-        /* Specific override for text content */
-        .terminal-content {
-            letter-spacing: -0.02em;
-            /* Force table layout to respect width */
-            table-layout: fixed !important;
-            width: 100% !important;
+        .terminal-output-line {
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            word-break: break-all !important;
+            overflow-wrap: anywhere !important;
+            white-space: pre-wrap !important;
+            overflow: hidden !important;
         }
+
+        .terminal-loading-line {
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            word-break: break-all !important;
+            overflow-wrap: anywhere !important;
+            white-space: pre-wrap !important;
+            overflow: hidden !important;
+        }
+
+        .terminal-prompt-line {
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            word-break: break-all !important;
+            overflow-wrap: anywhere !important;
+            white-space: pre-wrap !important;
+            overflow: hidden !important;
+        }
+
+
 
         /* Ultra-compact mode for maximum information density */
         @media (max-height: 600px) {
@@ -721,7 +788,6 @@
 
             .terminal-content {
                 font-size: 0.9rem;
-                min-height: 350px;
                 padding: 0.8rem;
             }
 
@@ -748,7 +814,6 @@
             }
 
             .terminal-content {
-                min-height: 350px;
                 font-size: 0.85rem;
             }
             
@@ -766,7 +831,6 @@
             }
 
             .terminal-content {
-                min-height: 280px;
                 font-size: 0.8rem;
             }
             
@@ -806,7 +870,6 @@
             }
 
             .terminal-content {
-                min-height: 220px;
                 font-size: 0.75rem;
                 padding: 0.4rem;
             }
@@ -886,17 +949,18 @@
                         </a>
                     </div>
 
-                    <div class="terminal">
-                        <div class="terminal-header">
+                    <div class="terminal terminal-container">
+                        <div class="terminal-header terminal-header-wrapper">
                             <div class="terminal-dot dot-red"></div>
                             <div class="terminal-dot dot-yellow"></div>
                             <div class="terminal-dot dot-green"></div>
                             <span class="terminal-title">Alex AI Coding Assistant</span>
                         </div>
-                        <div class="terminal-content" id="terminal-content">
+                        <div class="terminal-content terminal-scrollable-content" id="terminal-content">
                             <!-- Loading state -->
-                            <div class="loading-text">🤖 Initializing Alex AI Assistant...</div>
-                            <div class="prompt-line">$ <span class="terminal-cursor"></span></div>
+                            <div class="loading-text terminal-loading-line">🤖 Alex v1.0 - AI-Powered Coding Assistant</div>
+                            <div class="loading-text terminal-loading-line">🧠 ReAct Agent: Initializing...</div>
+                            <div class="prompt-line terminal-prompt-line">$ <span class="terminal-cursor"></span></div>
                         </div>
                     </div>
                 </div>
@@ -1099,63 +1163,109 @@
             {
                 command: './alex "Analyze this Go project structure"',
                 output: [
-                    '🧠 ReAct Agent: Starting analysis...',
-                    '🛠️ Tool: file_list - Scanning project directories',
-                    '📊 Found: 45 Go files, 12 packages, 8,432 lines of code',
-                    '🔍 Detected: ReAct agent architecture, builtin tools, session management',
-                    '📁 Key directories: internal/agent, internal/tools, cmd/',
+                    '👾 Analyzing...',
                     '',
-                    '✅ Task completed in 1.2s'
+                    '⏺ think(content="Need to analyze Go project structure...")',
+                    '⎿  Analyzing directory structure and identifying Go project components...',
+                    '',
+                    '⏺ file_list(path=".", recursive=true, show_hidden=false)',
+                    '⎿  Found 45 Go files in 12 packages',
+                    '   📁 internal/agent/ - ReAct agent implementation',
+                    '   📁 internal/tools/ - Built-in tool system',
+                    '   📁 cmd/ - CLI interface',
+                    '   📁 pkg/ - Public interfaces and types',
+                    '',
+                    '✨',
+                    '  Go project with ReAct agent architecture. 45 files, 8,432 LOC.',
+                    '  Key components: agent system, tool registry, session management.',
+                    '',
+                    '✅ Task completed in 1.8s'
                 ]
             },
             {
-                command: './alex "Search for web development best practices 2025"',
+                command: './alex "Search for React hooks best practices"',
                 output: [
-                    '🧠 ReAct Agent: Planning web search...',
-                    '🛠️ Tool: web_search - Query: "web development best practices 2025"',
-                    '🌐 Tavily API: Searching latest resources...',
-                    '📝 Found 5 relevant articles from authoritative sources',
-                    '💡 Key trends: AI integration, performance optimization, accessibility',
-                    '🔗 Sources: MDN, web.dev, CSS-Tricks, Smashing Magazine',
+                    '👾 Thinking...',
                     '',
-                    '✅ Task completed in 2.1s'
+                    '⏺ think(content="User wants React hooks best practices...")',
+                    '⎿  Planning web search for current React hooks best practices...',
+                    '',
+                    '⏺ web_search(query="React hooks best practices 2025")',
+                    '⎿  🌐 Searching web for: "React hooks best practices 2025"',
+                    '   Found 5 authoritative sources:',
+                    '   • React official docs - Hook patterns',
+                    '   • Kent C. Dodds - Advanced hook patterns',
+                    '   • web.dev - Performance with hooks',
+                    '',
+                    '✨',
+                    '  Current React hooks best practices: custom hooks for logic reuse,',
+                    '  useCallback for expensive functions, useMemo for complex calculations.',
+                    '',
+                    '✅ Task completed in 2.3s'
                 ]
             },
             {
-                command: './alex "Review and optimize this function"',
+                command: './alex "Create a simple HTTP server example"',
                 output: [
-                    '🧠 ReAct Agent: Analyzing code...',
-                    '🛠️ Tool: file_read - Reading target file',
-                    '🔍 Code analysis: Function complexity score: 7/10',
-                    '⚠️ Issues found: Potential memory leak, inefficient loop',
-                    '💡 Suggestions: Use sync.Pool, optimize iteration',
-                    '🔧 Applying optimizations...',
+                    '👾 Creating...',
                     '',
-                    '✅ Task completed in 0.8s'
+                    '⏺ think(content="User wants a simple HTTP server example...")',
+                    '⎿  Creating basic HTTP server with modern Go patterns...',
+                    '',
+                    '⏺ file_create(path="./example-server.go", content="package main...")',
+                    '⎿  ✅ Created example-server.go',
+                    '   Added: Basic HTTP server with middleware',
+                    '   Features: Graceful shutdown, JSON responses, health check',
+                    '',
+                    '✨',
+                    '  HTTP server example created. Run with: go run example-server.go',
+                    '  Includes modern patterns: context, middleware, graceful shutdown.',
+                    '',
+                    '✅ Task completed in 1.1s'
                 ]
             },
             {
-                command: './alex "Create unit tests for authentication module"',
+                command: './alex "List files in current directory"',
                 output: [
-                    '🧠 ReAct Agent: Understanding auth module...',
-                    '🛠️ Tool: file_read - Analyzing auth.go',
-                    '🧪 Generating test cases for login, logout, token validation',
-                    '🛠️ Tool: file_update - Creating auth_test.go',
-                    '📋 Generated 12 test cases with 95% coverage',
+                    '👾 Analyzing...',
                     '',
-                    '✅ Task completed in 1.5s'
+                    '⏺ think(content="Simple directory listing request...")',
+                    '⎿  The task is to list files in current directory using file_list tool.',
+                    '',
+                    '⏺ file_list(path=".", recursive=false, show_hidden=false)',
+                    '⎿  Found 13 files and 8 directories (total size: 60.7 MB)',
+                    '',
+                    '   Directories:',
+                    '   📁 changelog/ 📁 cmd/ 📁 docs/ 📁 internal/',
+                    '',
+                    '   Files:',
+                    '   📄 CLAUDE.md 📄 Dockerfile 📄 Makefile 📄 README.md',
+                    '',
+                    '✨',
+                    '  13 files (60.7 MB), 8 dirs. Key items: cmd/, internal/, CLAUDE.md.',
+                    '',
+                    '✅ Task completed in 0.9s'
                 ]
             },
             {
                 command: './alex config show',
                 output: [
-                    '⚙️ Current Configuration:',
+                    '⚙️ Configuration:',
+                    '',
+                    '  API Provider: OpenRouter',
+                    '  Base URL: https://openrouter.ai/api/v1',
                     '  Model: deepseek/deepseek-chat-v3-0324:free',
                     '  Max Tokens: 4000',
-                    '  Base URL: https://openrouter.ai/api/v1',
-                    '🛠️ Tool Configuration:',
-                    '  Tavily API Key: tvly-dev...fuwYKxTE',
-                    '🤖 Multi-Model Support: ✅ Enabled'
+                    '  Temperature: 0.7',
+                    '',
+                    '🛠️ Tools:',
+                    '  Available: 11 built-in tools',
+                    '  Tavily API: ✅ Configured',
+                    '  Session Management: ✅ Enabled',
+                    '',
+                    '🔒 Security:',
+                    '  Risk Assessment: ✅ Active',
+                    '  Path Protection: ✅ Enabled'
                 ]
             },
             {
@@ -1165,15 +1275,23 @@
                     '🧠 ReAct Agent: Ready for interactive mode',
                     '📁 Session: alex-demo-2025 (Working dir: /Users/dev/projects)',
                     '🛠️ Available tools: 11 (file ops, shell, web search, todo)',
+                    '',
                     '💬 Type your request or "help" for assistance...',
                     '',
-                    '> How do I optimize this Go HTTP server?',
-                    '🧠 ReAct: Analyzing HTTP server optimization...',
-                    '🛠️ Tool: file_read - Reading server.go',
-                    '💡 Recommendations: Use connection pooling, enable gzip',
-                    '📝 Detailed optimization guide generated',
+                    '> Optimize this Go function for performance',
+                    '👾 Analyzing...',
                     '',
-                    '✅ Task completed in 3.2s'
+                    '⏺ file_read(path="server.go")',
+                    '⎿  Reading file contents for analysis...',
+                    '',
+                    '⏺ think(content="Analyzing Go function performance...")',
+                    '⎿  Identified optimization opportunities: memory allocation, goroutines.',
+                    '',
+                    '✨',
+                    '  Performance optimizations: use sync.Pool, reduce allocations,',
+                    '  optimize hot paths. Estimated 3x speedup possible.',
+                    '',
+                    '✅ Task completed in 2.1s'
                 ]
             }
         ];
@@ -1185,6 +1303,7 @@
                 terminalContent.innerHTML = '';
                 // Add a prompt to show terminal is ready
                 const prompt = document.createElement('div');
+                prompt.className = 'prompt-line terminal-prompt-line';
                 prompt.style.color = 'var(--success-color)';
                 prompt.innerHTML = '$ <span class="terminal-cursor"></span>';
                 terminalContent.appendChild(prompt);
@@ -1202,7 +1321,14 @@
                     if (!terminalContent) return resolve();
 
                     const line = document.createElement('div');
-                    line.className = className;
+                    // Use specific terminal classes
+                    if (className === 'output') {
+                        line.className = 'output terminal-output-line';
+                    } else if (className === 'command') {
+                        line.className = 'command terminal-command-line';
+                    } else {
+                        line.className = className + ' terminal-output-line';
+                    }
                     line.textContent = text;
 
                     // Force width constraints on every element
@@ -1213,21 +1339,36 @@
                     line.style.setProperty('white-space', 'pre-wrap', 'important');
                     line.style.setProperty('overflow', 'hidden', 'important');
 
-                    // Apply special colors based on content with CSS custom properties
-                    if (text.includes('🧠')) {
+                    // Apply special colors based on actual CLI format
+                    if (text.includes('👾')) {
                         line.style.setProperty('color', 'var(--accent-color)', 'important');
-                    } else if (text.includes('🛠️')) {
-                        line.style.setProperty('color', '#ffaa00', 'important');
+                        line.style.setProperty('font-weight', '500', 'important');
+                    } else if (text.includes('⏺')) {
+                        line.style.setProperty('color', 'var(--success-color)', 'important');
+                        line.style.setProperty('font-weight', '500', 'important');
+                    } else if (text.includes('⎿')) {
+                        line.style.setProperty('color', 'var(--text-secondary)', 'important');
+                        line.style.setProperty('padding-left', '1rem', 'important');
+                    } else if (text.includes('✨')) {
+                        line.style.setProperty('color', '#ffdd44', 'important');
+                        line.style.setProperty('font-weight', '500', 'important');
                     } else if (text.includes('✅')) {
                         line.style.setProperty('color', 'var(--success-color)', 'important');
+                        line.style.setProperty('font-weight', '600', 'important');
+                    } else if (text.includes('⚙️')) {
+                        line.style.setProperty('color', 'var(--accent-color)', 'important');
+                        line.style.setProperty('font-weight', '500', 'important');
+                    } else if (text.includes('🛠️')) {
+                        line.style.setProperty('color', '#ffaa00', 'important');
+                    } else if (text.includes('🔒')) {
+                        line.style.setProperty('color', '#66ccff', 'important');
                     } else if (text.includes('⚠️')) {
                         line.style.setProperty('color', '#ff6666', 'important');
-                    } else if (text.includes('🔍') || text.includes('📊')) {
-                        line.style.setProperty('color', '#66ccff', 'important');
-                    } else if (text.includes('💡')) {
-                        line.style.setProperty('color', '#ffdd44', 'important');
-                    } else if (text.includes('🌐')) {
-                        line.style.setProperty('color', '#66ccff', 'important');
+                    } else if (text.includes('📁') || text.includes('📄')) {
+                        line.style.setProperty('color', 'var(--text-secondary)', 'important');
+                    } else if (text.includes('💬')) {
+                        line.style.setProperty('color', 'var(--text-muted)', 'important');
+                        line.style.setProperty('font-style', 'italic', 'important');
                     }
 
                     terminalContent.appendChild(line);
@@ -1252,7 +1393,7 @@
                 if (!terminalContent) return resolve();
 
                 const commandLine = document.createElement('div');
-                commandLine.className = 'command';
+                commandLine.className = 'command terminal-command-line';
                 commandLine.innerHTML = '$ <span class="terminal-cursor"></span>';
 
                 // Force width constraints immediately

@@ -44,7 +44,7 @@ func (h *ToolHandler) buildToolDefinitions() []llm.Tool {
 }
 
 // buildToolMessages - 构建工具结果消息
-func (h *ToolHandler) buildToolMessages(actionResult []*types.ReactToolResult) []llm.Message {
+func (h *ToolHandler) buildToolMessages(actionResult []*types.ReactToolResult, isGemini bool) []llm.Message {
 	var toolMessages []llm.Message
 
 	for _, result := range actionResult {
@@ -68,8 +68,14 @@ func (h *ToolHandler) buildToolMessages(actionResult []*types.ReactToolResult) [
 
 		// Gemini API compatibility: ensure tool response format is correct
 		// 兼容所有类型的api
+		role := "tool"
+		if isGemini {
+			content = toolName + " executed result: " + content
+			role = "user"
+		}
+
 		toolMessages = append(toolMessages, llm.Message{
-			Role:       "user",
+			Role:       role,
 			Content:    content,
 			Name:       toolName,
 			ToolCallId: callID,
