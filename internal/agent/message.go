@@ -158,16 +158,55 @@ func (mp *MessageProcessor) UpdateMessagesWithLatestSession(ctx context.Context,
 		return baseMessages
 	}
 
-	// 提取系统消息
+	// 提取系统消息和非系统消息
 	var systemMsg llm.Message
+	var nonSystemMessages []llm.Message
+	
 	if len(baseMessages) > 0 && baseMessages[0].Role == "system" {
 		systemMsg = baseMessages[0]
+		nonSystemMessages = baseMessages[1:]
+	} else {
+		nonSystemMessages = baseMessages
 	}
 
 	// 处理会话消息
 	sessionMessages := sess.GetMessages()
 	integratedMessages := mp.integrateMemoryInfo(ctx, sessionMessages)
-	compressedMessages := mp.compressMessages(integratedMessages)
+	
+	// 合并会话消息和新消息
+	allMessages := make([]*session.Message, 0, len(integratedMessages)+len(nonSystemMessages))
+	allMessages = append(allMessages, integratedMessages...)
+	
+	// 将非系统消息转换为session格式并添加
+	for _, msg := range nonSystemMessages {
+		sessionMsg := &session.Message{
+			Role:      msg.Role,
+			Content:   msg.Content,
+			Metadata:  make(map[string]interface{}),
+			Timestamp: time.Now(),
+		}
+		
+		// 处理工具调用
+		if len(msg.ToolCalls) > 0 {
+			sessionMsg.ToolCalls = make([]session.ToolCall, 0, len(msg.ToolCalls))
+			for _, tc := range msg.ToolCalls {
+				sessionMsg.ToolCalls = append(sessionMsg.ToolCalls, session.ToolCall{
+					ID:   tc.ID,
+					Name: tc.Function.Name,
+				})
+			}
+		}
+		
+		// 处理工具调用 ID
+		if msg.Role == "tool" && msg.ToolCallId != "" {
+			sessionMsg.Metadata["tool_call_id"] = msg.ToolCallId
+		}
+		
+		allMessages = append(allMessages, sessionMsg)
+	}
+
+	// 智能压缩（只在需要时触发）
+	compressedMessages := mp.compressMessages(allMessages)
 	convertedMessages := mp.convertAndFilter(compressedMessages, true)
 
 	// 构建最终消息列表
