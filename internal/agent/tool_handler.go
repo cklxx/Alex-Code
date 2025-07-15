@@ -47,17 +47,25 @@ func (h *ToolHandler) buildToolDefinitions() []llm.Tool {
 func (h *ToolHandler) buildToolMessages(actionResult []*types.ReactToolResult, isGemini bool) []llm.Message {
 	var toolMessages []llm.Message
 
-	for _, result := range actionResult {
+	log.Printf("[DEBUG] buildToolMessages: Processing %d tool results", len(actionResult))
+	
+	for i, result := range actionResult {
+		log.Printf("[DEBUG] buildToolMessages: Result %d - Tool: '%s', CallID: '%s', Success: %v", i, result.ToolName, result.CallID, result.Success)
+		
 		content := result.Content
 		if !result.Success {
 			content = result.Error
 		}
 
-		// Ensure CallID is not empty - generate one if missing
+		// 确保CallID不为空，这是关键的修复
 		callID := result.CallID
 		if callID == "" {
-			callID = fmt.Sprintf("tool_%d", time.Now().UnixNano())
-			log.Printf("[WARN] buildToolMessages: Missing CallID for tool %s, generated: %s", result.ToolName, callID)
+			log.Printf("[ERROR] buildToolMessages: Missing CallID for tool %s, generating fallback ID", result.ToolName)
+			log.Printf("[ERROR] buildToolMessages: Full result object: %+v", result)
+			// 生成一个fallback ID，确保不跳过任何工具结果
+			// 这样可以确保每个工具调用都有对应的响应消息
+			callID = fmt.Sprintf("fallback_%s_%d", result.ToolName, time.Now().UnixNano())
+			log.Printf("[ERROR] buildToolMessages: Generated fallback CallID: %s", callID)
 		}
 
 		// Ensure ToolName is not empty and properly formatted for Gemini API
@@ -74,14 +82,18 @@ func (h *ToolHandler) buildToolMessages(actionResult []*types.ReactToolResult, i
 			role = "user"
 		}
 
-		toolMessages = append(toolMessages, llm.Message{
+		toolMessage := llm.Message{
 			Role:       role,
 			Content:    content,
 			Name:       toolName,
 			ToolCallId: callID,
-		})
+		}
+		
+		log.Printf("[DEBUG] buildToolMessages: Created tool message - Role: '%s', ToolCallId: '%s'", toolMessage.Role, toolMessage.ToolCallId)
+		toolMessages = append(toolMessages, toolMessage)
 	}
 
+	log.Printf("[DEBUG] buildToolMessages: Generated %d tool messages", len(toolMessages))
 	return toolMessages
 }
 

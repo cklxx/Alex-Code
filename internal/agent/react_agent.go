@@ -11,6 +11,7 @@ import (
 	"alex/internal/config"
 	contextmgr "alex/internal/context"
 	"alex/internal/llm"
+	"alex/internal/memory"
 	"alex/internal/prompts"
 	"alex/internal/session"
 	"alex/internal/tools/builtin"
@@ -20,7 +21,10 @@ import (
 // ContextKey 用于在context中存储值，避免类型冲突
 type ContextKey string
 
-const SessionIDKey ContextKey = "sessionID"
+const (
+	SessionIDKey ContextKey = "sessionID"
+	MemoriesKey  ContextKey = "memories"
+)
 
 // ReactCoreInterface - ReAct核心接口
 type ReactCoreInterface interface {
@@ -36,6 +40,7 @@ type ReactAgent struct {
 	llm            llm.Client
 	configManager  *config.Manager
 	sessionManager *session.Manager
+	memoryManager  *memory.MemoryManager // 新增: Memory系统管理器
 	tools          map[string]builtin.Tool
 	config         *types.ReactConfig
 	llmConfig      *llm.Config
@@ -120,11 +125,24 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	// 创建组件
 	promptBuilder := NewLightPromptBuilder()
 	contextMgr := NewLightContextManager()
+	
+	// 初始化Memory系统
+	var memoryManager *memory.MemoryManager
+	if llmClient != nil {
+		if mm, err := memory.NewMemoryManager(llmClient); err == nil {
+			memoryManager = mm
+			log.Printf("[INFO] ReactAgent: Memory system initialized successfully")
+		} else {
+			log.Printf("[WARN] ReactAgent: Failed to initialize memory system: %v", err)
+			// 不失败，继续运行
+		}
+	}
 
 	agent := &ReactAgent{
 		llm:            llmClient,
 		configManager:  configManager,
 		sessionManager: sessionManager,
+		memoryManager:  memoryManager, // 可能为nil，需要处理
 		tools:          tools,
 		config:         lightConfig,
 		llmConfig:      llmConfig,
@@ -187,8 +205,16 @@ func (r *ReactAgent) ProcessMessage(ctx context.Context, userMessage string, con
 	}
 	currentSession.AddMessage(userMsg)
 
+	// Memory召回: 在处理前获取相关记忆
+	ctxWithMemory := r.enhanceContextWithMemory(ctx, currentSession.ID, userMessage)
+
 	// Add session ID to context for caching
-	ctxWithSession := context.WithValue(ctx, SessionIDKey, currentSession.ID)
+	ctxWithSession := context.WithValue(ctxWithMemory, SessionIDKey, currentSession.ID)
+
+	// 检查并处理上下文压缩（集成memory系统）
+	if err := r.manageContextWithMemory(ctxWithSession, currentSession); err != nil {
+		log.Printf("[WARN] Context management with memory failed: %v", err)
+	}
 
 	// 执行统一的ReAct循环（非流式）
 	result, err := r.reactCore.SolveTask(ctxWithSession, userMessage, nil)
@@ -208,6 +234,9 @@ func (r *ReactAgent) ProcessMessage(ctx context.Context, userMessage string, con
 		Timestamp: time.Now(),
 	}
 	currentSession.AddMessage(assistantMsg)
+
+	// Memory创建: 异步创建记忆，不阻塞响应
+	go r.createMemoryAsync(ctx, currentSession, userMsg, assistantMsg, result)
 
 	// 转换结果为兼容格式
 	toolResults := make([]types.ReactToolResult, 0)
@@ -419,6 +448,198 @@ func (cm *LightContextManager) formatDirectoryContext(context *types.ReactTaskCo
 	}
 
 	return strings.Join(contextLines, "\n")
+}
+
+// Memory集成相关方法
+
+// enhanceContextWithMemory 从memory召回相关信息并增强context
+func (r *ReactAgent) enhanceContextWithMemory(ctx context.Context, sessionID, userMessage string) context.Context {
+	if r.memoryManager == nil {
+		return ctx
+	}
+
+	// 构建memory查询
+	query := &memory.MemoryQuery{
+		SessionID: sessionID,
+		Content:   userMessage,
+		Categories: []memory.MemoryCategory{
+			memory.CodeContext,
+			memory.TaskHistory,
+			memory.Solutions,
+			memory.ErrorPatterns,
+		},
+		MinImportance: 0.5,
+		Limit:         5,
+		SortBy:        "importance",
+	}
+
+	// 快速召回memories（带超时保护）
+	recallResult := r.safeMemoryRecall(query, 50*time.Millisecond)
+
+	// 将memories注入context
+	return context.WithValue(ctx, MemoriesKey, recallResult)
+}
+
+// safeMemoryRecall 安全的memory召回，带超时保护
+func (r *ReactAgent) safeMemoryRecall(query *memory.MemoryQuery, timeout time.Duration) *memory.RecallResult {
+	resultChan := make(chan *memory.RecallResult, 1)
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[ERROR] Memory recall panic: %v", r)
+				resultChan <- &memory.RecallResult{Items: []*memory.MemoryItem{}}
+			}
+		}()
+
+		result := r.memoryManager.Recall(query)
+		resultChan <- result
+	}()
+
+	select {
+	case result := <-resultChan:
+		return result
+	case <-time.After(timeout):
+		log.Printf("[WARN] Memory recall timeout after %v", timeout)
+		return &memory.RecallResult{Items: []*memory.MemoryItem{}}
+	}
+}
+
+// manageContextWithMemory 管理上下文压缩并集成memory系统
+func (r *ReactAgent) manageContextWithMemory(ctx context.Context, sess *session.Session) error {
+	if r.memoryManager == nil {
+		return nil
+	}
+
+	// 估算token使用量
+	messages := sess.GetMessages()
+	estimatedTokens := r.estimateTokenUsage(messages)
+
+	// 假设模型上下文限制为100K tokens（后续可动态获取）
+	maxTokens := 100000
+	if float64(estimatedTokens)/float64(maxTokens) > 0.8 {
+		// 需要压缩时，使用memory系统
+		result, err := r.memoryManager.ProcessContextCompression(ctx, sess, maxTokens)
+		if err != nil {
+			return fmt.Errorf("memory-based context compression failed: %w", err)
+		}
+
+		if result.CompressedSummary != "" {
+			log.Printf("[INFO] Memory compression: %d->%d messages, saved %d tokens",
+				result.OriginalCount, result.CompressedCount, result.TokensSaved)
+		}
+	}
+
+	return nil
+}
+
+// estimateTokenUsage 估算token使用量
+func (r *ReactAgent) estimateTokenUsage(messages []*session.Message) int {
+	totalChars := 0
+	for _, msg := range messages {
+		totalChars += len(msg.Content) + 50 // 50字符开销
+	}
+	return totalChars / 3 // 粗略估算：3字符=1token
+}
+
+// createMemoryAsync 异步创建记忆
+func (r *ReactAgent) createMemoryAsync(ctx context.Context, sess *session.Session, userMsg, assistantMsg *session.Message, result *types.ReactTaskResult) {
+	if r.memoryManager == nil {
+		return
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[ERROR] Memory creation panic: %v", r)
+		}
+	}()
+
+	// 为用户消息创建memory
+	if userMemories, err := r.memoryManager.CreateMemoryFromMessage(ctx, sess.ID, userMsg, len(sess.Messages)); err == nil {
+		if len(userMemories) > 0 {
+			log.Printf("[DEBUG] Created %d memories from user message", len(userMemories))
+		}
+	} else {
+		log.Printf("[WARN] Failed to create memory from user message: %v", err)
+	}
+
+	// 为assistant响应创建memory
+	if assistantMemories, err := r.memoryManager.CreateMemoryFromMessage(ctx, sess.ID, assistantMsg, len(sess.Messages)); err == nil {
+		if len(assistantMemories) > 0 {
+			log.Printf("[DEBUG] Created %d memories from assistant message", len(assistantMemories))
+		}
+	} else {
+		log.Printf("[WARN] Failed to create memory from assistant message: %v", err)
+	}
+
+	// 创建任务执行相关的memory
+	r.createTaskExecutionMemory(ctx, sess.ID, result)
+
+	// 执行定期维护
+	if err := r.memoryManager.AutomaticMemoryMaintenance(sess.ID); err != nil {
+		log.Printf("[WARN] Memory maintenance failed: %v", err)
+	}
+}
+
+// createTaskExecutionMemory 创建任务执行相关的memory
+func (r *ReactAgent) createTaskExecutionMemory(_ context.Context, sessionID string, result *types.ReactTaskResult) {
+	if result == nil || len(result.Steps) == 0 {
+		return
+	}
+
+	// 提取工具使用模式
+	var toolNames []string
+	for _, step := range result.Steps {
+		if step.ToolCall != nil {
+			toolNames = append(toolNames, step.ToolCall.Name)
+		}
+	}
+
+	if len(toolNames) > 0 {
+		memory := &memory.MemoryItem{
+			ID:         fmt.Sprintf("tool_pattern_%s_%d", sessionID, time.Now().UnixNano()),
+			SessionID:  sessionID,
+			Category:   memory.TaskHistory,
+			Content:    fmt.Sprintf("Tool execution pattern: %s", strings.Join(toolNames, " -> ")),
+			Importance: 0.6,
+			Tags:       append([]string{"tool_pattern", "execution_flow"}, toolNames...),
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+			LastAccess: time.Now(),
+			Metadata: map[string]interface{}{
+				"tool_count":   len(toolNames),
+				"success_rate": result.Confidence,
+				"tokens_used":  result.TokensUsed,
+			},
+		}
+
+		if err := r.memoryManager.Store(memory); err != nil {
+			log.Printf("[WARN] Failed to store tool pattern memory: %v", err)
+		}
+	}
+
+	// 如果任务失败或有错误，创建错误模式记忆
+	if result.Confidence < 0.5 {
+		memory := &memory.MemoryItem{
+			ID:         fmt.Sprintf("error_pattern_%s_%d", sessionID, time.Now().UnixNano()),
+			SessionID:  sessionID,
+			Category:   memory.ErrorPatterns,
+			Content:    fmt.Sprintf("Task execution had low confidence (%.2f), tools used: %s", result.Confidence, strings.Join(toolNames, ", ")),
+			Importance: 0.8,
+			Tags:       []string{"error", "low_confidence", "debugging"},
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+			LastAccess: time.Now(),
+			Metadata: map[string]interface{}{
+				"confidence":   result.Confidence,
+				"failed_tools": toolNames,
+			},
+		}
+
+		if err := r.memoryManager.Store(memory); err != nil {
+			log.Printf("[WARN] Failed to store error pattern memory: %v", err)
+		}
+	}
 }
 
 // 辅助函数 - generateTaskID moved to utils.go

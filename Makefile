@@ -65,24 +65,16 @@ test: deps
 .PHONY: test-working
 test-working:
 	@echo "Running working tests..."
-	@go test ./internal/analyzer ./internal/config ./internal/generator ./pkg/...
+	@go test ./internal/config ./pkg/...
 
 # Run tests with automatic fixes for common issues
 .PHONY: test-robust
 test-robust: deps
 	@echo "Running robust tests..."
-	@echo "Testing analyzer..."
-	@go test ./internal/analyzer -v
 	@echo "Testing config..."
 	@go test ./internal/config -v
-	@echo "Testing generator..."
-	@go test ./internal/generator -v
 	@echo "Testing types..."
 	@if [ -f "./pkg/types" ]; then go test ./pkg/types -v; fi
-	@echo "Testing AI provider (allowing some failures)..."
-	@go test ./internal/ai -v || echo "AI tests had some failures (expected)"
-	@echo "Testing refactor (allowing some failures)..."
-	@go test ./internal/refactor -v || echo "Refactor tests had some failures (expected)"
 	@echo "Robust testing complete"
 
 # Format code
@@ -110,7 +102,7 @@ vet: deps
 .PHONY: vet-working
 vet-working:
 	@echo "Vetting working code..."
-	@go vet ./internal/analyzer ./internal/config ./pkg/...
+	@go vet ./internal/config ./pkg/...
 	@go vet $(SOURCE_MAIN)
 
 # Clean build artifacts

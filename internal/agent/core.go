@@ -9,6 +9,7 @@ import (
 
 	contextmgr "alex/internal/context"
 	"alex/internal/llm"
+	"alex/internal/memory"
 	"alex/internal/session"
 	"alex/internal/utils"
 	"alex/pkg/types"
@@ -68,7 +69,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		streamCallback(StreamChunk{Type: "status", Content: utils.GetRandomProcessingMessage(), Metadata: map[string]any{"phase": "initialization"}})
 	}
 
-	// 构建消息列表，基于会话历史
+	// 构建系统提示（只需构建一次）
 	systemPrompt := rc.promptHandler.buildToolDrivenTaskPrompt(taskCtx)
 	messages := rc.contextHandler.buildMessagesFromSession(sess, task, systemPrompt)
 
@@ -88,11 +89,14 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 				Metadata: map[string]any{"iteration": iteration, "phase": "tool_driven_processing"}})
 		}
 
+		// 每次迭代更新消息列表，添加最新的会话内容
+		currentMessages := rc.contextHandler.updateMessagesWithSessionContent(ctx, sess, messages)
+
 		// 构建可用工具列表 - 每轮都包含工具定义以确保模型能调用工具
 		tools := rc.toolHandler.buildToolDefinitions()
 
 		request := &llm.ChatRequest{
-			Messages:   messages,
+			Messages:   currentMessages,
 			ModelType:  llm.BasicModel,
 			Tools:      tools,
 			ToolChoice: "auto",
@@ -149,19 +153,19 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		log.Printf("DEBUG: Response: %+v", response)
 		choice := response.Choices[0]
 		step.Thought = strings.TrimSpace(choice.Message.Content)
-		
+
 		// Extract token usage from response using compatible method
 		usage := response.GetUsage()
 		tokensUsed := usage.GetTotalTokens()
 		promptTokens := usage.GetPromptTokens()
 		completionTokens := usage.GetCompletionTokens()
-		
+
 		// Update task context with token usage
 		taskCtx.TokensUsed += tokensUsed
 		taskCtx.PromptTokens += promptTokens
 		taskCtx.CompletionTokens += completionTokens
 		step.TokensUsed = tokensUsed
-		
+
 		// Send token usage via stream callback
 		if isStreaming && tokensUsed > 0 {
 			streamCallback(StreamChunk{
@@ -174,26 +178,86 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 				Metadata:         map[string]any{"iteration": iteration, "phase": "token_accounting"},
 			})
 		}
-		
-		// 添加assistant消息到对话历史
-		if len(choice.Message.Content) > 0 {
+
+		// 添加assistant消息到对话历史和session
+		// 重要修复：即使没有content，也要添加包含工具调用的assistant消息
+		if len(choice.Message.Content) > 0 || len(choice.Message.ToolCalls) > 0 {
+			log.Printf("[DEBUG] ReactCore: Adding assistant message - Content length: %d, ToolCalls: %d", len(choice.Message.Content), len(choice.Message.ToolCalls))
 			messages = append(messages, choice.Message)
+			// 同时添加到session以供memory系统学习
+			rc.addMessageToSession(ctx, &choice.Message)
 		}
+
 		// 解析并执行工具调用
 		toolCalls := rc.agent.parseToolCalls(&choice.Message)
+		log.Printf("[DEBUG] ReactCore: Parsed %d tool calls", len(toolCalls))
+		
+		// 记录所有从LLM接收到的工具调用ID，用于验证响应完整性
+		expectedToolCallIDs := make([]string, 0, len(choice.Message.ToolCalls))
+		for _, tc := range choice.Message.ToolCalls {
+			expectedToolCallIDs = append(expectedToolCallIDs, tc.ID)
+			log.Printf("[DEBUG] ReactCore: Expected tool call ID: %s", tc.ID)
+		}
+		
 		if len(toolCalls) > 0 {
 			step.Action = "tool_execution"
 			step.ToolCall = toolCalls[0] // 记录第一个工具调用
+
 			// 执行工具调用
 			toolResult := rc.agent.executeSerialToolsStream(ctx, toolCalls, streamCallback)
-
 			step.Result = toolResult
+			
+			log.Printf("[DEBUG] ReactCore: Tool execution returned %d results", len(toolResult))
+			for i, result := range toolResult {
+				log.Printf("[DEBUG] ReactCore: Tool result %d - Tool: '%s', CallID: '%s', Success: %v", i, result.ToolName, result.CallID, result.Success)
+			}
 
-			// 将工具结果添加到对话历史
+			// 将工具结果添加到对话历史和session
 			if toolResult != nil {
 				isGemini := strings.Contains(request.Config.BaseURL, "googleapis")
+				log.Printf("[DEBUG] ReactCore: Building tool messages, isGemini: %v", isGemini)
 				toolMessages := rc.toolHandler.buildToolMessages(toolResult, isGemini)
+				log.Printf("[DEBUG] ReactCore: Built %d tool messages", len(toolMessages))
+				
+				for i, msg := range toolMessages {
+					log.Printf("[DEBUG] ReactCore: Tool message %d - Role: '%s', ToolCallId: '%s'", i, msg.Role, msg.ToolCallId)
+				}
+				
+				// 验证响应完整性：确保每个期望的工具调用ID都有对应的响应
+				receivedIDs := make(map[string]bool)
+				for _, msg := range toolMessages {
+					if msg.ToolCallId != "" {
+						receivedIDs[msg.ToolCallId] = true
+					}
+				}
+				
+				// 检查是否有缺失的响应
+				var missingIDs []string
+				for _, expectedID := range expectedToolCallIDs {
+					if !receivedIDs[expectedID] {
+						missingIDs = append(missingIDs, expectedID)
+					}
+				}
+				
+				// 如果有缺失的ID，生成fallback响应
+				if len(missingIDs) > 0 {
+					log.Printf("[ERROR] ReactCore: Missing responses for tool call IDs: %v", missingIDs)
+					for _, missingID := range missingIDs {
+						fallbackMsg := llm.Message{
+							Role:       "tool",
+							Content:    "Tool execution failed: response not generated",
+							ToolCallId: missingID,
+							Name:       "unknown", // 无法确定工具名称
+						}
+						toolMessages = append(toolMessages, fallbackMsg)
+						log.Printf("[ERROR] ReactCore: Generated fallback response for missing ID: %s", missingID)
+					}
+				}
+				
 				messages = append(messages, toolMessages...)
+
+				// 将工具消息添加到session供memory系统学习
+				rc.addToolMessagesToSession(ctx, toolMessages, toolResult)
 
 				step.Observation = rc.toolHandler.generateObservation(toolResult)
 			}
@@ -248,4 +312,175 @@ func (rc *ReactCore) ForceContextSummarization(ctx context.Context, sess *sessio
 // RestoreFullContext - 恢复完整上下文
 func (rc *ReactCore) RestoreFullContext(sess *session.Session, backupID string) error {
 	return rc.contextHandler.RestoreFullContext(sess, backupID)
+}
+
+// addMessageToSession - 将LLM消息添加到session中供memory系统学习
+func (rc *ReactCore) addMessageToSession(ctx context.Context, llmMsg *llm.Message) {
+	// 获取当前会话
+	sess := rc.contextHandler.getCurrentSession(ctx, rc.agent)
+	if sess == nil {
+		return // 没有会话则跳过
+	}
+
+	// 转换LLM消息为session消息格式
+	sessionMsg := &session.Message{
+		Role:      llmMsg.Role,
+		Content:   llmMsg.Content,
+		Timestamp: time.Now(),
+		Metadata: map[string]interface{}{
+			"source":    "llm_response",
+			"timestamp": time.Now().Unix(),
+		},
+	}
+
+	// 转换工具调用信息
+	if len(llmMsg.ToolCalls) > 0 {
+		for _, tc := range llmMsg.ToolCalls {
+			// 将Arguments字符串解析为map[string]interface{}
+			var args map[string]interface{}
+			if tc.Function.Arguments != "" {
+				// 简单处理：如果是JSON字符串尝试解析，否则存为字符串
+				args = map[string]interface{}{"raw": tc.Function.Arguments}
+			}
+
+			sessionMsg.ToolCalls = append(sessionMsg.ToolCalls, session.ToolCall{
+				ID:   tc.ID,
+				Name: tc.Function.Name,
+				Args: args,
+			})
+		}
+		sessionMsg.Metadata["has_tool_calls"] = true
+		sessionMsg.Metadata["tool_count"] = len(llmMsg.ToolCalls)
+	}
+
+	// 添加到session
+	sess.AddMessage(sessionMsg)
+}
+
+// addToolMessagesToSession - 将工具消息添加到session中供memory系统学习
+func (rc *ReactCore) addToolMessagesToSession(ctx context.Context, toolMessages []llm.Message, toolResults []*types.ReactToolResult) {
+	// 获取当前会话
+	sess := rc.contextHandler.getCurrentSession(ctx, rc.agent)
+	if sess == nil {
+		return // 没有会话则跳过
+	}
+
+	// 处理每个工具消息
+	for _, toolMsg := range toolMessages {
+		sessionMsg := &session.Message{
+			Role:      toolMsg.Role,
+			Content:   toolMsg.Content,
+			Timestamp: time.Now(),
+			Metadata: map[string]interface{}{
+				"source":    "tool_result",
+				"timestamp": time.Now().Unix(),
+			},
+		}
+
+		// 保存tool_call_id到metadata中 - 这是关键修复
+		if toolMsg.ToolCallId != "" {
+			sessionMsg.Metadata["tool_call_id"] = toolMsg.ToolCallId
+		}
+
+		// 如果是工具结果消息，添加额外的元数据
+		if toolMsg.Role == "tool" && len(toolResults) > 0 {
+			// 尝试匹配对应的工具结果
+			for _, result := range toolResults {
+				if result != nil && toolMsg.ToolCallId == result.CallID {
+					sessionMsg.Metadata["tool_name"] = result.ToolName
+					sessionMsg.Metadata["tool_success"] = result.Success
+					sessionMsg.Metadata["execution_time"] = result.Duration.Milliseconds()
+					if result.Error != "" {
+						sessionMsg.Metadata["tool_error"] = result.Error
+					}
+					break
+				}
+			}
+		}
+
+		// 添加到session
+		sess.AddMessage(sessionMsg)
+	}
+
+	// 异步创建工具使用相关的memory
+	if rc.agent.memoryManager != nil && len(toolResults) > 0 {
+		go rc.createToolUsageMemory(sess.ID, toolResults)
+	}
+}
+
+// createToolUsageMemory - 创建工具使用相关的记忆
+func (rc *ReactCore) createToolUsageMemory(sessionID string, toolResults []*types.ReactToolResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[ERROR] Tool usage memory creation panic: %v", r)
+		}
+	}()
+
+	if rc.agent.memoryManager == nil {
+		return
+	}
+
+	// 统计工具使用情况
+	var successfulTools, failedTools []string
+	totalTime := time.Duration(0)
+
+	for _, result := range toolResults {
+		if result == nil {
+			continue
+		}
+
+		if result.Success {
+			successfulTools = append(successfulTools, result.ToolName)
+		} else {
+			failedTools = append(failedTools, result.ToolName)
+		}
+		totalTime += result.Duration
+	}
+
+	// 创建工具使用模式记忆
+	if len(successfulTools) > 0 {
+		memory := &memory.MemoryItem{
+			ID:         fmt.Sprintf("tool_usage_%s_%d", sessionID, time.Now().UnixNano()),
+			SessionID:  sessionID,
+			Category:   memory.TaskHistory,
+			Content:    fmt.Sprintf("Successfully used tools: %s (total time: %v)", strings.Join(successfulTools, ", "), totalTime),
+			Importance: 0.7,
+			Tags:       append([]string{"tool_usage", "success"}, successfulTools...),
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+			LastAccess: time.Now(),
+			Metadata: map[string]interface{}{
+				"successful_tools": successfulTools,
+				"execution_time":   totalTime.Milliseconds(),
+				"tool_count":       len(successfulTools),
+			},
+		}
+
+		if err := rc.agent.memoryManager.Store(memory); err != nil {
+			log.Printf("[WARN] Failed to store tool usage memory: %v", err)
+		}
+	}
+
+	// 创建工具失败记忆
+	if len(failedTools) > 0 {
+		memory := &memory.MemoryItem{
+			ID:         fmt.Sprintf("tool_failure_%s_%d", sessionID, time.Now().UnixNano()),
+			SessionID:  sessionID,
+			Category:   memory.ErrorPatterns,
+			Content:    fmt.Sprintf("Failed tools: %s", strings.Join(failedTools, ", ")),
+			Importance: 0.8, // 失败记忆更重要，用于避免重复错误
+			Tags:       append([]string{"tool_failure", "error"}, failedTools...),
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+			LastAccess: time.Now(),
+			Metadata: map[string]interface{}{
+				"failed_tools":  failedTools,
+				"failure_count": len(failedTools),
+			},
+		}
+
+		if err := rc.agent.memoryManager.Store(memory); err != nil {
+			log.Printf("[WARN] Failed to store tool failure memory: %v", err)
+		}
+	}
 }

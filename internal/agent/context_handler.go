@@ -14,6 +14,11 @@ import (
 type ContextHandler struct {
 	contextMgr     *contextmgr.ContextManager
 	sessionManager *session.Manager
+
+	// 新增：各功能模块
+	messageBuilder     *MessageBuilder
+	contextCompression *ContextCompression
+	memoryIntegration  *MemoryIntegration
 }
 
 // NewContextHandler creates a new context handler
@@ -28,10 +33,17 @@ func NewContextHandler(llmClient llm.Client, sessionManager *session.Manager) *C
 
 	ctxMgr := contextmgr.NewContextManager(llmClient, contextConfig)
 
-	return &ContextHandler{
+	handler := &ContextHandler{
 		contextMgr:     ctxMgr,
 		sessionManager: sessionManager,
 	}
+
+	// 初始化各功能模块
+	handler.messageBuilder = NewMessageBuilder(handler)
+	handler.contextCompression = NewContextCompression(handler)
+	handler.memoryIntegration = NewMemoryIntegration(handler)
+
+	return handler
 }
 
 // SessionIDKey is already defined in react_agent.go
@@ -94,25 +106,6 @@ func (h *ContextHandler) handleContextOverflow(ctx context.Context, sess *sessio
 	return nil
 }
 
-// buildMessagesFromSession - 基于会话历史构建消息列表
-func (h *ContextHandler) buildMessagesFromSession(_ *session.Session, currentTask string, systemPrompt string) []llm.Message {
-	var messages []llm.Message
-
-	// 添加系统提示
-	messages = append(messages, llm.Message{
-		Role:    "system",
-		Content: systemPrompt,
-	})
-
-	// 添加当前任务
-	messages = append(messages, llm.Message{
-		Role:    "user",
-		Content: currentTask + "\n\n think about the task and break it down into a list of todos and then call the todo_update tool to create the todos",
-	})
-
-	return messages
-}
-
 // GetContextStats - 获取上下文统计信息
 func (h *ContextHandler) GetContextStats(sess *session.Session) *contextmgr.ContextStats {
 	if h.contextMgr == nil || sess == nil {
@@ -141,4 +134,33 @@ func (h *ContextHandler) RestoreFullContext(sess *session.Session, backupID stri
 	}
 
 	return h.contextMgr.RestoreFullContext(sess, backupID)
+}
+
+// ========== 委托方法 - 调用各功能模块 ==========
+
+// buildMessagesFromSession - 委托给MessageBuilder
+func (h *ContextHandler) buildMessagesFromSession(sess *session.Session, currentTask string, systemPrompt string) []llm.Message {
+	return h.messageBuilder.buildMessagesFromSession(sess, currentTask, systemPrompt)
+}
+
+// updateMessagesWithSessionContent - 委托给MessageBuilder（核心功能，保留）
+func (h *ContextHandler) updateMessagesWithSessionContent(ctx context.Context, sess *session.Session, baseMessages []llm.Message) []llm.Message {
+	return h.messageBuilder.updateMessagesWithSessionContent(ctx, sess, baseMessages)
+}
+
+// ========== 模块访问器 ==========
+
+// GetMessageBuilder - 获取消息构建器
+func (h *ContextHandler) GetMessageBuilder() *MessageBuilder {
+	return h.messageBuilder
+}
+
+// GetContextCompression - 获取上下文压缩器
+func (h *ContextHandler) GetContextCompression() *ContextCompression {
+	return h.contextCompression
+}
+
+// GetMemoryIntegration - 获取Memory集成器
+func (h *ContextHandler) GetMemoryIntegration() *MemoryIntegration {
+	return h.memoryIntegration
 }

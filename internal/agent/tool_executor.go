@@ -29,7 +29,10 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 	var toolCalls []*types.ReactToolCall
 
 	// 首先尝试解析标准 tool_calls 格式
-	for _, tc := range message.ToolCalls {
+	log.Printf("[DEBUG] parseToolCalls: Processing %d tool calls from LLM", len(message.ToolCalls))
+	for i, tc := range message.ToolCalls {
+		log.Printf("[DEBUG] parseToolCalls: Tool call %d - ID: '%s', Name: '%s'", i, tc.ID, tc.Function.Name)
+		
 		var args map[string]interface{}
 		if tc.Function.Arguments != "" {
 			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
@@ -38,11 +41,13 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 			}
 		}
 
-		// Ensure CallID is not empty - generate one if missing
+		// 确保CallID不为空 - 如果缺少则生成一个，但要确保一致性
 		callID := tc.ID
 		if callID == "" {
 			callID = fmt.Sprintf("call_%d", time.Now().UnixNano())
 			log.Printf("[WARN] parseToolCalls: Missing ID for tool %s, generated: %s", tc.Function.Name, callID)
+			// 重要：更新原始工具调用的ID以保持一致性
+			tc.ID = callID
 		}
 
 		toolCall := &types.ReactToolCall{
@@ -50,6 +55,8 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 			Arguments: args,
 			CallID:    callID,
 		}
+		
+		log.Printf("[DEBUG] parseToolCalls: Created ReactToolCall - Name: '%s', CallID: '%s'", toolCall.Name, toolCall.CallID)
 		toolCalls = append(toolCalls, toolCall)
 	}
 
@@ -164,29 +171,40 @@ func (te *ToolExecutor) executeSerialToolsStream(ctx context.Context, toolCalls 
 		}
 	}
 
-	// 串行执行工具调用，按顺序一个接一个执行
-	combinedResult := []*types.ReactToolResult{}
+	log.Printf("[DEBUG] executeSerialToolsStream: Starting execution of %d tool calls", len(toolCalls))
+	for i, tc := range toolCalls {
+		log.Printf("[DEBUG] executeSerialToolsStream: Tool call %d - Name: '%s', CallID: '%s'", i, tc.Name, tc.CallID)
+	}
 
-	for _, toolCall := range toolCalls {
+	// 串行执行工具调用，按顺序一个接一个执行
+	// 确保为每个输入的工具调用都产生一个对应的结果
+	combinedResult := make([]*types.ReactToolResult, 0, len(toolCalls))
+
+	for i, toolCall := range toolCalls {
+		log.Printf("[DEBUG] executeSerialToolsStream: Processing tool call %d/%d - Name: '%s', CallID: '%s'", i+1, len(toolCalls), toolCall.Name, toolCall.CallID)
+		
 		// 发送工具开始信号
 		toolCallStr := te.formatToolCallForDisplay(toolCall.Name, toolCall.Arguments)
 		callback(StreamChunk{Type: "tool_start", Content: toolCallStr})
 
 		// 执行工具
 		result, err := te.executeTool(ctx, toolCall.Name, toolCall.Arguments, toolCall.CallID)
-
-		// 处理执行结果
+		
+		// 确保每个工具调用都产生一个结果，无论什么情况
+		var finalResult *types.ReactToolResult
+		
 		if err != nil {
+			log.Printf("[DEBUG] executeSerialToolsStream: Tool call %d failed with error: %v", i+1, err)
 			callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: %v", toolCall.Name, err)})
-			// 继续执行下一个工具，不因为一个工具失败而中断整个流程
-			combinedResult = append(combinedResult, &types.ReactToolResult{
+			finalResult = &types.ReactToolResult{
 				Success:  false,
 				Error:    err.Error(),
 				ToolName: toolCall.Name,
 				ToolArgs: toolCall.Arguments,
 				CallID:   toolCall.CallID,
-			})
+			}
 		} else if result != nil {
+			log.Printf("[DEBUG] executeSerialToolsStream: Tool call %d succeeded", i+1)
 			// 发送工具结果信号
 			var contentStr string
 			// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
@@ -198,25 +216,48 @@ func (te *ToolExecutor) executeSerialToolsStream(ctx context.Context, toolCalls 
 			}
 			callback(StreamChunk{Type: "tool_result", Content: contentStr})
 
-			if result.Success {
-				// Ensure ToolName is preserved
-				if result.ToolName == "" {
-					result.ToolName = toolCall.Name
-				}
-				combinedResult = append(combinedResult, result)
-			} else {
-				combinedResult = append(combinedResult, &types.ReactToolResult{
-					Success:  false,
-					Error:    result.Error,
-					ToolName: toolCall.Name,
-					ToolArgs: toolCall.Arguments,
-					CallID:   toolCall.CallID,
-				})
+			// 确保关键字段都正确设置
+			if result.ToolName == "" {
+				result.ToolName = toolCall.Name
+			}
+			if result.CallID == "" {
+				result.CallID = toolCall.CallID
+			}
+			// 确保工具参数也被保存
+			if result.ToolArgs == nil {
+				result.ToolArgs = toolCall.Arguments
+			}
+			
+			finalResult = result
+			
+			if !result.Success {
 				callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: %s", toolCall.Name, result.Error)})
 			}
+		} else {
+			// 这种情况不应该发生：err == nil 但 result == nil
+			log.Printf("[ERROR] executeSerialToolsStream: Tool call %d returned nil result without error", i+1)
+			finalResult = &types.ReactToolResult{
+				Success:  false,
+				Error:    "tool execution returned nil result",
+				ToolName: toolCall.Name,
+				ToolArgs: toolCall.Arguments,
+				CallID:   toolCall.CallID,
+			}
+			callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: nil result", toolCall.Name)})
 		}
+		
+		// 确保每个工具调用都有对应的结果
+		combinedResult = append(combinedResult, finalResult)
+		log.Printf("[DEBUG] executeSerialToolsStream: Added result for tool call %d - CallID: '%s', Success: %v", i+1, finalResult.CallID, finalResult.Success)
 	}
 
+	log.Printf("[DEBUG] executeSerialToolsStream: Completed execution - Input: %d tool calls, Output: %d results", len(toolCalls), len(combinedResult))
+	
+	// 验证结果数量与输入匹配
+	if len(combinedResult) != len(toolCalls) {
+		log.Printf("[ERROR] executeSerialToolsStream: Mismatch! Expected %d results, got %d", len(toolCalls), len(combinedResult))
+	}
+	
 	return combinedResult
 }
 
@@ -271,8 +312,11 @@ func (te *ToolExecutor) formatToolCallForDisplay(toolName string, args map[strin
 
 // executeTool - 执行工具
 func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args map[string]interface{}, callId string) (*types.ReactToolResult, error) {
+	log.Printf("[DEBUG] executeTool: Starting execution - Tool: '%s', CallID: '%s'", toolName, callId)
+	
 	tool, exists := te.agent.tools[toolName]
 	if !exists {
+		log.Printf("[ERROR] executeTool: Tool %s not found", toolName)
 		return nil, fmt.Errorf("tool %s not found", toolName)
 	}
 
@@ -285,17 +329,19 @@ func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args m
 
 	if err != nil {
 		log.Printf("[ERROR] ToolExecutor: Tool %s execution failed: %v", toolName, err)
-		return &types.ReactToolResult{
+		resultObj := &types.ReactToolResult{
 			Success:  false,
 			Error:    err.Error(),
 			Duration: duration,
 			ToolName: toolName,
 			ToolArgs: args,
 			CallID:   callId,
-		}, nil
+		}
+		log.Printf("[DEBUG] executeTool: Error result - CallID: '%s', Success: %v", resultObj.CallID, resultObj.Success)
+		return resultObj, nil
 	}
 
-	return &types.ReactToolResult{
+	resultObj := &types.ReactToolResult{
 		Success:  true,
 		Content:  result.Content,
 		Data:     result.Data,
@@ -303,7 +349,10 @@ func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args m
 		ToolName: toolName,
 		ToolArgs: args,
 		CallID:   callId,
-	}, nil
+	}
+	
+	log.Printf("[DEBUG] executeTool: Success result - CallID: '%s', Success: %v", resultObj.CallID, resultObj.Success)
+	return resultObj, nil
 }
 
 // injectWorkingDirContext - 注入工作目录上下文和会话ID
