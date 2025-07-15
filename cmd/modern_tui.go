@@ -112,7 +112,7 @@ type ExecutionTimer struct {
 }
 
 // NewModernChatModel creates a clean, modern chat interface
-func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) ModernChatModel {
+func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) *ModernChatModel {
 	// Configure textarea with 8x8 grid system (Golden ratio optimization)
 	ta := textarea.New()
 	ta.Placeholder = "Ask me anything about coding..."
@@ -143,7 +143,7 @@ func NewModernChatModel(agent *agent.ReactAgent, config *config.Manager) ModernC
 		},
 	}
 
-	return ModernChatModel{
+	return &ModernChatModel{
 		textarea:         ta,
 		messages:         initialMessages,
 		agent:            agent,
@@ -167,7 +167,7 @@ func getCurrentWorkingDir() string {
 }
 
 // formatSessionRuntime formats the session runtime duration
-func (m ModernChatModel) formatSessionRuntime() string {
+func (m *ModernChatModel) formatSessionRuntime() string {
 	// Try to get actual session start time from agent
 	var startTime time.Time
 	if m.agent != nil {
@@ -207,11 +207,11 @@ func (m ModernChatModel) formatSessionRuntime() string {
 	}
 }
 
-func (m ModernChatModel) Init() tea.Cmd {
+func (m *ModernChatModel) Init() tea.Cmd {
 	return tea.Batch(textarea.Blink, m.startTicker())
 }
 
-func (m ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var tiCmd tea.Cmd
 
 	m.textarea, tiCmd = m.textarea.Update(msg)
@@ -407,7 +407,7 @@ func (m *ModernChatModel) startTicker() tea.Cmd {
 	})
 }
 
-func (m ModernChatModel) processUserInput(input string) tea.Cmd {
+func (m *ModernChatModel) processUserInput(input string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
@@ -480,7 +480,7 @@ func (m ModernChatModel) processUserInput(input string) tea.Cmd {
 	}
 }
 
-func (m ModernChatModel) View() string {
+func (m *ModernChatModel) View() string {
 	if !m.ready {
 		return "Initializing Deep Coding Agent..."
 	}
@@ -622,7 +622,7 @@ func runModernTUI(agent *agent.ReactAgent, config *config.Manager) error {
 	model := NewModernChatModel(agent, config)
 
 	program := tea.NewProgram(
-		&model,
+		model,
 		tea.WithAltScreen(),
 		// Removed tea.WithMouseCellMotion() to allow text selection
 	)
