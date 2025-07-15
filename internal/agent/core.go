@@ -239,18 +239,44 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 					}
 				}
 
-				// 如果有缺失的ID，生成fallback响应
+				// 如果有缺失的ID，生成fallback响应 - 加强错误处理
 				if len(missingIDs) > 0 {
 					log.Printf("[ERROR] ReactCore: Missing responses for tool call IDs: %v", missingIDs)
+					log.Printf("[ERROR] ReactCore: Expected IDs: %v, Received IDs: %v", expectedToolCallIDs, func() []string {
+						var received []string
+						for id := range receivedIDs {
+							received = append(received, id)
+						}
+						return received
+					}())
+
 					for _, missingID := range missingIDs {
+						// 尝试找到对应的工具名称
+						var toolName string = "unknown"
+						for _, tc := range choice.Message.ToolCalls {
+							if tc.ID == missingID {
+								toolName = tc.Function.Name
+								break
+							}
+						}
+
 						fallbackMsg := llm.Message{
 							Role:       "tool",
-							Content:    "Tool execution failed: response not generated",
+							Content:    fmt.Sprintf("Tool execution failed: no response generated for %s", toolName),
 							ToolCallId: missingID,
-							Name:       "unknown", // 无法确定工具名称
+							Name:       toolName,
 						}
 						toolMessages = append(toolMessages, fallbackMsg)
-						log.Printf("[ERROR] ReactCore: Generated fallback response for missing ID: %s", missingID)
+						log.Printf("[ERROR] ReactCore: Generated fallback response for missing ID: %s (tool: %s)", missingID, toolName)
+					}
+
+					// 如果有缺失响应，通过流回调通知用户
+					if isStreaming {
+						streamCallback(StreamChunk{
+							Type:     "tool_error",
+							Content:  fmt.Sprintf("Warning: %d tool call(s) failed to generate proper responses", len(missingIDs)),
+							Metadata: map[string]any{"missing_tool_calls": missingIDs},
+						})
 					}
 				}
 

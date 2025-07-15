@@ -66,10 +66,21 @@ func (h *ToolHandler) buildToolMessages(actionResult []*types.ReactToolResult, i
 			// 这样可以确保每个工具调用都有对应的响应消息
 			callID = fmt.Sprintf("fallback_%s_%d", result.ToolName, time.Now().UnixNano())
 			log.Printf("[ERROR] buildToolMessages: Generated fallback CallID: %s", callID)
+
+			// 记录详细的调试信息以帮助排查问题
+			log.Printf("[ERROR] buildToolMessages: This indicates a tool execution bug:")
+			log.Printf("[ERROR] buildToolMessages: - Tool: %s", result.ToolName)
+			log.Printf("[ERROR] buildToolMessages: - Success: %v", result.Success)
+			log.Printf("[ERROR] buildToolMessages: - Error: %s", result.Error)
+			log.Printf("[ERROR] buildToolMessages: - Content length: %d", len(result.Content))
 		}
 
 		// Ensure ToolName is not empty and properly formatted for Gemini API
 		toolName := result.ToolName
+		if toolName == "" {
+			log.Printf("[ERROR] buildToolMessages: Missing ToolName for CallID %s, using 'unknown'", callID)
+			toolName = "unknown"
+		}
 
 		// Debug logging for Gemini API compatibility
 		log.Printf("[DEBUG] buildToolMessages: Creating tool message - Name: '%s', CallID: '%s'", toolName, callID)
@@ -94,6 +105,14 @@ func (h *ToolHandler) buildToolMessages(actionResult []*types.ReactToolResult, i
 	}
 
 	log.Printf("[DEBUG] buildToolMessages: Generated %d tool messages", len(toolMessages))
+
+	// 额外的验证：确保所有生成的消息都有CallID
+	for i, msg := range toolMessages {
+		if msg.ToolCallId == "" {
+			log.Printf("[ERROR] buildToolMessages: Generated message %d has empty ToolCallId!", i)
+		}
+	}
+
 	return toolMessages
 }
 

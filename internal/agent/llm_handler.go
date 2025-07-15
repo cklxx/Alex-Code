@@ -190,8 +190,9 @@ func (h *LLMHandler) collectStreamingResponse(ctx context.Context, streamChan <-
 							// 新的工具调用
 							toolCallID := deltaToolCall.ID
 							if toolCallID == "" {
-								// 为空ID生成唯一ID
-								toolCallID = fmt.Sprintf("tool_call_%d", len(toolCalls))
+								// 使用与tool_executor一致的ID生成策略
+								toolCallID = fmt.Sprintf("call_%d", time.Now().UnixNano())
+								log.Printf("[WARN] LLMHandler: Generated fallback tool call ID: %s", toolCallID)
 							}
 							newToolCall := llm.ToolCall{
 								ID:   toolCallID,

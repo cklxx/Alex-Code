@@ -187,77 +187,106 @@ func (te *ToolExecutor) executeSerialToolsStream(ctx context.Context, toolCalls 
 		toolCallStr := te.formatToolCallForDisplay(toolCall.Name, toolCall.Arguments)
 		callback(StreamChunk{Type: "tool_start", Content: toolCallStr})
 
-		// 执行工具
-		result, err := te.executeTool(ctx, toolCall.Name, toolCall.Arguments, toolCall.CallID)
-
 		// 确保每个工具调用都产生一个结果，无论什么情况
 		var finalResult *types.ReactToolResult
 
-		if err != nil {
-			log.Printf("[DEBUG] executeSerialToolsStream: Tool call %d failed with error: %v", i+1, err)
-			callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: %v", toolCall.Name, err)})
-			finalResult = &types.ReactToolResult{
-				Success:  false,
-				Error:    err.Error(),
-				ToolName: toolCall.Name,
-				ToolArgs: toolCall.Arguments,
-				CallID:   toolCall.CallID,
-			}
-		} else if result != nil {
-			log.Printf("[DEBUG] executeSerialToolsStream: Tool call %d succeeded", i+1)
-			// 发送工具结果信号
-			var contentStr string
-			// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
-			runes := []rune(result.Content)
-			if len(runes) > 200 {
-				contentStr = string(runes[:200]) + "..."
+		// 使用defer确保即使panic也能恢复并生成错误结果
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[ERROR] executeSerialToolsStream: Tool call %d panicked: %v", i+1, r)
+					finalResult = &types.ReactToolResult{
+						Success:  false,
+						Error:    fmt.Sprintf("tool execution panicked: %v", r),
+						ToolName: toolCall.Name,
+						ToolArgs: toolCall.Arguments,
+						CallID:   toolCall.CallID,
+					}
+					callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: panic occurred", toolCall.Name)})
+				}
+			}()
+
+			// 执行工具
+			result, err := te.executeTool(ctx, toolCall.Name, toolCall.Arguments, toolCall.CallID)
+
+			if err != nil {
+				log.Printf("[DEBUG] executeSerialToolsStream: Tool call %d failed with error: %v", i+1, err)
+				callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: %v", toolCall.Name, err)})
+				finalResult = &types.ReactToolResult{
+					Success:  false,
+					Error:    err.Error(),
+					ToolName: toolCall.Name,
+					ToolArgs: toolCall.Arguments,
+					CallID:   toolCall.CallID,
+				}
+			} else if result != nil {
+				log.Printf("[DEBUG] executeSerialToolsStream: Tool call %d succeeded", i+1)
+				// 发送工具结果信号
+				var contentStr string
+				// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
+				runes := []rune(result.Content)
+				if len(runes) > 200 {
+					contentStr = string(runes[:200]) + "..."
+				} else {
+					contentStr = result.Content
+				}
+				callback(StreamChunk{Type: "tool_result", Content: contentStr})
+
+				// 确保关键字段都正确设置
+				if result.ToolName == "" {
+					result.ToolName = toolCall.Name
+				}
+				if result.CallID == "" {
+					result.CallID = toolCall.CallID
+				}
+				// 确保工具参数也被保存
+				if result.ToolArgs == nil {
+					result.ToolArgs = toolCall.Arguments
+				}
+
+				finalResult = result
+
+				if !result.Success {
+					callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: %s", toolCall.Name, result.Error)})
+				}
 			} else {
-				contentStr = result.Content
+				// 这种情况不应该发生：err == nil 但 result == nil
+				log.Printf("[ERROR] executeSerialToolsStream: Tool call %d returned nil result without error", i+1)
+				finalResult = &types.ReactToolResult{
+					Success:  false,
+					Error:    "tool execution returned nil result",
+					ToolName: toolCall.Name,
+					ToolArgs: toolCall.Arguments,
+					CallID:   toolCall.CallID,
+				}
+				callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: nil result", toolCall.Name)})
 			}
-			callback(StreamChunk{Type: "tool_result", Content: contentStr})
+		}()
 
-			// 确保关键字段都正确设置
-			if result.ToolName == "" {
-				result.ToolName = toolCall.Name
-			}
-			if result.CallID == "" {
-				result.CallID = toolCall.CallID
-			}
-			// 确保工具参数也被保存
-			if result.ToolArgs == nil {
-				result.ToolArgs = toolCall.Arguments
-			}
-
-			finalResult = result
-
-			if !result.Success {
-				callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: %s", toolCall.Name, result.Error)})
-			}
-		} else {
-			// 这种情况不应该发生：err == nil 但 result == nil
-			log.Printf("[ERROR] executeSerialToolsStream: Tool call %d returned nil result without error", i+1)
+		// 最后的安全检查：确保finalResult不为nil且CallID正确
+		if finalResult == nil {
+			log.Printf("[ERROR] executeSerialToolsStream: finalResult is nil for tool call %d, creating emergency fallback", i+1)
 			finalResult = &types.ReactToolResult{
 				Success:  false,
-				Error:    "tool execution returned nil result",
+				Error:    "unknown error: finalResult was nil",
 				ToolName: toolCall.Name,
 				ToolArgs: toolCall.Arguments,
 				CallID:   toolCall.CallID,
 			}
-			callback(StreamChunk{Type: "tool_error", Content: fmt.Sprintf("%s: nil result", toolCall.Name)})
+		}
+
+		// 确保CallID一致性的最终检查
+		if finalResult.CallID != toolCall.CallID {
+			log.Printf("[WARN] executeSerialToolsStream: CallID mismatch detected, correcting from '%s' to '%s'", finalResult.CallID, toolCall.CallID)
+			finalResult.CallID = toolCall.CallID
 		}
 
 		// 确保每个工具调用都有对应的结果
 		combinedResult = append(combinedResult, finalResult)
-		log.Printf("[DEBUG] executeSerialToolsStream: Added result for tool call %d - CallID: '%s', Success: %v", i+1, finalResult.CallID, finalResult.Success)
+		log.Printf("[DEBUG] executeSerialToolsStream: Added result for tool call %d with CallID: '%s'", i+1, finalResult.CallID)
 	}
 
-	log.Printf("[DEBUG] executeSerialToolsStream: Completed execution - Input: %d tool calls, Output: %d results", len(toolCalls), len(combinedResult))
-
-	// 验证结果数量与输入匹配
-	if len(combinedResult) != len(toolCalls) {
-		log.Printf("[ERROR] executeSerialToolsStream: Mismatch! Expected %d results, got %d", len(toolCalls), len(combinedResult))
-	}
-
+	log.Printf("[DEBUG] executeSerialToolsStream: Completed execution, returning %d results", len(combinedResult))
 	return combinedResult
 }
 
