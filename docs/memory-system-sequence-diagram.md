@@ -1,6 +1,125 @@
 # Memory System Sequence Diagram
 
-## ReactAgent Memory System Call Flow
+## Complete Context and Memory System Architecture
+
+This document describes the comprehensive sequence of interactions between the context and memory system components in Alex AI Assistant. The system follows a sophisticated multi-layer architecture that handles session management, context overflow, memory integration, document-based context building, and tool execution.
+
+### Core System Components
+
+#### Session Layer
+- **Session Manager** (`internal/session/session.go`): Manages persistent sessions with message history
+- **Session**: Individual conversation sessions with metadata and configuration stored in `~/.deep-coding-sessions/`
+
+#### Context Layer  
+- **Context Handler** (`internal/agent/context_handler.go`): Orchestrates context management and overflow handling
+- **Context Manager** (`internal/context/manager.go`): Handles context overflow and summarization with token limits
+- **Context Engine** (`internal/context/engine.go`): Document storage, vector search, and context building
+
+#### Memory Layer
+- **Memory Integration** (`internal/agent/memory_integration.go`): Integrates memory items into conversations
+- **Memory Manager** (`internal/memory/`): Manages long-term memory storage and retrieval
+
+#### Agent Layer
+- **ReAct Agent** (`internal/agent/react_agent.go`): Main conversational agent coordinating all components
+- **Tool Executor**: Executes tools with injected session context
+
+#### Tools Layer
+- **Session-Aware Tools** (`internal/tools/builtin/session_todo_tools.go`): Tools that persist data within session scope
+
+## Complete System Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant ReactAgent
+    participant SessionManager
+    participant ContextHandler
+    participant ContextManager
+    participant MemoryIntegration
+    participant ContextEngine
+    participant MemoryManager
+    participant ToolExecutor
+    participant SessionTodoTool
+    
+    User->>ReactAgent: Send message/task
+    
+    Note over ReactAgent: 1. Session Management Phase
+    ReactAgent->>SessionManager: RestoreSession(sessionID) / StartSession()
+    SessionManager->>SessionManager: Load from ~/.deep-coding-sessions/
+    SessionManager-->>ReactAgent: Session with message history
+    ReactAgent->>ReactAgent: Set currentSession
+    
+    Note over ReactAgent: 2. Context Analysis Phase
+    ReactAgent->>ContextHandler: getCurrentSession(ctx)
+    ContextHandler-->>ReactAgent: Current session
+    ReactAgent->>ContextHandler: CheckContextLength(session)
+    ContextHandler->>ContextManager: CheckContextLength(session)
+    ContextManager->>ContextManager: estimateTokenUsage(messages)
+    ContextManager-->>ContextHandler: ContextAnalysis{tokens, requiresTrimming}
+    ContextHandler-->>ReactAgent: Context analysis result
+    
+    alt Context Overflow Detected
+        Note over ReactAgent: 3. Context Overflow Management
+        ReactAgent->>ContextHandler: handleContextOverflow(ctx, session)
+        ContextHandler->>ContextManager: ProcessContextOverflow(ctx, session)
+        ContextManager->>ContextManager: separateMessages(system vs conversation)
+        ContextManager->>ContextManager: calculateRecentMessageCount()
+        ContextManager->>ContextManager: SummarizeMessages(oldMessages)
+        ContextManager->>ContextManager: CreateBackup(session)
+        ContextManager->>SessionManager: Update session with summary
+        ContextManager-->>ContextHandler: ContextProcessingResult{backup_id, summary}
+        ContextHandler-->>ReactAgent: Overflow handled
+    end
+    
+    Note over ReactAgent: 4. Memory Integration Phase
+    ReactAgent->>MemoryManager: RecallMemories(task)
+    MemoryManager-->>ReactAgent: RecallResult{memoryItems}
+    ReactAgent->>ReactAgent: Store memories in context.Value(MemoriesKey)
+    
+    ReactAgent->>ContextHandler: buildMessagesFromSession(session, task)
+    ContextHandler->>MemoryIntegration: integrateMemoryIntoMessages(ctx, messages)
+    MemoryIntegration->>MemoryIntegration: formatMemoryContent(memories)
+    MemoryIntegration->>MemoryIntegration: Insert memory message into session
+    MemoryIntegration-->>ContextHandler: Enhanced messages with memory
+    ContextHandler-->>ReactAgent: Messages with integrated memory
+    
+    Note over ReactAgent: 5. Context Building Phase
+    ReactAgent->>ContextEngine: BuildContext(ctx, task, input)
+    ContextEngine->>ContextEngine: searchSimilarInternal(input, limit)
+    ContextEngine->>ContextEngine: Generate query vector
+    ContextEngine->>ContextEngine: Search by inverted index
+    ContextEngine->>ContextEngine: Search by vector similarity
+    ContextEngine->>ContextEngine: Combine and rank results
+    ContextEngine->>ContextEngine: buildContent(task, input, relevantDocs)
+    ContextEngine->>ContextEngine: CompressText if needed
+    ContextEngine-->>ReactAgent: Context{id, content, quality}
+    
+    Note over ReactAgent: 6. Tool Execution Phase
+    ReactAgent->>ToolExecutor: ExecuteTool(toolName, args, context)
+    ToolExecutor->>ToolExecutor: Inject session context (SessionIDKey)
+    ToolExecutor->>SessionTodoTool: Execute with session context
+    SessionTodoTool->>SessionManager: Get session config
+    SessionTodoTool->>SessionTodoTool: Perform todo operations
+    SessionTodoTool->>SessionManager: Update session config
+    SessionTodoTool-->>ToolExecutor: ToolResult
+    ToolExecutor-->>ReactAgent: Tool execution result
+    
+    Note over ReactAgent: 7. Session Persistence Phase
+    ReactAgent->>SessionManager: SaveSession(session)
+    SessionManager->>SessionManager: Update timestamps
+    SessionManager->>SessionManager: Write to ~/.deep-coding-sessions/sessionID.json
+    SessionManager-->>ReactAgent: Session saved
+    
+    ReactAgent-->>User: Response with results
+    
+    Note over ReactAgent: 8. Memory Storage Phase (Background)
+    ReactAgent->>MemoryManager: StoreMemory(conversation, insights)
+    MemoryManager->>MemoryManager: Extract key information
+    MemoryManager->>MemoryManager: Store in memory database
+    MemoryManager-->>ReactAgent: Memory stored
+```
+
+## ReactAgent Memory System Call Flow (Legacy)
 
 ```mermaid
 sequenceDiagram

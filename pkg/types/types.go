@@ -203,7 +203,7 @@ type ReactExecutionStep struct {
 	Thought     string             `json:"thought"`             // 思考内容
 	Analysis    string             `json:"analysis"`            // 分析结果
 	Action      string             `json:"action"`              // 执行动作
-	ToolCall    *ReactToolCall     `json:"tool_call,omitempty"` // 工具调用
+	ToolCall    []*ReactToolCall   `json:"tool_call,omitempty"` // 工具调用
 	Result      []*ReactToolResult `json:"result,omitempty"`    // 执行结果
 	Observation string             `json:"observation"`         // 观察结果
 	Confidence  float64            `json:"confidence"`          // 置信度 0.0-1.0

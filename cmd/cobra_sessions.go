@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+
 // newSessionCommand creates the session management subcommand
 func newSessionCommand(cli *CLI) *cobra.Command {
 	sessionCmd := &cobra.Command{

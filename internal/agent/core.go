@@ -11,18 +11,17 @@ import (
 	"alex/internal/llm"
 	"alex/internal/memory"
 	"alex/internal/session"
-	"alex/internal/utils"
 	"alex/pkg/types"
 )
 
 // ReactCore - 使用工具调用流程的ReactCore核心实现
 type ReactCore struct {
-	agent          *ReactAgent
-	streamCallback StreamCallback
-	contextHandler *ContextHandler
-	llmHandler     *LLMHandler
-	toolHandler    *ToolHandler
-	promptHandler  *PromptHandler
+	agent            *ReactAgent
+	streamCallback   StreamCallback
+	messageProcessor *MessageProcessor
+	llmHandler       *LLMHandler
+	toolHandler      *ToolHandler
+	promptHandler    *PromptHandler
 }
 
 // NewReactCore - 创建ReAct核心实例
@@ -34,11 +33,11 @@ func NewReactCore(agent *ReactAgent) *ReactCore {
 	}
 
 	return &ReactCore{
-		agent:          agent,
-		contextHandler: NewContextHandler(llmClient, agent.sessionManager),
-		llmHandler:     NewLLMHandler(nil), // Will be set per request
-		toolHandler:    NewToolHandler(agent.tools),
-		promptHandler:  NewPromptHandler(agent.promptBuilder),
+		agent:            agent,
+		messageProcessor: NewMessageProcessor(llmClient, agent.sessionManager),
+		llmHandler:       NewLLMHandler(nil), // Will be set per request
+		toolHandler:      NewToolHandler(agent.tools),
+		promptHandler:    NewPromptHandler(agent.promptBuilder),
 	}
 }
 
@@ -49,10 +48,10 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	rc.llmHandler.streamCallback = streamCallback
 
 	// 获取当前会话
-	sess := rc.contextHandler.getCurrentSession(ctx, rc.agent)
+	sess := rc.messageProcessor.GetCurrentSession(ctx, rc.agent)
 	if sess != nil {
 		// 检查并处理上下文溢出
-		if err := rc.contextHandler.handleContextOverflow(ctx, sess, streamCallback); err != nil {
+		if err := rc.messageProcessor.HandleContextOverflow(ctx, sess, streamCallback); err != nil {
 			log.Printf("[WARNING] Context overflow handling failed: %v", err)
 		}
 	}
@@ -66,12 +65,12 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	// 决定是否使用流式处理
 	isStreaming := streamCallback != nil
 	if isStreaming {
-		streamCallback(StreamChunk{Type: "status", Content: utils.GetRandomProcessingMessage(), Metadata: map[string]any{"phase": "initialization"}})
+		streamCallback(StreamChunk{Type: "status", Content: GetRandomProcessingMessage(), Metadata: map[string]any{"phase": "initialization"}})
 	}
 
 	// 构建系统提示（只需构建一次）
 	systemPrompt := rc.promptHandler.buildToolDrivenTaskPrompt(taskCtx)
-	messages := rc.contextHandler.buildMessagesFromSession(sess, task, systemPrompt)
+	messages := rc.messageProcessor.BuildMessagesFromSession(ctx, sess, task, systemPrompt)
 
 	// 执行工具驱动的ReAct循环
 	maxIterations := 25 // 减少迭代次数，依赖智能工具调用
@@ -90,7 +89,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		}
 
 		// 每次迭代更新消息列表，添加最新的会话内容
-		currentMessages := rc.contextHandler.updateMessagesWithSessionContent(ctx, sess, messages)
+		currentMessages := rc.messageProcessor.UpdateMessagesWithLatestSession(ctx, sess, messages)
 
 		// 构建可用工具列表 - 每轮都包含工具定义以确保模型能调用工具
 		tools := rc.toolHandler.buildToolDefinitions()
@@ -201,7 +200,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 		if len(toolCalls) > 0 {
 			step.Action = "tool_execution"
-			step.ToolCall = toolCalls[0] // 记录第一个工具调用
+			step.ToolCall = toolCalls // 记录所有工具调用
 
 			// 执行工具调用
 			toolResult := rc.agent.executeSerialToolsStream(ctx, toolCalls, streamCallback)
@@ -327,23 +326,23 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 // GetContextStats - 获取上下文统计信息
 func (rc *ReactCore) GetContextStats(sess *session.Session) *contextmgr.ContextStats {
-	return rc.contextHandler.GetContextStats(sess)
+	return rc.messageProcessor.GetContextStats(sess)
 }
 
 // ForceContextSummarization - 强制进行上下文总结
 func (rc *ReactCore) ForceContextSummarization(ctx context.Context, sess *session.Session) (*contextmgr.ContextProcessingResult, error) {
-	return rc.contextHandler.ForceContextSummarization(ctx, sess)
+	return rc.messageProcessor.ForceContextSummarization(ctx, sess)
 }
 
 // RestoreFullContext - 恢复完整上下文
 func (rc *ReactCore) RestoreFullContext(sess *session.Session, backupID string) error {
-	return rc.contextHandler.RestoreFullContext(sess, backupID)
+	return rc.messageProcessor.RestoreFullContext(sess, backupID)
 }
 
 // addMessageToSession - 将LLM消息添加到session中供memory系统学习
 func (rc *ReactCore) addMessageToSession(ctx context.Context, llmMsg *llm.Message) {
 	// 获取当前会话
-	sess := rc.contextHandler.getCurrentSession(ctx, rc.agent)
+	sess := rc.messageProcessor.GetCurrentSession(ctx, rc.agent)
 	if sess == nil {
 		return // 没有会话则跳过
 	}
@@ -386,7 +385,7 @@ func (rc *ReactCore) addMessageToSession(ctx context.Context, llmMsg *llm.Messag
 // addToolMessagesToSession - 将工具消息添加到session中供memory系统学习
 func (rc *ReactCore) addToolMessagesToSession(ctx context.Context, toolMessages []llm.Message, toolResults []*types.ReactToolResult) {
 	// 获取当前会话
-	sess := rc.contextHandler.getCurrentSession(ctx, rc.agent)
+	sess := rc.messageProcessor.GetCurrentSession(ctx, rc.agent)
 	if sess == nil {
 		return // 没有会话则跳过
 	}

@@ -591,7 +591,9 @@ func (r *ReactAgent) createTaskExecutionMemory(_ context.Context, sessionID stri
 	var toolNames []string
 	for _, step := range result.Steps {
 		if step.ToolCall != nil {
-			toolNames = append(toolNames, step.ToolCall.Name)
+			for _, toolCall := range step.ToolCall {
+				toolNames = append(toolNames, toolCall.Name)
+			}
 		}
 	}
 
