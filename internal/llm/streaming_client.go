@@ -196,6 +196,11 @@ func (c *StreamingLLMClient) ChatStream(ctx context.Context, req *ChatRequest) (
 		}()
 
 		scanner := bufio.NewScanner(resp.Body)
+		// 增加缓冲区大小以处理大型tool calls arguments (默认64KB -> 1MB)
+		maxTokenSize := 1024 * 1024 // 1MB
+		buf := make([]byte, maxTokenSize)
+		scanner.Buffer(buf, maxTokenSize)
+		
 		for scanner.Scan() {
 			line := scanner.Text()
 			log.Printf("DEBUG: Line: %s", line)
@@ -228,7 +233,11 @@ func (c *StreamingLLMClient) ChatStream(ctx context.Context, req *ChatRequest) (
 		}
 
 		if err := scanner.Err(); err != nil {
-			// Could send error through channel, but for now just return
+			log.Printf("[ERROR] Scanner error while reading stream: %v", err)
+			// 特别检查缓冲区溢出错误
+			if err == bufio.ErrTooLong {
+				log.Printf("[ERROR] Scanner buffer overflow - line too long for buffer size %d", maxTokenSize)
+			}
 			return
 		}
 	}()

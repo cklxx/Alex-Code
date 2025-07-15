@@ -37,6 +37,8 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 		if tc.Function.Arguments != "" {
 			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
 				log.Printf("[ERROR] Failed to parse tool arguments: %v", err)
+				log.Printf("[ERROR] Raw JSON content: %q", tc.Function.Arguments)
+				log.Printf("[ERROR] JSON length: %d", len(tc.Function.Arguments))
 				continue
 			}
 		}
