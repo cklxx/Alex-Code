@@ -20,14 +20,14 @@ type ContextCompressor struct {
 
 // CompressionResult represents the result of context compression
 type CompressionResult struct {
-	OriginalCount    int                    `json:"original_count"`
-	CompressedCount  int                    `json:"compressed_count"`
-	CompressionRatio float64               `json:"compression_ratio"`
-	PreservedItems   []*session.Message    `json:"preserved_items"`
-	CompressedSummary string               `json:"compressed_summary"`
-	MemoryItems      []*MemoryItem         `json:"memory_items"`
-	ProcessingTime   time.Duration         `json:"processing_time"`
-	TokensSaved      int                   `json:"tokens_saved"`
+	OriginalCount     int                `json:"original_count"`
+	CompressedCount   int                `json:"compressed_count"`
+	CompressionRatio  float64            `json:"compression_ratio"`
+	PreservedItems    []*session.Message `json:"preserved_items"`
+	CompressedSummary string             `json:"compressed_summary"`
+	MemoryItems       []*MemoryItem      `json:"memory_items"`
+	ProcessingTime    time.Duration      `json:"processing_time"`
+	TokensSaved       int                `json:"tokens_saved"`
 }
 
 // NewContextCompressor creates a new context compressor
@@ -56,7 +56,7 @@ func (cc *ContextCompressor) NeedsCompression(messages []*session.Message, maxTo
 
 	estimatedTokens := cc.estimateTokenUsage(messages)
 	usageRatio := float64(estimatedTokens) / float64(maxTokens)
-	
+
 	return usageRatio >= cc.config.Threshold
 }
 
@@ -238,14 +238,14 @@ func (cc *ContextCompressor) extractMemoriesFromMessage(sessionID string, msg *s
 	if len(msg.ToolCalls) > 0 {
 		for _, toolCall := range msg.ToolCalls {
 			memory := &MemoryItem{
-				ID:        fmt.Sprintf("tool_%s_%s_%d", sessionID, toolCall.Name, time.Now().UnixNano()),
-				SessionID: sessionID,
-				Type:      ShortTermMemory,
-				Category:  TaskHistory,
-				Content:   fmt.Sprintf("Tool: %s\nArgs: %s", toolCall.Name, cc.formatArgs(toolCall.Args)),
+				ID:         fmt.Sprintf("tool_%s_%s_%d", sessionID, toolCall.Name, time.Now().UnixNano()),
+				SessionID:  sessionID,
+				Type:       ShortTermMemory,
+				Category:   TaskHistory,
+				Content:    fmt.Sprintf("Tool: %s\nArgs: %s", toolCall.Name, cc.formatArgs(toolCall.Args)),
 				Importance: 0.6,
 				CreatedAt:  msg.Timestamp,
-				Tags:      []string{"tool", "execution", toolCall.Name},
+				Tags:       []string{"tool", "execution", toolCall.Name},
 			}
 			memories = append(memories, memory)
 		}
@@ -469,7 +469,7 @@ func (cc *ContextCompressor) extractCodeBlocks(content string) string {
 
 func (cc *ContextCompressor) extractTopics(messages []*session.Message) []string {
 	wordCount := make(map[string]int)
-	
+
 	for _, msg := range messages {
 		words := strings.Fields(strings.ToLower(msg.Content))
 		for _, word := range words {
@@ -532,7 +532,7 @@ func (cc *ContextCompressor) formatArgs(args map[string]interface{}) string {
 func (cc *ContextCompressor) containsError(content string) bool {
 	errorKeywords := []string{"error", "exception", "failed", "panic", "fatal"}
 	lower := strings.ToLower(content)
-	
+
 	for _, keyword := range errorKeywords {
 		if strings.Contains(lower, keyword) {
 			return true
@@ -544,13 +544,13 @@ func (cc *ContextCompressor) containsError(content string) bool {
 func (cc *ContextCompressor) extractErrorInfo(content string) string {
 	lines := strings.Split(content, "\n")
 	var errorLines []string
-	
+
 	for _, line := range lines {
 		lower := strings.ToLower(line)
 		if strings.Contains(lower, "error") || strings.Contains(lower, "exception") || strings.Contains(lower, "failed") {
 			errorLines = append(errorLines, strings.TrimSpace(line))
 		}
 	}
-	
+
 	return strings.Join(errorLines, "\n")
 }

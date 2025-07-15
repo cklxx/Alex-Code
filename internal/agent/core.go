@@ -191,14 +191,14 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		// 解析并执行工具调用
 		toolCalls := rc.agent.parseToolCalls(&choice.Message)
 		log.Printf("[DEBUG] ReactCore: Parsed %d tool calls", len(toolCalls))
-		
+
 		// 记录所有从LLM接收到的工具调用ID，用于验证响应完整性
 		expectedToolCallIDs := make([]string, 0, len(choice.Message.ToolCalls))
 		for _, tc := range choice.Message.ToolCalls {
 			expectedToolCallIDs = append(expectedToolCallIDs, tc.ID)
 			log.Printf("[DEBUG] ReactCore: Expected tool call ID: %s", tc.ID)
 		}
-		
+
 		if len(toolCalls) > 0 {
 			step.Action = "tool_execution"
 			step.ToolCall = toolCalls[0] // 记录第一个工具调用
@@ -206,7 +206,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			// 执行工具调用
 			toolResult := rc.agent.executeSerialToolsStream(ctx, toolCalls, streamCallback)
 			step.Result = toolResult
-			
+
 			log.Printf("[DEBUG] ReactCore: Tool execution returned %d results", len(toolResult))
 			for i, result := range toolResult {
 				log.Printf("[DEBUG] ReactCore: Tool result %d - Tool: '%s', CallID: '%s', Success: %v", i, result.ToolName, result.CallID, result.Success)
@@ -218,11 +218,11 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 				log.Printf("[DEBUG] ReactCore: Building tool messages, isGemini: %v", isGemini)
 				toolMessages := rc.toolHandler.buildToolMessages(toolResult, isGemini)
 				log.Printf("[DEBUG] ReactCore: Built %d tool messages", len(toolMessages))
-				
+
 				for i, msg := range toolMessages {
 					log.Printf("[DEBUG] ReactCore: Tool message %d - Role: '%s', ToolCallId: '%s'", i, msg.Role, msg.ToolCallId)
 				}
-				
+
 				// 验证响应完整性：确保每个期望的工具调用ID都有对应的响应
 				receivedIDs := make(map[string]bool)
 				for _, msg := range toolMessages {
@@ -230,7 +230,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 						receivedIDs[msg.ToolCallId] = true
 					}
 				}
-				
+
 				// 检查是否有缺失的响应
 				var missingIDs []string
 				for _, expectedID := range expectedToolCallIDs {
@@ -238,7 +238,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 						missingIDs = append(missingIDs, expectedID)
 					}
 				}
-				
+
 				// 如果有缺失的ID，生成fallback响应
 				if len(missingIDs) > 0 {
 					log.Printf("[ERROR] ReactCore: Missing responses for tool call IDs: %v", missingIDs)
@@ -253,7 +253,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 						log.Printf("[ERROR] ReactCore: Generated fallback response for missing ID: %s", missingID)
 					}
 				}
-				
+
 				messages = append(messages, toolMessages...)
 
 				// 将工具消息添加到session供memory系统学习

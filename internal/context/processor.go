@@ -13,10 +13,10 @@ import (
 
 // ContextProcessor provides unified context processing and compression
 type ContextProcessor struct {
-	tokenEstimator   *TokenEstimator
-	messageAnalyzer  *MessageAnalyzer
+	tokenEstimator    *TokenEstimator
+	messageAnalyzer   *MessageAnalyzer
 	compressionEngine *CompressionEngine
-	config           *ContextProcessorConfig
+	config            *ContextProcessorConfig
 }
 
 // ContextProcessorConfig defines configuration for context processing
@@ -57,10 +57,10 @@ func NewContextProcessor(llmClient llm.Client, config *ContextProcessorConfig) *
 	}
 
 	return &ContextProcessor{
-		tokenEstimator:   &TokenEstimator{charsPerToken: 3, overhead: 100},
-		messageAnalyzer:  &MessageAnalyzer{},
+		tokenEstimator:    &TokenEstimator{charsPerToken: 3, overhead: 100},
+		messageAnalyzer:   &MessageAnalyzer{},
 		compressionEngine: &CompressionEngine{llmClient: llmClient},
-		config:           config,
+		config:            config,
 	}
 }
 
@@ -68,7 +68,7 @@ func NewContextProcessor(llmClient llm.Client, config *ContextProcessorConfig) *
 func (cp *ContextProcessor) ProcessContext(ctx context.Context, sessionMessages []*session.Message) (*ContextProcessingResult, error) {
 	// Check if compression is needed
 	analysis := cp.AnalyzeContext(sessionMessages)
-	
+
 	if !analysis.RequiresTrimming {
 		return &ContextProcessingResult{
 			Action:         "no_action",
@@ -93,7 +93,7 @@ func (cp *ContextProcessor) ProcessContext(ctx context.Context, sessionMessages 
 // AnalyzeContext analyzes context requirements
 func (cp *ContextProcessor) AnalyzeContext(messages []*session.Message) *ContextAnalysis {
 	estimatedTokens := cp.tokenEstimator.EstimateSessionMessages(messages)
-	
+
 	return &ContextAnalysis{
 		TotalMessages:     len(messages),
 		EstimatedTokens:   estimatedTokens,
@@ -168,16 +168,16 @@ func (cp *ContextProcessor) categorizeMessages(messages []*session.Message) (rec
 // EstimateSessionMessages estimates token count for session messages
 func (te *TokenEstimator) EstimateSessionMessages(messages []*session.Message) int {
 	totalChars := 0
-	
+
 	for _, msg := range messages {
 		totalChars += len(msg.Content) + te.overhead
-		
+
 		// Add tokens for tool calls
 		for _, tc := range msg.ToolCalls {
 			totalChars += len(tc.Name) + len(tc.ID) + 50
 		}
 	}
-	
+
 	return totalChars / te.charsPerToken
 }
 
@@ -239,7 +239,7 @@ func (ce *CompressionEngine) CreateSummary(ctx context.Context, messages []*sess
 
 	// Build conversation text
 	conversationText := ce.buildConversationText(messages)
-	
+
 	// Create summary prompt
 	prompt := fmt.Sprintf(`Please create a concise summary of the following conversation (%d messages).
 
@@ -299,7 +299,7 @@ Summary:`, len(messages), conversationText)
 // buildConversationText builds text representation of conversation
 func (ce *CompressionEngine) buildConversationText(messages []*session.Message) string {
 	var parts []string
-	
+
 	for i, msg := range messages {
 		// Skip system messages except summaries
 		if msg.Role == "system" {
@@ -338,4 +338,3 @@ func (ce *CompressionEngine) buildConversationText(messages []*session.Message) 
 
 	return strings.Join(parts, "\n")
 }
-

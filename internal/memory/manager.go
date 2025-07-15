@@ -60,7 +60,7 @@ func (mm *MemoryManager) Store(item *MemoryItem) error {
 		LastAccess:   item.LastAccess,
 		RecentAccess: time.Since(item.LastAccess) < 24*time.Hour,
 	}
-	
+
 	if mm.controller.ShouldPromoteToLongTerm(item, accessPattern) || item.Type == LongTermMemory {
 		// Store in long-term memory for important items
 		item.Type = LongTermMemory
@@ -148,10 +148,10 @@ func (mm *MemoryManager) ProcessContextCompression(ctx context.Context, sess *se
 			Role:    "system",
 			Content: fmt.Sprintf("## Conversation Summary\n\n%s\n\n---\n\nThe above is a summary of the previous conversation. Continue from here with full context awareness.", result.CompressedSummary),
 			Metadata: map[string]interface{}{
-				"type":                "compression_summary",
-				"original_count":      result.OriginalCount,
-				"compression_ratio":   result.CompressionRatio,
-				"tokens_saved":        result.TokensSaved,
+				"type":                  "compression_summary",
+				"original_count":        result.OriginalCount,
+				"compression_ratio":     result.CompressionRatio,
+				"tokens_saved":          result.TokensSaved,
 				"compression_timestamp": time.Now().Unix(),
 			},
 			Timestamp: time.Now(),
@@ -166,23 +166,23 @@ func (mm *MemoryManager) ProcessContextCompression(ctx context.Context, sess *se
 func (mm *MemoryManager) CreateMemoryFromMessage(ctx context.Context, sessionID string, msg *session.Message, sessionMessageCount int) ([]*MemoryItem, error) {
 	// Get recent memory count for rate limiting
 	recentMemoryCount := mm.getRecentMemoryCount(sessionID, time.Hour)
-	
+
 	// Check if we should create memory from this message
 	if !mm.controller.ShouldCreateMemory(msg, sessionMessageCount, recentMemoryCount) {
 		return nil, nil
 	}
-	
+
 	// Classify the memory
 	category, importance, tags := mm.controller.ClassifyMemory(msg)
-	
+
 	// Skip if importance is too low
 	if importance < 0.3 {
 		return nil, nil
 	}
-	
+
 	// Create memory items based on content analysis
 	var memories []*MemoryItem
-	
+
 	// Main content memory
 	mainMemory := &MemoryItem{
 		ID:         fmt.Sprintf("%s_%s_%d", category, sessionID, time.Now().UnixNano()),
@@ -195,25 +195,25 @@ func (mm *MemoryManager) CreateMemoryFromMessage(ctx context.Context, sessionID 
 		UpdatedAt:  msg.Timestamp,
 		LastAccess: msg.Timestamp,
 		Metadata: map[string]interface{}{
-			"original_role": msg.Role,
-			"message_length": len(msg.Content),
+			"original_role":    msg.Role,
+			"message_length":   len(msg.Content),
 			"tool_calls_count": len(msg.ToolCalls),
 		},
 	}
-	
+
 	memories = append(memories, mainMemory)
-	
+
 	// Create additional specialized memories
 	additionalMemories := mm.createSpecializedMemories(sessionID, msg, category)
 	memories = append(memories, additionalMemories...)
-	
+
 	// Store all memories
 	for _, memory := range memories {
 		if err := mm.Store(memory); err != nil {
 			fmt.Printf("Warning: failed to store memory %s: %v\n", memory.ID, err)
 		}
 	}
-	
+
 	return memories, nil
 }
 
@@ -223,12 +223,12 @@ func (mm *MemoryManager) AutomaticMemoryMaintenance(sessionID string) error {
 	if err := mm.PromoteToLongTerm(sessionID, 0.7); err != nil {
 		return fmt.Errorf("failed to promote memories: %w", err)
 	}
-	
+
 	// Clean up old memories
 	if err := mm.CleanupMemories(); err != nil {
 		return fmt.Errorf("failed to cleanup memories: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -274,8 +274,8 @@ func (mm *MemoryManager) GetMemoryStats() map[string]interface{} {
 	longStats := mm.longTerm.GetStats()
 
 	return map[string]interface{}{
-		"short_term": shortStats,
-		"long_term":  longStats,
+		"short_term":  shortStats,
+		"long_term":   longStats,
 		"total_items": shortStats.TotalItems + longStats.TotalItems,
 		"total_size":  shortStats.TotalSize + longStats.TotalSize,
 	}
@@ -284,7 +284,7 @@ func (mm *MemoryManager) GetMemoryStats() map[string]interface{} {
 // CleanupMemories performs maintenance on both memory systems
 func (mm *MemoryManager) CleanupMemories() error {
 	// Cleanup expired short-term memories (automatic in short-term manager)
-	
+
 	// Vacuum long-term memories if they exceed limits
 	longStats := mm.longTerm.GetStats()
 	if longStats.TotalItems > 5000 {
@@ -328,7 +328,7 @@ func (mm *MemoryManager) buildMemoryQuery(sessionID string, recentMessages []*se
 
 	for _, msg := range recentMessages {
 		content = append(content, msg.Content)
-		
+
 		// Extract potential tags from tool calls
 		for _, toolCall := range msg.ToolCalls {
 			tags = append(tags, toolCall.Name)
@@ -358,7 +358,7 @@ func (mm *MemoryManager) buildMemoryQuery(sessionID string, recentMessages []*se
 func (mm *MemoryManager) extractKeywords(content string) string {
 	// Simple keyword extraction (could be enhanced with NLP)
 	words := strings.Fields(strings.ToLower(content))
-	
+
 	var keywords []string
 	for _, word := range words {
 		if len(word) > 4 && !mm.isCommonWord(word) {
@@ -399,7 +399,7 @@ func (mm *MemoryManager) formatMemoriesAsMessage(memories []*MemoryItem) *sessio
 	// Format each category
 	for category, items := range categoryGroups {
 		parts = append(parts, fmt.Sprintf("### %s", strings.ToTitle(string(category))))
-		
+
 		for _, item := range items {
 			parts = append(parts, fmt.Sprintf("- %s", item.Content))
 		}
@@ -412,9 +412,9 @@ func (mm *MemoryManager) formatMemoriesAsMessage(memories []*MemoryItem) *sessio
 		Role:    "system",
 		Content: strings.Join(parts, "\n"),
 		Metadata: map[string]interface{}{
-			"type":           "memory_context",
-			"memory_count":   len(memories),
-			"categories":     len(categoryGroups),
+			"type":             "memory_context",
+			"memory_count":     len(memories),
+			"categories":       len(categoryGroups),
 			"recall_timestamp": time.Now().Unix(),
 		},
 		Timestamp: time.Now(),
@@ -450,28 +450,28 @@ func contains(slice []MemoryType, item MemoryType) bool {
 
 func (mm *MemoryManager) getRecentMemoryCount(sessionID string, duration time.Duration) int {
 	cutoff := time.Now().Add(-duration)
-	
+
 	memories := mm.shortTerm.GetSessionMemories(sessionID)
 	count := 0
-	
+
 	for _, memory := range memories {
 		if memory.CreatedAt.After(cutoff) {
 			count++
 		}
 	}
-	
+
 	return count
 }
 
 func (mm *MemoryManager) extractRelevantContent(msg *session.Message) string {
 	content := msg.Content
-	
+
 	// Limit content length for memory efficiency
 	maxLength := 500
 	if len(content) > maxLength {
 		content = content[:maxLength] + "..."
 	}
-	
+
 	// Add tool call information if present
 	if len(msg.ToolCalls) > 0 {
 		var toolInfo []string
@@ -480,13 +480,13 @@ func (mm *MemoryManager) extractRelevantContent(msg *session.Message) string {
 		}
 		content += fmt.Sprintf(" [Tools: %s]", strings.Join(toolInfo, ", "))
 	}
-	
+
 	return content
 }
 
 func (mm *MemoryManager) createSpecializedMemories(sessionID string, msg *session.Message, category MemoryCategory) []*MemoryItem {
 	var memories []*MemoryItem
-	
+
 	// Create tool-specific memories
 	for _, toolCall := range msg.ToolCalls {
 		memory := &MemoryItem{
@@ -506,7 +506,7 @@ func (mm *MemoryManager) createSpecializedMemories(sessionID string, msg *sessio
 		}
 		memories = append(memories, memory)
 	}
-	
+
 	// Create code-specific memories for code blocks
 	if category == CodeContext {
 		codeBlocks := mm.extractCodeBlocks(msg.Content)
@@ -528,7 +528,7 @@ func (mm *MemoryManager) createSpecializedMemories(sessionID string, msg *sessio
 			memories = append(memories, memory)
 		}
 	}
-	
+
 	return memories
 }
 
@@ -536,18 +536,18 @@ func (mm *MemoryManager) formatToolArgs(args map[string]interface{}) string {
 	if len(args) == 0 {
 		return "{}"
 	}
-	
+
 	data, err := json.Marshal(args)
 	if err != nil {
 		return "{...}"
 	}
-	
+
 	// Limit length
 	result := string(data)
 	if len(result) > 200 {
 		result = result[:200] + "..."
 	}
-	
+
 	return result
 }
 
@@ -556,7 +556,7 @@ func (mm *MemoryManager) extractCodeBlocks(content string) []string {
 	lines := strings.Split(content, "\n")
 	var currentBlock []string
 	inBlock := false
-	
+
 	for _, line := range lines {
 		if strings.HasPrefix(line, "```") {
 			if inBlock {
@@ -572,11 +572,11 @@ func (mm *MemoryManager) extractCodeBlocks(content string) []string {
 			currentBlock = append(currentBlock, line)
 		}
 	}
-	
+
 	// Handle unclosed code blocks
 	if inBlock && len(currentBlock) > 0 {
 		blocks = append(blocks, strings.Join(currentBlock, "\n"))
 	}
-	
+
 	return blocks
 }

@@ -4,35 +4,60 @@
 BINARY_NAME=alex
 SOURCE_MAIN=./cmd
 BUILD_DIR=build
-VERSION?=v0
+
+# Version information
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+GIT_COMMIT = $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
+BUILD_TIME = $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+
+# Build flags for version injection
+LDFLAGS = -s -w \
+	-X 'alex/internal/version.Version=$(VERSION)' \
+	-X 'alex/internal/version.GitCommit=$(GIT_COMMIT)' \
+	-X 'alex/internal/version.BuildTime=$(BUILD_TIME)'
 
 # Default target
 .PHONY: all
 all: build
 
-# Build the binary
+# Build the binary with version information
 .PHONY: build
 build: deps
-	@echo "Building $(BINARY_NAME)..."
-	@go build -o $(BINARY_NAME) $(SOURCE_MAIN)
+	@echo "Building $(BINARY_NAME) $(VERSION)..."
+	@echo "Git Commit: $(GIT_COMMIT)"
+	@echo "Build Time: $(BUILD_TIME)"
+	@go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME) $(SOURCE_MAIN)
 	@echo "Build complete: ./$(BINARY_NAME)"
 
-# Build for multiple platforms
+# Build for multiple platforms with version information
 .PHONY: build-all
 build-all: deps
 	@echo "Building for multiple platforms..."
 	@mkdir -p $(BUILD_DIR)
-	@GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 $(SOURCE_MAIN)
-	@GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 $(SOURCE_MAIN)
-	@GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 $(SOURCE_MAIN)
+	@echo "Building Linux AMD64..."
+	@GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 $(SOURCE_MAIN)
+	@echo "Building Darwin AMD64..."
+	@GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 $(SOURCE_MAIN)
+	@echo "Building Darwin ARM64..."
+	@GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 $(SOURCE_MAIN)
 	@echo "Multi-platform build complete in $(BUILD_DIR)/"
+	@echo "Version: $(VERSION)"
 
-# Install the binary to GOPATH/bin
+# Install the binary to GOPATH/bin with version information
 .PHONY: install
 install: build
-	@echo "Installing $(BINARY_NAME) to GOPATH/bin..."
+	@echo "Installing $(BINARY_NAME) $(VERSION) to GOPATH/bin..."
 	@cp $(BINARY_NAME) $$(go env GOPATH)/bin/
 	@echo "Installation complete"
+
+# Show version information (for debugging)
+.PHONY: version-info
+version-info:
+	@echo "Version Information:"
+	@echo "  VERSION: $(VERSION)"
+	@echo "  GIT_COMMIT: $(GIT_COMMIT)"
+	@echo "  BUILD_TIME: $(BUILD_TIME)"
+	@echo "  LDFLAGS: $(LDFLAGS)"
 
 # Initialize dependencies
 .PHONY: deps

@@ -9,7 +9,7 @@ import (
 
 // ShortTermMemoryManager manages temporary, session-specific memories
 type ShortTermMemoryManager struct {
-	memories    map[string]*MemoryItem // ID -> MemoryItem
+	memories    map[string]*MemoryItem   // ID -> MemoryItem
 	sessionData map[string][]*MemoryItem // SessionID -> Items
 	maxItems    int
 	ttl         time.Duration
@@ -37,7 +37,7 @@ func (stm *ShortTermMemoryManager) Store(item *MemoryItem) error {
 		expiresAt := time.Now().Add(stm.ttl)
 		item.ExpiresAt = &expiresAt
 	}
-	
+
 	// Update timestamps
 	now := time.Now()
 	if item.CreatedAt.IsZero() {
@@ -56,7 +56,7 @@ func (stm *ShortTermMemoryManager) Store(item *MemoryItem) error {
 
 	// Cleanup if needed
 	stm.cleanup()
-	
+
 	return nil
 }
 

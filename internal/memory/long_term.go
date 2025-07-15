@@ -14,9 +14,9 @@ import (
 // LongTermMemoryManager manages persistent, cross-session memories
 type LongTermMemoryManager struct {
 	storageDir  string
-	memories    map[string]*MemoryItem // ID -> MemoryItem
+	memories    map[string]*MemoryItem           // ID -> MemoryItem
 	categoryIdx map[MemoryCategory][]*MemoryItem // Category -> Items
-	tagIdx      map[string][]*MemoryItem // Tag -> Items
+	tagIdx      map[string][]*MemoryItem         // Tag -> Items
 	mutex       sync.RWMutex
 }
 
@@ -48,7 +48,7 @@ func (ltm *LongTermMemoryManager) Store(item *MemoryItem) error {
 
 	// Set memory type
 	item.Type = LongTermMemory
-	
+
 	// Update timestamps
 	now := time.Now()
 	if item.CreatedAt.IsZero() {
@@ -209,7 +209,7 @@ func (ltm *LongTermMemoryManager) GetByTags(tags []string) []*MemoryItem {
 	defer ltm.mutex.RUnlock()
 
 	itemSet := make(map[string]*MemoryItem)
-	
+
 	for _, tag := range tags {
 		if items, exists := ltm.tagIdx[tag]; exists {
 			for _, item := range items {

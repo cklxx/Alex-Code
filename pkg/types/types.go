@@ -179,10 +179,10 @@ type FileInfo struct {
 
 // ReactTaskContext - ReAct任务上下文
 type ReactTaskContext struct {
-	TaskID     string                 `json:"task_id"`     // 任务ID
-	Goal       string                 `json:"goal"`        // 任务目标
-	History    []ReactExecutionStep   `json:"history"`     // 执行历史
-	Memory     map[string]interface{} `json:"memory"`      // 任务内存
+	TaskID           string                 `json:"task_id"`           // 任务ID
+	Goal             string                 `json:"goal"`              // 任务目标
+	History          []ReactExecutionStep   `json:"history"`           // 执行历史
+	Memory           map[string]interface{} `json:"memory"`            // 任务内存
 	StartTime        time.Time              `json:"start_time"`        // 开始时间
 	LastUpdate       time.Time              `json:"last_update"`       // 最后更新时间
 	TokensUsed       int                    `json:"tokens_used"`       // 已使用token数
@@ -215,16 +215,16 @@ type ReactExecutionStep struct {
 
 // ReactTaskResult - ReAct任务执行结果
 type ReactTaskResult struct {
-	Success           bool                   `json:"success"`            // 是否成功
-	Answer            string                 `json:"answer"`             // 答案内容
-	Confidence        float64                `json:"confidence"`         // 整体置信度
-	Steps             []ReactExecutionStep   `json:"steps"`              // 执行步骤
-	Duration          time.Duration          `json:"duration"`           // 总耗时
-	TokensUsed        int                    `json:"tokens_used"`        // 总token使用量
-	PromptTokens      int                    `json:"prompt_tokens"`      // 输入token数
-	CompletionTokens  int                    `json:"completion_tokens"`  // 输出token数
-	Metadata          map[string]interface{} `json:"metadata,omitempty"` // 额外元数据
-	Error             string                 `json:"error,omitempty"`    // 错误信息
+	Success          bool                   `json:"success"`            // 是否成功
+	Answer           string                 `json:"answer"`             // 答案内容
+	Confidence       float64                `json:"confidence"`         // 整体置信度
+	Steps            []ReactExecutionStep   `json:"steps"`              // 执行步骤
+	Duration         time.Duration          `json:"duration"`           // 总耗时
+	TokensUsed       int                    `json:"tokens_used"`        // 总token使用量
+	PromptTokens     int                    `json:"prompt_tokens"`      // 输入token数
+	CompletionTokens int                    `json:"completion_tokens"`  // 输出token数
+	Metadata         map[string]interface{} `json:"metadata,omitempty"` // 额外元数据
+	Error            string                 `json:"error,omitempty"`    // 错误信息
 }
 
 // ReactToolCall - ReAct工具调用

@@ -80,10 +80,10 @@ type StreamChunk struct {
 	Complete bool                   `json:"complete,omitempty"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 	// Token usage information
-	TokensUsed       int `json:"tokens_used,omitempty"`        // Current operation token usage
-	TotalTokensUsed  int `json:"total_tokens_used,omitempty"`  // Cumulative token usage in session
-	PromptTokens     int `json:"prompt_tokens,omitempty"`      // Tokens used for prompt
-	CompletionTokens int `json:"completion_tokens,omitempty"`  // Tokens used for completion
+	TokensUsed       int `json:"tokens_used,omitempty"`       // Current operation token usage
+	TotalTokensUsed  int `json:"total_tokens_used,omitempty"` // Cumulative token usage in session
+	PromptTokens     int `json:"prompt_tokens,omitempty"`     // Tokens used for prompt
+	CompletionTokens int `json:"completion_tokens,omitempty"` // Tokens used for completion
 }
 
 // StreamCallback - 流式回调函数
@@ -125,7 +125,7 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	// 创建组件
 	promptBuilder := NewLightPromptBuilder()
 	contextMgr := NewLightContextManager()
-	
+
 	// 初始化Memory系统
 	var memoryManager *memory.MemoryManager
 	if llmClient != nil {

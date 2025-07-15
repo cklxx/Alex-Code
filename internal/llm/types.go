@@ -46,10 +46,10 @@ type ChatResponse struct {
 	Created int64    `json:"created"`
 	Model   string   `json:"model"`
 	Choices []Choice `json:"choices"`
-	
+
 	// OpenAI format
 	Usage Usage `json:"usage,omitempty"`
-	
+
 	// Gemini format - for compatibility
 	UsageMetadata Usage `json:"usageMetadata,omitempty"`
 }
@@ -60,12 +60,12 @@ func (r *ChatResponse) GetUsage() Usage {
 	if r.Usage.GetTotalTokens() > 0 {
 		return r.Usage
 	}
-	
+
 	// Fall back to Gemini format
 	if r.UsageMetadata.GetTotalTokens() > 0 {
 		return r.UsageMetadata
 	}
-	
+
 	// Return empty usage if neither format has data
 	return Usage{}
 }
@@ -85,7 +85,7 @@ type Usage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
-	
+
 	// Gemini format (camelCase) - for compatibility
 	PromptTokenCount     int `json:"promptTokenCount"`
 	CandidatesTokenCount int `json:"candidatesTokenCount"`
@@ -124,10 +124,10 @@ type StreamDelta struct {
 	Created int64    `json:"created"`
 	Model   string   `json:"model"`
 	Choices []Choice `json:"choices"`
-	
+
 	// Usage information in streaming responses (when available)
 	Usage Usage `json:"usage,omitempty"`
-	
+
 	// Additional provider-specific fields
 	Provider string `json:"provider,omitempty"`
 }

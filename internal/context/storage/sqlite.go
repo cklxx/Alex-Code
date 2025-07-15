@@ -654,14 +654,14 @@ func (s *SQLiteStorage) GetMetrics() StorageMetrics {
 		s.metrics.DocumentCount = count
 		s.mu.Unlock()
 	}
-	
+
 	s.mu.Lock()
 	s.metrics.Uptime = time.Since(s.startTime)
-	
+
 	// 返回指标的副本以避免竞态条件
 	result := s.metrics
 	s.mu.Unlock()
-	
+
 	return result
 }
 

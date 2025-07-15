@@ -23,7 +23,7 @@ type TerminalController struct {
 // NewTerminalController creates a new terminal controller for Windows
 func NewTerminalController() *TerminalController {
 	tc := &TerminalController{
-		width:               80,  // Default width
+		width:               80, // Default width
 		height:              24, // Default height
 		supportsDynamicSize: false,
 		supportsFixedSize:   true,
@@ -86,7 +86,7 @@ func (tc *TerminalController) ShowDynamicBottomInterface(workingIndicator, input
 func (tc *TerminalController) ShowBottomInterface(workingIndicator, inputBox string) {
 	tc.outputMutex.Lock()
 	defer tc.outputMutex.Unlock()
-	
+
 	fmt.Printf("\033[%d;1H", tc.height-1)
 	fmt.Print("\033[K") // Clear line
 	if workingIndicator != "" {
@@ -112,7 +112,7 @@ func (tc *TerminalController) PrintInScrollRegion(content string) {
 func (tc *TerminalController) UpdateWorkingIndicator(indicator string) {
 	tc.outputMutex.Lock()
 	defer tc.outputMutex.Unlock()
-	
+
 	fmt.Printf("\033[%d;1H", tc.height-1)
 	fmt.Print("\033[K") // Clear line
 	fmt.Print(indicator)

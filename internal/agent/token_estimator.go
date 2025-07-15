@@ -23,32 +23,32 @@ func NewTokenEstimator() *TokenEstimator {
 // EstimateSessionMessages estimates tokens for session messages
 func (te *TokenEstimator) EstimateSessionMessages(messages []*session.Message) int {
 	totalChars := 0
-	
+
 	for _, msg := range messages {
 		totalChars += len(msg.Content) + te.overhead
-		
+
 		// Add tokens for tool calls
 		for _, tc := range msg.ToolCalls {
 			totalChars += len(tc.Name) + len(tc.ID) + 50 // Tool call overhead
 		}
 	}
-	
+
 	return totalChars / te.charsPerToken
 }
 
 // EstimateLLMMessages estimates tokens for LLM messages
 func (te *TokenEstimator) EstimateLLMMessages(messages []llm.Message) int {
 	totalChars := 0
-	
+
 	for _, msg := range messages {
 		totalChars += len(msg.Content) + te.overhead
-		
+
 		// Add tokens for tool calls
 		for _, tc := range msg.ToolCalls {
 			totalChars += len(tc.Function.Name) + len(tc.ID) + 50 // Tool call overhead
 		}
 	}
-	
+
 	return totalChars / te.charsPerToken
 }
 
@@ -60,15 +60,15 @@ func (te *TokenEstimator) EstimateString(content string) int {
 // EstimateMessages estimates tokens for mixed message types
 func (te *TokenEstimator) EstimateMessages(sessionMessages []*session.Message, llmMessages []llm.Message) int {
 	totalTokens := 0
-	
+
 	if len(sessionMessages) > 0 {
 		totalTokens += te.EstimateSessionMessages(sessionMessages)
 	}
-	
+
 	if len(llmMessages) > 0 {
 		totalTokens += te.EstimateLLMMessages(llmMessages)
 	}
-	
+
 	return totalTokens
 }
 

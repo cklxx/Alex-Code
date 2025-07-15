@@ -19,12 +19,11 @@ import (
 // Modern TUI with clean, professional interface
 var (
 	// Color scheme
-	primaryColor    = lipgloss.Color("#7C3AED")
-	successColor    = lipgloss.Color("#10B981")
-	warningColor    = lipgloss.Color("#F59E0B")
-	errorColor      = lipgloss.Color("#EF4444")
-	mutedColor      = lipgloss.Color("#6B7280")
-	backgroundColor = lipgloss.Color("#1F2937") //nolint:unused
+	primaryColor = lipgloss.Color("#7C3AED")
+	successColor = lipgloss.Color("#10B981")
+	warningColor = lipgloss.Color("#F59E0B")
+	errorColor   = lipgloss.Color("#EF4444")
+	mutedColor   = lipgloss.Color("#6B7280")
 
 	// Styles
 	headerStyle = lipgloss.NewStyle().
@@ -69,7 +68,10 @@ type (
 	streamResponseMsg struct{ content string }
 	streamStartMsg    struct{ input string }
 	streamChunkMsg    struct{ content string }
-	streamContentMsg  struct{ content string; isMarkdown bool } // Enhanced message for markdown content
+	streamContentMsg  struct {
+		content    string
+		isMarkdown bool
+	} // Enhanced message for markdown content
 	streamCompleteMsg struct{}
 	processingDoneMsg struct{}
 	errorOccurredMsg  struct{ err error }
@@ -89,10 +91,10 @@ type ModernChatModel struct {
 	currentInput        string
 	execTimer           ExecutionTimer
 	program             *tea.Program
-	currentMessage      *ChatMessage // Track current streaming message
-	sessionStartTime    time.Time    // Track session start time
+	currentMessage      *ChatMessage    // Track current streaming message
+	sessionStartTime    time.Time       // Track session start time
 	contentBuffer       strings.Builder // Buffer for accumulating streaming content
-	lastRenderedContent string       // Last rendered markdown content to avoid re-rendering
+	lastRenderedContent string          // Last rendered markdown content to avoid re-rendering
 }
 
 // ChatMessage represents a chat message with type and content
@@ -313,7 +315,7 @@ func (m ModernChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Accumulate content in buffer
 			m.contentBuffer.WriteString(msg.content)
 			currentContent := m.contentBuffer.String()
-			
+
 			if msg.isMarkdown && m.shouldStreamAsMarkdown(currentContent) {
 				// Try to render as markdown and show incremental updates
 				if globalMarkdownRenderer != nil {
@@ -570,29 +572,29 @@ func (m *ModernChatModel) shouldStreamAsMarkdown(content string) bool {
 	if len(strings.TrimSpace(content)) < 20 {
 		return false
 	}
-	
+
 	// Check for strong markdown indicators early
 	earlyIndicators := []string{
-		"# ",      // Headers
-		"## ",     // Headers  
-		"### ",    // Headers
-		"```",     // Code blocks
-		"- ",      // Lists
-		"* ",      // Lists
-		"1. ",     // Numbered lists
+		"# ",   // Headers
+		"## ",  // Headers
+		"### ", // Headers
+		"```",  // Code blocks
+		"- ",   // Lists
+		"* ",   // Lists
+		"1. ",  // Numbered lists
 	}
-	
+
 	for _, indicator := range earlyIndicators {
 		if strings.Contains(content, indicator) {
 			return true
 		}
 	}
-	
+
 	// Check for markdown patterns that benefit from streaming
 	if strings.Contains(content, "**") || strings.Contains(content, "`") {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -601,7 +603,7 @@ func (m *ModernChatModel) getNewRenderedContent(newRendered string) string {
 	if m.lastRenderedContent == "" {
 		return newRendered
 	}
-	
+
 	// Simple approach: if the new content is longer, show the difference
 	if len(newRendered) > len(m.lastRenderedContent) {
 		// Check if the old content is a prefix of the new content
@@ -609,7 +611,7 @@ func (m *ModernChatModel) getNewRenderedContent(newRendered string) string {
 			return newRendered[len(m.lastRenderedContent):]
 		}
 	}
-	
+
 	// If we can't determine the diff reliably, return the new content
 	// This might cause some duplication but ensures content is displayed
 	return newRendered

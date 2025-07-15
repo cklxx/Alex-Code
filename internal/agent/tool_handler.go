@@ -48,10 +48,10 @@ func (h *ToolHandler) buildToolMessages(actionResult []*types.ReactToolResult, i
 	var toolMessages []llm.Message
 
 	log.Printf("[DEBUG] buildToolMessages: Processing %d tool results", len(actionResult))
-	
+
 	for i, result := range actionResult {
 		log.Printf("[DEBUG] buildToolMessages: Result %d - Tool: '%s', CallID: '%s', Success: %v", i, result.ToolName, result.CallID, result.Success)
-		
+
 		content := result.Content
 		if !result.Success {
 			content = result.Error
@@ -88,7 +88,7 @@ func (h *ToolHandler) buildToolMessages(actionResult []*types.ReactToolResult, i
 			Name:       toolName,
 			ToolCallId: callID,
 		}
-		
+
 		log.Printf("[DEBUG] buildToolMessages: Created tool message - Role: '%s', ToolCallId: '%s'", toolMessage.Role, toolMessage.ToolCallId)
 		toolMessages = append(toolMessages, toolMessage)
 	}

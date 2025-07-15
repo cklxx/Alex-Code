@@ -16,9 +16,8 @@ import (
 
 	"alex/internal/agent"
 	"alex/internal/config"
+	"alex/internal/version"
 )
-
-const cobraVersion = "v2.0"
 
 // isTTY checks if the current environment has a TTY available
 func isTTY() bool {
@@ -71,23 +70,23 @@ func DeepCodingToolExecution(title, content string) string {
 
 // CLI holds the command line interface state
 type CLI struct {
-	agent               *agent.ReactAgent
-	config              *config.Manager
-	interactive         bool
-	verbose             bool
-	debug               bool
-	useTUI              bool // Whether to use Bubble Tea TUI
-	currentTermCtrl     *TerminalController
-	currentStartTime    time.Time
-	contentBuffer       strings.Builder // Buffer for accumulating streaming content (using strings.Builder for better performance)
-	lastRenderedContent string          // Last rendered markdown content to avoid re-rendering
-	processing          bool            // Whether currently processing
-	currentMessage      string          // Current working message
-	inputQueue          chan string     // Queue for pending inputs during processing
-	currentTokensUsed   int             // Current task's token usage
-	totalTokensUsed     int             // Total tokens used in session
-	totalPromptTokens   int             // Total prompt tokens used
-	totalCompletionTokens int           // Total completion tokens used
+	agent                 *agent.ReactAgent
+	config                *config.Manager
+	interactive           bool
+	verbose               bool
+	debug                 bool
+	useTUI                bool // Whether to use Bubble Tea TUI
+	currentTermCtrl       *TerminalController
+	currentStartTime      time.Time
+	contentBuffer         strings.Builder // Buffer for accumulating streaming content (using strings.Builder for better performance)
+	lastRenderedContent   string          // Last rendered markdown content to avoid re-rendering
+	processing            bool            // Whether currently processing
+	currentMessage        string          // Current working message
+	inputQueue            chan string     // Queue for pending inputs during processing
+	currentTokensUsed     int             // Current task's token usage
+	totalTokensUsed       int             // Total tokens used in session
+	totalPromptTokens     int             // Total prompt tokens used
+	totalCompletionTokens int             // Total completion tokens used
 }
 
 // NewRootCommand creates the root cobra command
@@ -120,12 +119,11 @@ through streaming responses and advanced tool calling capabilities.
   • 🛠️ Advanced Tools - File operations, shell, web search
   • 📁 Session Management - Persistent conversations
   • ⚙️ Smart Configuration - Multi-model support`,
-			bold("Deep Coding Agent "+cobraVersion),
+			bold("Deep Coding Agent "+version.Version),
 			bold("Deep Coding Agent"),
 			bold("EXAMPLES:"),
 			bold("FEATURES:")),
-		Version: cobraVersion,
-		Args:    cobra.ArbitraryArgs, // Allow arbitrary arguments for single prompt mode
+		Args: cobra.ArbitraryArgs, // Allow arbitrary arguments for single prompt mode
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				// Single prompt mode - initialize first
@@ -164,6 +162,7 @@ through streaming responses and advanced tool calling capabilities.
 	rootCmd.AddCommand(newSessionCommand(cli))
 	rootCmd.AddCommand(createToolsCommands(cli))
 	rootCmd.AddCommand(newBatchCommand())
+	rootCmd.AddCommand(newVersionCommand())
 
 	// Configure viper
 	viper.SetConfigName("deep-coding-config")
@@ -450,7 +449,7 @@ func (cli *CLI) runSinglePrompt(prompt string) error {
 	cli.totalTokensUsed = 0
 	cli.totalPromptTokens = 0
 	cli.totalCompletionTokens = 0
-	
+
 	// Record start time
 	startTime := time.Now()
 
@@ -495,7 +494,7 @@ func (cli *CLI) runSinglePrompt(prompt string) error {
 // formatTokenUsage formats token usage information with input/output breakdown
 func (cli *CLI) formatTokenUsage() string {
 	if cli.totalPromptTokens > 0 && cli.totalCompletionTokens > 0 {
-		return fmt.Sprintf("%d tokens (in: %d, out: %d)", 
+		return fmt.Sprintf("%d tokens (in: %d, out: %d)",
 			cli.totalTokensUsed, cli.totalPromptTokens, cli.totalCompletionTokens)
 	}
 	return fmt.Sprintf("%d tokens", cli.totalTokensUsed)
@@ -565,5 +564,16 @@ func runCobraCLI() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Printf("%s %v\n", red("Error:"), err)
 		os.Exit(1)
+	}
+}
+
+// newVersionCommand creates the version subcommand
+func newVersionCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Show version information",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("Version: %s\n", version.GetVersion())
+		},
 	}
 }

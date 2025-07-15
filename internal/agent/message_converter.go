@@ -2,7 +2,7 @@ package agent
 
 import (
 	"strings"
-	
+
 	"alex/internal/llm"
 	"alex/internal/session"
 )
@@ -18,29 +18,29 @@ func NewMessageConverter() *MessageConverter {
 // ConvertSessionToLLM converts session messages to LLM format with unified logic
 func (mc *MessageConverter) ConvertSessionToLLM(sessionMessages []*session.Message) []llm.Message {
 	messages := make([]llm.Message, 0, len(sessionMessages))
-	
+
 	for _, msg := range sessionMessages {
 		llmMsg := mc.convertSingleMessage(msg)
 		messages = append(messages, llmMsg)
 	}
-	
+
 	return messages
 }
 
 // ConvertSessionToLLMWithFilter converts session messages to LLM format with filtering
 func (mc *MessageConverter) ConvertSessionToLLMWithFilter(sessionMessages []*session.Message, skipSystem bool) []llm.Message {
 	messages := make([]llm.Message, 0, len(sessionMessages))
-	
+
 	for _, msg := range sessionMessages {
 		// Skip system messages if requested
 		if skipSystem && msg.Role == "system" {
 			continue
 		}
-		
+
 		llmMsg := mc.convertSingleMessage(msg)
 		messages = append(messages, llmMsg)
 	}
-	
+
 	return messages
 }
 
@@ -50,7 +50,7 @@ func (mc *MessageConverter) convertSingleMessage(msg *session.Message) llm.Messa
 		Role:    msg.Role,
 		Content: msg.Content,
 	}
-	
+
 	// Handle tool calls
 	if len(msg.ToolCalls) > 0 {
 		llmMsg.ToolCalls = make([]llm.ToolCall, 0, len(msg.ToolCalls))
@@ -64,28 +64,28 @@ func (mc *MessageConverter) convertSingleMessage(msg *session.Message) llm.Messa
 			})
 		}
 	}
-	
+
 	// Handle tool call ID for tool messages
 	if msg.Role == "tool" {
 		if callID, ok := msg.Metadata["tool_call_id"].(string); ok {
 			llmMsg.ToolCallId = callID
 		}
 	}
-	
+
 	return llmMsg
 }
 
 // ConvertLLMToSession converts LLM messages to session format
 func (mc *MessageConverter) ConvertLLMToSession(llmMessages []llm.Message) []*session.Message {
 	messages := make([]*session.Message, 0, len(llmMessages))
-	
+
 	for _, msg := range llmMessages {
 		sessionMsg := &session.Message{
 			Role:     msg.Role,
 			Content:  msg.Content,
 			Metadata: make(map[string]interface{}),
 		}
-		
+
 		// Handle tool calls
 		if len(msg.ToolCalls) > 0 {
 			sessionMsg.ToolCalls = make([]session.ToolCall, 0, len(msg.ToolCalls))
@@ -96,15 +96,15 @@ func (mc *MessageConverter) ConvertLLMToSession(llmMessages []llm.Message) []*se
 				})
 			}
 		}
-		
+
 		// Handle tool call ID for tool messages
 		if msg.Role == "tool" && msg.ToolCallId != "" {
 			sessionMsg.Metadata["tool_call_id"] = msg.ToolCallId
 		}
-		
+
 		messages = append(messages, sessionMsg)
 	}
-	
+
 	return messages
 }
 
@@ -113,7 +113,7 @@ func (mc *MessageConverter) AddTaskInstructions(messages []llm.Message, isFirstI
 	if !isFirstIteration || len(messages) == 0 {
 		return messages
 	}
-	
+
 	// Find the last user message and add task instructions
 	for i := len(messages) - 1; i >= 0; i-- {
 		if messages[i].Role == "user" {
@@ -124,6 +124,6 @@ func (mc *MessageConverter) AddTaskInstructions(messages []llm.Message, isFirstI
 			break
 		}
 	}
-	
+
 	return messages
 }

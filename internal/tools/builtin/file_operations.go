@@ -157,11 +157,11 @@ func CreateFileUpdateTool() *FileUpdateTool {
 }
 
 func (t *FileUpdateTool) Name() string {
-	return "file_update"
+	return "file_edit"
 }
 
 func (t *FileUpdateTool) Description() string {
-	return "Update a file by appending content, inserting at specific lines, or creating new files. Preserves existing content."
+	return "This is a tool for editing files. For moving or renaming files, you should generally use the Bash tool with the 'mv' command instead. For larger edits, use the file_replace tool to overwrite files.\nBefore using this tool:\n1. Use the file_read tool to understand the file's contents and context\n2. Verify the directory path is correct (only applicable when creating new files):\n   - Use the file_list tool to verify the parent directory exists and is the correct location\nTo make a file edit, provide the following:\n1. file_path: The absolute path to the file to modify (must be absolute, not relative)\n2. old_string: The text to replace (must be unique within the file, and must match the file contents exactly, including all whitespace and indentation)\n3. new_string: The edited text to replace the old_string\nThe tool will replace ONE occurrence of old_string with new_string in the specified file.\nCRITICAL REQUIREMENTS FOR USING THIS TOOL:\n1. UNIQUENESS: The old_string MUST uniquely identify the specific instance you want to change. This means:\n   - Include AT LEAST 3-5 lines of context BEFORE the change point\n   - Include AT LEAST 3-5 lines of context AFTER the change point\n   - Include all whitespace, indentation, and surrounding code exactly as it appears in the file\n2. SINGLE INSTANCE: This tool can only change ONE instance at a time. If you need to change multiple instances:\n   - Make separate calls to this tool for each instance\n   - Each call must uniquely identify its specific instance using extensive context\n3. VERIFICATION: Before using this tool:\n   - Check how many instances of the target text exist in the file\n   - If multiple instances exist, gather enough context to uniquely identify each one\n   - Plan separate tool calls for each instance\nWARNING: If you do not follow these requirements:\n   - The tool will fail if old_string matches multiple locations\n   - The tool will fail if old_string doesn't match exactly (including whitespace)\n   - You may change the wrong instance if you don't include enough context\nWhen making edits:\n   - Ensure the edit results in idiomatic, correct code\n   - Do not leave the code in a broken state\n   - Always use absolute file paths (starting with /)\nIf you want to create a new file, use:\n   - A new file path, including dir name if needed\n   - An empty old_string\n   - The new file's contents as new_string\nRemember: when making multiple file edits in a row to the same file, you should prefer to send all edits in a single message with multiple calls to this tool, rather than multiple messages with a single call each."
 }
 
 func (t *FileUpdateTool) Parameters() map[string]interface{} {
@@ -170,174 +170,125 @@ func (t *FileUpdateTool) Parameters() map[string]interface{} {
 		"properties": map[string]interface{}{
 			"file_path": map[string]interface{}{
 				"type":        "string",
-				"description": "Path to the file to update",
+				"description": "The absolute path to the file to modify (must be absolute, not relative)",
 			},
-			"content": map[string]interface{}{
+			"old_string": map[string]interface{}{
 				"type":        "string",
-				"description": "Content to add to the file",
+				"description": "The text to replace (must be unique within the file, and must match the file contents exactly, including all whitespace and indentation)",
 			},
-			"mode": map[string]interface{}{
+			"new_string": map[string]interface{}{
 				"type":        "string",
-				"description": "Update mode: append, prepend, create",
-				"enum":        []string{"append", "prepend", "create"},
-				"default":     "append",
-			},
-			"create_dirs": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Create parent directories if they don't exist",
-				"default":     true,
+				"description": "The edited text to replace the old_string",
 			},
 		},
-		"required": []string{"file_path", "content"},
+		"required": []string{"file_path", "old_string", "new_string"},
 	}
 }
 
 func (t *FileUpdateTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
-		AddStringField("file_path", "Path to the file to update").
-		AddStringField("content", "Content to add to the file").
-		AddCustomValidator("mode", "Update mode (append, prepend, create)", false, func(value interface{}) error {
-			if value == nil {
-				return nil // Optional field
+		AddStringField("file_path", "The absolute path to the file to modify").
+		AddCustomValidator("old_string", "The text to replace (can be empty for new file creation)", true, func(value interface{}) error {
+			if _, ok := value.(string); ok {
+				return nil // Allow empty string for new file creation
 			}
-			modeStr, ok := value.(string)
-			if !ok {
-				return fmt.Errorf("mode must be a string")
-			}
-			validModes := []string{"append", "prepend", "create"}
-			for _, vm := range validModes {
-				if modeStr == vm {
-					return nil
-				}
-			}
-			return fmt.Errorf("mode must be one of: %v", validModes)
+			return fmt.Errorf("old_string must be a string")
 		}).
-		AddBoolField("create_dirs", "Create parent directories if they don't exist", false)
+		AddStringField("new_string", "The edited text to replace the old_string")
 
 	return validator.Validate(args)
 }
 
 func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	filePath := args["file_path"].(string)
-	content := args["content"].(string)
+	oldString := args["old_string"].(string)
+	newString := args["new_string"].(string)
 
 	// 解析路径（处理相对路径）
 	resolver := GetPathResolverFromContext(ctx)
 	resolvedPath := resolver.ResolvePath(filePath)
 
-	mode := "append"
-	if modeArg, ok := args["mode"]; ok {
-		mode, _ = modeArg.(string)
-	}
-
-	createDirs := false
-	if createDirsArg, ok := args["create_dirs"]; ok {
-		createDirs, _ = createDirsArg.(bool)
-	}
-
-	backup := false
-	if backupArg, ok := args["backup"]; ok {
-		backup, _ = backupArg.(bool)
-	}
-
-	// Create parent directories if requested
-	if createDirs {
+	// Handle new file creation case (empty old_string)
+	if oldString == "" {
+		// Create parent directories if needed
 		dir := filepath.Dir(resolvedPath)
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create directories: %w", err)
 		}
-	}
 
-	var finalContent string
-	var operation string
-
-	switch mode {
-	case "create":
 		// Check if file already exists
 		if _, err := os.Stat(resolvedPath); err == nil {
 			return nil, fmt.Errorf("file already exists: %s", filePath)
 		}
-		finalContent = content
-		operation = "created"
 
-	case "append":
-		existingContent := ""
-		if data, err := os.ReadFile(resolvedPath); err == nil {
-			existingContent = string(data)
-		}
-		finalContent = existingContent + content
-		operation = "appended"
-
-	case "prepend":
-		existingContent := ""
-		if data, err := os.ReadFile(resolvedPath); err == nil {
-			existingContent = string(data)
-		}
-		finalContent = content + existingContent
-		operation = "prepended"
-
-	case "insert":
-		existingContent := ""
-		if data, err := os.ReadFile(resolvedPath); err == nil {
-			existingContent = string(data)
+		// Write new file
+		err := os.WriteFile(resolvedPath, []byte(newString), 0644)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create file: %w", err)
 		}
 
-		lineNumber := int(args["line_number"].(float64))
-		lines := strings.Split(existingContent, "\n")
-
-		// Insert at specified line (1-based)
-		insertPos := lineNumber - 1
-		if insertPos < 0 {
-			insertPos = 0
-		}
-		if insertPos > len(lines) {
-			insertPos = len(lines)
-		}
-
-		// Split content into lines for insertion
-		newLines := strings.Split(content, "\n")
-
-		// Build final content
-		result := make([]string, 0, len(lines)+len(newLines))
-		result = append(result, lines[:insertPos]...)
-		result = append(result, newLines...)
-		if insertPos < len(lines) {
-			result = append(result, lines[insertPos:]...)
-		}
-		finalContent = strings.Join(result, "\n")
-		operation = fmt.Sprintf("inserted at line %d", lineNumber)
+		fileInfo, _ := os.Stat(resolvedPath)
+		return &ToolResult{
+			Content: fmt.Sprintf("Successfully created new file %s (%d bytes)", filePath, len(newString)),
+			Files:   []string{resolvedPath},
+			Data: map[string]interface{}{
+				"file_path":     filePath,
+				"resolved_path": resolvedPath,
+				"operation":     "created",
+				"bytes_written": len(newString),
+				"lines_total":   len(strings.Split(newString, "\n")),
+				"modified":      fileInfo.ModTime().Unix(),
+			},
+		}, nil
 	}
 
-	// Create backup if requested
-	if backup && mode != "create" {
-		backupPath := resolvedPath + ".bak"
-		if existingData, err := os.ReadFile(resolvedPath); err == nil {
-			if err := os.WriteFile(backupPath, existingData, 0644); err != nil {
-				return nil, fmt.Errorf("failed to create backup: %w", err)
-			}
-		}
+	// Check if file exists for editing
+	if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("file does not exist: %s", filePath)
 	}
 
-	// Write the final content
-	err := os.WriteFile(resolvedPath, []byte(finalContent), 0644)
+	// Read file content
+	content, err := os.ReadFile(resolvedPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update file: %w", err)
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	originalContent := string(content)
+
+	// Check for uniqueness of old_string
+	occurrences := strings.Count(originalContent, oldString)
+	if occurrences == 0 {
+		return nil, fmt.Errorf("old_string not found in file: %s", oldString)
+	}
+	if occurrences > 1 {
+		return nil, fmt.Errorf("old_string appears %d times in file. Please include more context to make it unique", occurrences)
+	}
+
+	// Perform the replacement (only one occurrence)
+	newContent := strings.Replace(originalContent, oldString, newString, 1)
+
+	// Write the modified content
+	err = os.WriteFile(resolvedPath, []byte(newContent), 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write file: %w", err)
 	}
 
 	// Get file info after writing
 	fileInfo, _ := os.Stat(resolvedPath)
 
 	return &ToolResult{
-		Content: fmt.Sprintf("Successfully %s content to %s (%d bytes)", operation, filePath, len(finalContent)),
+		Content: fmt.Sprintf("Successfully edited file %s: replaced text (%d bytes)", filePath, len(newContent)),
 		Files:   []string{resolvedPath},
 		Data: map[string]interface{}{
-			"file_path":     filePath,
-			"resolved_path": resolvedPath,
-			"operation":     operation,
-			"bytes_written": len(finalContent),
-			"lines_total":   len(strings.Split(finalContent, "\n")),
-			"modified":      fileInfo.ModTime().Unix(),
-			"mode":          mode,
+			"file_path":         filePath,
+			"resolved_path":     resolvedPath,
+			"operation":         "edited",
+			"old_string":        oldString,
+			"new_string":        newString,
+			"bytes_written":     len(newContent),
+			"lines_total":       len(strings.Split(newContent, "\n")),
+			"modified":          fileInfo.ModTime().Unix(),
+			"replacements_made": 1,
 		},
 	}, nil
 }
@@ -354,7 +305,7 @@ func (t *FileReplaceTool) Name() string {
 }
 
 func (t *FileReplaceTool) Description() string {
-	return "Replace specific text content in a file. Performs case-sensitive exact text matching."
+	return "Write a file to the local filesystem. Overwrites the existing file if there is one.\nBefore using this tool:\n1. Use the file_read tool to understand the file's contents and context\n2. Directory Verification (only applicable when creating new files):\n   - Use the file_list tool to verify the parent directory exists and is the correct location"
 }
 
 func (t *FileReplaceTool) Parameters() map[string]interface{} {
@@ -363,88 +314,73 @@ func (t *FileReplaceTool) Parameters() map[string]interface{} {
 		"properties": map[string]interface{}{
 			"file_path": map[string]interface{}{
 				"type":        "string",
-				"description": "Path to the file to modify",
+				"description": "The absolute path to the file to write (must be absolute, not relative)",
 			},
-			"search": map[string]interface{}{
+			"content": map[string]interface{}{
 				"type":        "string",
-				"description": "Text to search for",
-			},
-			"replace": map[string]interface{}{
-				"type":        "string",
-				"description": "Replacement text",
+				"description": "The content to write to the file",
 			},
 		},
-		"required": []string{"file_path", "search", "replace"},
+		"required": []string{"file_path", "content"},
 	}
 }
 
 func (t *FileReplaceTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
-		AddStringField("file_path", "Path to the file to modify").
-		AddStringField("search", "Text to search for").
-		AddStringField("replace", "Replacement text")
+		AddStringField("file_path", "The absolute path to the file to write").
+		AddCustomValidator("content", "The content to write to the file (can be empty)", true, func(value interface{}) error {
+			if _, ok := value.(string); ok {
+				return nil // Allow empty string for empty files
+			}
+			return fmt.Errorf("content must be a string")
+		})
 
 	return validator.Validate(args)
 }
 
 func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	filePath := args["file_path"].(string)
-	search := args["search"].(string)
-	replace := args["replace"].(string)
+	content := args["content"].(string)
 
 	// 解析路径（处理相对路径）
 	resolver := GetPathResolverFromContext(ctx)
 	resolvedPath := resolver.ResolvePath(filePath)
 
-	// Check if file exists
+	// Create parent directories if needed
+	dir := filepath.Dir(resolvedPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create directories: %w", err)
+	}
+
+	// Check if file exists to determine operation type
+	var operation string
 	if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("file does not exist: %s", filePath)
+		operation = "created"
+	} else {
+		operation = "overwritten"
 	}
 
-	// Read file content
-	content, err := os.ReadFile(resolvedPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	originalContent := string(content)
-
-	// Simple case-sensitive first occurrence replacement
-	newContent := strings.Replace(originalContent, search, replace, 1)
-	replacementCount := 0
-	if newContent != originalContent {
-		replacementCount = 1
-	}
-
-	result := &ToolResult{
-		Content: fmt.Sprintf("File %s: replaced %d occurrence(s) of '%s' with '%s'", filePath, replacementCount, search, replace),
-		Data: map[string]interface{}{
-			"file_path":         filePath,
-			"resolved_path":     resolvedPath,
-			"search_pattern":    search,
-			"replacement":       replace,
-			"replacements_made": replacementCount,
-		},
-	}
-
-	// No changes needed
-	if replacementCount == 0 {
-		return result, nil
-	}
-
-	// Write the modified content
-	err = os.WriteFile(resolvedPath, []byte(newContent), 0644)
+	// Write the content to file (overwrites if exists)
+	err := os.WriteFile(resolvedPath, []byte(content), 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write file: %w", err)
 	}
 
 	// Get file info after writing
 	fileInfo, _ := os.Stat(resolvedPath)
-	result.Files = []string{resolvedPath}
-	result.Data["bytes_written"] = len(newContent)
-	result.Data["modified"] = fileInfo.ModTime().Unix()
 
-	return result, nil
+	return &ToolResult{
+		Content: fmt.Sprintf("Successfully %s file %s (%d bytes)", operation, filePath, len(content)),
+		Files:   []string{resolvedPath},
+		Data: map[string]interface{}{
+			"file_path":     filePath,
+			"resolved_path": resolvedPath,
+			"operation":     operation,
+			"bytes_written": len(content),
+			"lines_total":   len(strings.Split(content, "\n")),
+			"modified":      fileInfo.ModTime().Unix(),
+		},
+	}, nil
 }
 
 // FileListTool implements directory listing functionality
@@ -770,86 +706,6 @@ func (t *FileListTool) Execute(ctx context.Context, args map[string]interface{})
 			"total_size":    totalSize,
 			"recursive":     recursive,
 			"depth":         depth,
-		},
-	}, nil
-}
-
-// DirectoryCreateTool implements directory creation functionality
-type DirectoryCreateTool struct{}
-
-func CreateDirectoryCreateTool() *DirectoryCreateTool {
-	return &DirectoryCreateTool{}
-}
-
-func (t *DirectoryCreateTool) Name() string {
-	return "directory_create"
-}
-
-func (t *DirectoryCreateTool) Description() string {
-	return "Create a directory at the specified path. Creates parent directories if they don't exist."
-}
-
-func (t *DirectoryCreateTool) Parameters() map[string]interface{} {
-	return map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"path": map[string]interface{}{
-				"type":        "string",
-				"description": "Path for the new directory",
-			},
-		},
-		"required": []string{"path"},
-	}
-}
-
-func (t *DirectoryCreateTool) Validate(args map[string]interface{}) error {
-	validator := NewValidationFramework().
-		AddStringField("path", "Path for the new directory")
-
-	return validator.Validate(args)
-}
-
-func (t *DirectoryCreateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	path := args["path"].(string)
-
-	// 解析路径（处理相对路径）
-	resolver := GetPathResolverFromContext(ctx)
-	resolvedPath := resolver.ResolvePath(path)
-
-	permissions := os.FileMode(0755) // Default permissions
-
-	if permStr, ok := args["permissions"].(string); ok {
-		// Parse octal permissions string (e.g., "755" -> 0755)
-		switch permStr {
-		case "755":
-			permissions = 0755
-		case "644":
-			permissions = 0644
-		case "777":
-			permissions = 0777
-		}
-		// Default to 0755 for any other values
-	}
-
-	// Create the directory with all parent directories
-	err := os.MkdirAll(resolvedPath, permissions)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create directory: %w", err)
-	}
-
-	// Get directory info
-	dirInfo, err := os.Stat(resolvedPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to stat created directory: %w", err)
-	}
-
-	return &ToolResult{
-		Content: fmt.Sprintf("Successfully created directory: %s", path),
-		Data: map[string]interface{}{
-			"path":          path,
-			"resolved_path": resolvedPath,
-			"permissions":   dirInfo.Mode().String(),
-			"created":       dirInfo.ModTime().Unix(),
 		},
 	}, nil
 }
