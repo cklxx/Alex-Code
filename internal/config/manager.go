@@ -469,7 +469,7 @@ func (m *Manager) ValidateConfig() error {
 	if config.Model == "" {
 		return fmt.Errorf("model is required")
 	}
-	if config.MaxTokens < 1 || config.MaxTokens > 100000 {
+	if config.MaxTokens < 1 || config.MaxTokens > 1000000 {
 		return fmt.Errorf("max_tokens must be between 1 and 100000")
 	}
 
