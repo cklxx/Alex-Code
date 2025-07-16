@@ -50,6 +50,11 @@ func (t *GrepTool) Parameters() map[string]interface{} {
 				"description": "Case insensitive search",
 				"default":     false,
 			},
+			"max_matches": map[string]interface{}{
+				"type":        "integer",
+				"description": "Maximum number of matches to return",
+				"default":     20,
+			},
 		},
 		"required": []string{"pattern"},
 	}
@@ -107,7 +112,7 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 		}
 	}
 
-	maxMatches := 100
+	maxMatches := 20
 	if maxArg, ok := args["max_matches"]; ok {
 		if m, ok := maxArg.(float64); ok {
 			maxMatches = int(m)
@@ -375,6 +380,11 @@ func (t *RipgrepTool) Parameters() map[string]interface{} {
 				"type":        "string",
 				"description": "Glob pattern for files to search",
 			},
+			"max_matches": map[string]interface{}{
+				"type":        "integer",
+				"description": "Maximum number of matches to return",
+				"default":     20,
+			},
 		},
 		"required": []string{"pattern"},
 	}
@@ -407,6 +417,9 @@ func (t *RipgrepTool) Execute(ctx context.Context, args map[string]interface{}) 
 		if ignoreCase, ok := args["ignore_case"]; ok {
 			grepArgs["ignore_case"] = ignoreCase
 		}
+		if maxMatches, ok := args["max_matches"]; ok {
+			grepArgs["max_matches"] = maxMatches
+		}
 
 		result, err := grepTool.Execute(ctx, grepArgs)
 		if err != nil {
@@ -435,9 +448,17 @@ func (t *RipgrepTool) hasRipgrep() bool {
 func (t *RipgrepTool) useRipgrep(args map[string]interface{}) (*ToolResult, error) {
 	pattern := args["pattern"].(string)
 
+	maxMatches := 20
+	if maxArg, ok := args["max_matches"]; ok {
+		if m, ok := maxArg.(float64); ok {
+			maxMatches = int(m)
+		}
+	}
+
 	rgArgs := []string{
 		"--line-number",
 		"--heading",
+		"--max-count", fmt.Sprintf("%d", maxMatches),
 	}
 
 	// Add options based on parameters
@@ -487,6 +508,7 @@ func (t *RipgrepTool) useRipgrep(args map[string]interface{}) (*ToolResult, erro
 			"matches":     lines,
 			"match_count": len(lines),
 			"method":      "ripgrep",
+			"truncated":   len(lines) >= maxMatches,
 		},
 	}, nil
 }
