@@ -42,12 +42,12 @@ git push origin v1.0.0
 
 **Linux/macOS:**
 ```bash
-curl -sSfL https://raw.githubusercontent.com/ckl/Alex-Code/main/scripts/install.sh | sh
+curl -sSfL https://raw.githubusercontent.com/cklxx/Alex-Code/main/scripts/install.sh | sh
 ```
 
 **Windows:**
 ```powershell
-iwr -useb https://raw.githubusercontent.com/ckl/Alex-Code/main/scripts/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/cklxx/Alex-Code/main/scripts/install.ps1 | iex
 ```
 
 ### 手动下载
@@ -61,8 +61,8 @@ iwr -useb https://raw.githubusercontent.com/ckl/Alex-Code/main/scripts/install.p
 在发布前，请确保修改以下文件中的仓库路径：
 
 1. **安装脚本中的仓库路径:**
-   - `scripts/install.sh` 第9行: `GITHUB_REPO="ckl/Alex-Code"`
-   - `scripts/install.ps1` 第6行: `[string]$Repository = "ckl/Alex-Code"`
+   - `scripts/install.sh` 第9行: `GITHUB_REPO="cklxx/Alex-Code"`
+   - `scripts/install.ps1` 第6行: `[string]$Repository = "cklxx/Alex-Code"`
 
 2. **文档中的链接:**
    - `docs/installation.md` 中的所有GitHub链接

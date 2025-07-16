@@ -9,13 +9,13 @@ Alex CLI 是一个强大的软件工程助手工具，支持多种平台和安�
 使用 curl 一键安装：
 
 ```bash
-curl -sSfL https://raw.githubusercontent.com/ckl/Alex-Code/main/scripts/install.sh | sh
+curl -sSfL https://raw.githubusercontent.com/cklxx/Alex-Code/main/scripts/install.sh | sh
 ```
 
 或者下载脚本后执行：
 
 ```bash
-wget https://raw.githubusercontent.com/ckl/Alex-Code/main/scripts/install.sh
+wget https://raw.githubusercontent.com/cklxx/Alex-Code/main/scripts/install.sh
 chmod +x install.sh
 ./install.sh
 ```
@@ -29,21 +29,21 @@ chmod +x install.sh
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 # 下载并运行安装脚本
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ckl/Alex-Code/main/scripts/install.ps1" -OutFile "install.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/cklxx/Alex-Code/main/scripts/install.ps1" -OutFile "install.ps1"
 .\install.ps1
 ```
 
 或者一行命令：
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/ckl/Alex-Code/main/scripts/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/cklxx/Alex-Code/main/scripts/install.ps1 | iex
 ```
 
 ## 📦 手动安装
 
 ### 1. 下载预编译二进制文件
 
-访问 [Releases 页面](https://github.com/ckl/Alex-Code/releases/latest) 下载适合你系统的二进制文件：
+访问 [Releases 页面](https://github.com/cklxx/Alex-Code/releases/latest) 下载适合你系统的二进制文件：
 
 | 平台 | 架构 | 文件名 |
 |------|------|--------|
@@ -59,7 +59,7 @@ iwr -useb https://raw.githubusercontent.com/ckl/Alex-Code/main/scripts/install.p
 
 ```bash
 # 下载二进制文件 (以 Linux x64 为例)
-wget https://github.com/ckl/Alex-Code/releases/latest/download/alex-linux-amd64
+wget https://github.com/cklxx/Alex-Code/releases/latest/download/alex-linux-amd64
 
 # 重命名并设置可执行权限
 mv alex-linux-amd64 alex
@@ -78,7 +78,7 @@ export PATH="$PATH:$HOME/.local/bin"
 
 ```powershell
 # 下载二进制文件
-Invoke-WebRequest -Uri "https://github.com/ckl/Alex-Code/releases/latest/download/alex-windows-amd64.exe" -OutFile "alex.exe"
+Invoke-WebRequest -Uri "https://github.com/cklxx/Alex-Code/releases/latest/download/alex-windows-amd64.exe" -OutFile "alex.exe"
 
 # 创建安装目录
 $installDir = "$env:LOCALAPPDATA\Alex"
@@ -184,7 +184,7 @@ alex "What tools are available?"
 
 ```bash
 # 克隆仓库
-git clone https://github.com/ckl/Alex-Code.git
+git clone https://github.com/cklxx/Alex-Code.git
 cd Alex-Code
 
 # 安装依赖
@@ -266,7 +266,7 @@ Remove-Item "$env:LOCALAPPDATA\Alex" -Recurse -Force
 - [使用指南](quickstart.md)
 - [API 参考](../reference/api-reference.md)
 - [开发文档](../architecture/01-architecture-overview.md)
-- [问题反馈](https://github.com/ckl/Alex-Code/issues)
+- [问题反馈](https://github.com/cklxx/Alex-Code/issues)
 
 ## 🤝 贡献
 

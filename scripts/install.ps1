@@ -3,7 +3,7 @@
 
 param(
     [string]$Version = "",
-    [string]$Repository = "ckl/Alex-Code",
+    [string]$Repository = "cklxx/Alex-Code",
     [string]$InstallDir = "$env:LOCALAPPDATA\Alex",
     [switch]$Help
 )

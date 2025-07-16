@@ -8,7 +8,7 @@ set -e
 
 # 配置变量
 BINARY_NAME="alex"
-GITHUB_REPO="ckl/Alex-Code"
+GITHUB_REPO="cklxx/Alex-Code"
 INSTALL_DIR="$HOME/.local/bin"
 TMP_DIR="/tmp/alex-install"
 
