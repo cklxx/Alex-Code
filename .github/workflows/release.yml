@@ -6,292 +6,126 @@ on:
       - 'v*.*.*'
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Release version (e.g., v1.2.3)'
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
         required: true
-        type: string
-
-env:
-  GO_VERSION: '1.24'
+        default: 'v0.1.0'
 
 jobs:
-  test:
-    name: Pre-release Tests
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    - name: Run comprehensive tests
-      run: |
-        go test -v -race ./...
-        
-    - name: Run linting
-      uses: golangci/golangci-lint-action@v3
-      with:
-        version: latest
-
-  build-and-release:
+  build:
     name: Build and Release
     runs-on: ubuntu-latest
-    needs: test
-    permissions:
-      contents: write
     
     strategy:
       matrix:
         include:
           - goos: linux
             goarch: amd64
+            suffix: linux-amd64
           - goos: linux
             goarch: arm64
+            suffix: linux-arm64
           - goos: darwin
             goarch: amd64
+            suffix: darwin-amd64
           - goos: darwin
             goarch: arm64
+            suffix: darwin-arm64
           - goos: windows
             goarch: amd64
+            suffix: windows-amd64.exe
     
     steps:
-    - name: Check out code
+    - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-        
+
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
-        go-version: ${{ env.GO_VERSION }}
-        
+        go-version: '1.24'
+
     - name: Get version
       id: version
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          echo "VERSION=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
         else
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
         fi
-        
-    - name: Set build variables
-      id: build_vars
-      run: |
-        echo "build_time=$(date -u '+%Y-%m-%d_%H:%M:%S')" >> $GITHUB_OUTPUT
-        echo "git_commit=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-        
+
     - name: Build binary
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
-        VERSION: ${{ steps.version.outputs.version }}
-        BUILD_TIME: ${{ steps.build_vars.outputs.build_time }}
-        GIT_COMMIT: ${{ steps.build_vars.outputs.git_commit }}
+        VERSION: ${{ steps.version.outputs.VERSION }}
+        CGO_ENABLED: 0
       run: |
-        mkdir -p release
-        binary_name="deep-coding-agent-${VERSION}-${GOOS}-${GOARCH}"
+        GIT_COMMIT=$(git rev-parse HEAD)
+        BUILD_TIME=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
         
-        if [ "${GOOS}" = "windows" ]; then
-          binary_name="${binary_name}.exe"
-          go build -ldflags="-w -s -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
-            -o "release/${binary_name}" cmd/main.go
-          (cd release && zip "${binary_name}.zip" "${binary_name}")
-          rm "release/${binary_name}"
-          echo "archive_name=${binary_name}.zip" >> $GITHUB_ENV
+        LDFLAGS="-s -w \
+          -X 'alex/internal/version.Version=$VERSION' \
+          -X 'alex/internal/version.GitCommit=$GIT_COMMIT' \
+          -X 'alex/internal/version.BuildTime=$BUILD_TIME'"
+        
+        mkdir -p dist
+        
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          go build -ldflags "$LDFLAGS" -o "dist/alex-${{ matrix.suffix }}" ./cmd
         else
-          go build -ldflags="-w -s -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
-            -o "release/${binary_name}" cmd/main.go
-          (cd release && tar -czf "${binary_name}.tar.gz" "${binary_name}")
-          rm "release/${binary_name}"
-          echo "archive_name=${binary_name}.tar.gz" >> $GITHUB_ENV
+          go build -ldflags "$LDFLAGS" -o "dist/alex-${{ matrix.suffix }}" ./cmd
         fi
-        
-    - name: Generate checksum
-      run: |
-        cd release
-        if command -v sha256sum &> /dev/null; then
-          sha256sum "${archive_name}" > "${archive_name}.sha256"
-        else
-          shasum -a 256 "${archive_name}" > "${archive_name}.sha256"
-        fi
-        
-    - name: Upload release artifacts
+
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: release-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: release/
-
-  create-release:
-    name: Create GitHub Release
+        name: alex-${{ matrix.suffix }}
+        path: dist/alex-${{ matrix.suffix }}
+        
+  release:
+    name: Create Release
+    needs: build
     runs-on: ubuntu-latest
-    needs: build-and-release
-    permissions:
-      contents: write
     
     steps:
-    - name: Check out code
+    - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        
+
     - name: Get version
       id: version
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          echo "VERSION=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
         else
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
         fi
-        
+
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
-        path: artifacts
-        
-    - name: Collect release files
+        path: dist
+
+    - name: Prepare release assets
       run: |
         mkdir -p release
-        find artifacts -name "*.tar.gz" -o -name "*.zip" -o -name "*.sha256" | while read file; do
-          cp "$file" release/
-        done
+        find dist -name "alex-*" -type f -exec cp {} release/ \;
+        ls -la release/
         
-    - name: Generate combined checksums
-      run: |
+        # 创建校验文件
         cd release
-        if command -v sha256sum &> /dev/null; then
-          sha256sum *.tar.gz *.zip > checksums.sha256
-        else
-          shasum -a 256 *.tar.gz *.zip > checksums.sha256
-        fi
-        
-    - name: Generate release notes
-      id: release_notes
-      run: |
-        VERSION="${{ steps.version.outputs.version }}"
-        
-        # Get previous tag for changelog
-        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-        
-        cat > release_notes.md << EOF
-        # Deep Coding Agent $VERSION
-        
-        ## 🚀 Features
-        
-        - **High-performance code analysis** with sub-30ms execution times
-        - **Multi-language support**: Go, JavaScript, TypeScript, Python, Java, C/C++
-        - **AI-powered code generation** and refactoring
-        - **8 different refactoring patterns** (modernize, optimize, security, etc.)
-        - **Concurrent analysis** for large codebases
-        - **Template-based code generation**
-        - **Configuration management**
-        - **Security vulnerability detection**
-        
-        ## 📦 Installation
-        
-        ### Download Binary
-        
-        Choose the appropriate binary for your platform:
-        
-        | Platform | Architecture | Download |
-        |----------|--------------|----------|
-        | Linux | x64 | [deep-coding-agent-$VERSION-linux-amd64.tar.gz](https://github.com/${{ github.repository }}/releases/download/$VERSION/deep-coding-agent-$VERSION-linux-amd64.tar.gz) |
-        | Linux | ARM64 | [deep-coding-agent-$VERSION-linux-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/$VERSION/deep-coding-agent-$VERSION-linux-arm64.tar.gz) |
-        | macOS | Intel | [deep-coding-agent-$VERSION-darwin-amd64.tar.gz](https://github.com/${{ github.repository }}/releases/download/$VERSION/deep-coding-agent-$VERSION-darwin-amd64.tar.gz) |
-        | macOS | Apple Silicon | [deep-coding-agent-$VERSION-darwin-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/$VERSION/deep-coding-agent-$VERSION-darwin-arm64.tar.gz) |
-        | Windows | x64 | [deep-coding-agent-$VERSION-windows-amd64.exe.zip](https://github.com/${{ github.repository }}/releases/download/$VERSION/deep-coding-agent-$VERSION-windows-amd64.exe.zip) |
-        
-        ### Quick Install Script
-        
-        \`\`\`bash
-        # Linux/macOS
-        curl -sSfL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | sh
-        \`\`\`
-        
-        ## 🔥 Usage Examples
-        
-        \`\`\`bash
-        # Analyze code with concurrent processing
-        ./deep-coding-agent analyze src/ --concurrent --depth=3
-        
-        # Generate Go code with AI
-        ./deep-coding-agent generate "REST API server with authentication" go --ai --style=clean
-        
-        # Refactor with security improvements
-        ./deep-coding-agent refactor main.go --pattern=security --backup --ai
-        
-        # AI-powered code explanation
-        ./deep-coding-agent explain complex-function.go
-        \`\`\`
-        
-        ## ⚡ Performance
-        
-        - **40-100x faster** than Node.js-based alternatives
-        - **Sub-30ms** analysis and generation times
-        - **Concurrent processing** with controlled worker pools
-        - **Memory efficient** with minimal resource usage
-        
-        ## 🔐 Security
-        
-        All binaries are built with Go's security features enabled and signed. Verify downloads using:
-        
-        \`\`\`bash
-        sha256sum -c checksums.sha256
-        \`\`\`
-        EOF
-        
-        if [ -n "$PREV_TAG" ]; then
-          echo "" >> release_notes.md
-          echo "## 📝 Changes since $PREV_TAG" >> release_notes.md
-          echo "" >> release_notes.md
-          git log --oneline "$PREV_TAG..HEAD" | sed 's/^/- /' >> release_notes.md
-        fi
-        
-        cat >> release_notes.md << EOF
-        
-        ---
-        
-        **Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREV_TAG...$VERSION
-        
-        Built with Go $(go version | cut -d' ' -f3) • $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-        EOF
-        
+        sha256sum * > checksums.txt
+        cat checksums.txt
+
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ steps.version.outputs.version }}
-        name: "Deep Coding Agent ${{ steps.version.outputs.version }}"
-        body_path: release_notes.md
-        files: |
-          release/*
+        tag_name: ${{ steps.version.outputs.VERSION }}
+        name: Release ${{ steps.version.outputs.VERSION }}
         draft: false
-        prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+        prerelease: false
+        generate_release_notes: true
+        files: release/*
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  publish-to-registries:
-    name: Publish to Package Registries
-    runs-on: ubuntu-latest
-    needs: create-release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    
-    steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    # Future: Add steps to publish to package managers
-    # - name: Publish to Homebrew
-    # - name: Publish to Chocolatey
-    # - name: Publish to Snap Store
-    
-    - name: Update version badge
-      run: |
-        echo "Version ${{ github.ref_name }} published successfully"

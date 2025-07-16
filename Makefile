@@ -36,10 +36,14 @@ build-all: deps
 	@mkdir -p $(BUILD_DIR)
 	@echo "Building Linux AMD64..."
 	@GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 $(SOURCE_MAIN)
+	@echo "Building Linux ARM64..."
+	@GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 $(SOURCE_MAIN)
 	@echo "Building Darwin AMD64..."
 	@GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 $(SOURCE_MAIN)
 	@echo "Building Darwin ARM64..."
 	@GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 $(SOURCE_MAIN)
+	@echo "Building Windows AMD64..."
+	@GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe $(SOURCE_MAIN)
 	@echo "Multi-platform build complete in $(BUILD_DIR)/"
 	@echo "Version: $(VERSION)"
 

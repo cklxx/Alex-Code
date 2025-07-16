@@ -17,7 +17,11 @@ func TestLoadProjectMemory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp directory: %v", err)
+		}
+	}()
 
 	// 创建 PromptLoader 实例
 	loader, err := NewPromptLoader()
@@ -83,7 +87,11 @@ func TestGetReActThinkingPromptWithALEX(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp directory: %v", err)
+		}
+	}()
 
 	alexContent := "# My Project\n\nThis project implements advanced AI features for code analysis."
 	alexPath := filepath.Join(tempDir, "ALEX.md")

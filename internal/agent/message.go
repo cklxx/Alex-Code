@@ -10,7 +10,6 @@ import (
 
 	contextmgr "alex/internal/context"
 	"alex/internal/llm"
-	"alex/internal/memory"
 	"alex/internal/session"
 )
 
@@ -112,39 +111,6 @@ func (mp *MessageProcessor) ConvertLLMToSession(llmMessages []llm.Message) []*se
 }
 
 // formatMemoryContent 格式化内存内容
-func (mp *MessageProcessor) formatMemoryContent(memories []*memory.MemoryItem) string {
-	if len(memories) == 0 {
-		return ""
-	}
-
-	var parts []string
-	parts = append(parts, "## Relevant Context from Memory\n")
-
-	// 按类别分组
-	categoryGroups := make(map[memory.MemoryCategory][]*memory.MemoryItem)
-	for _, mem := range memories {
-		categoryGroups[mem.Category] = append(categoryGroups[mem.Category], mem)
-	}
-
-	// 格式化每个类别
-	for category, items := range categoryGroups {
-		if len(items) == 0 {
-			continue
-		}
-		categoryName := strings.ToUpper(string(category)[:1]) + string(category)[1:]
-		parts = append(parts, fmt.Sprintf("### %s", categoryName))
-		for _, item := range items {
-			content := item.Content
-			if len(content) > 150 {
-				content = content[:150] + "..."
-			}
-			parts = append(parts, fmt.Sprintf("- %s", content))
-		}
-		parts = append(parts, "")
-	}
-
-	return strings.Join(parts, "\n")
-}
 
 // ========== 消息压缩 ==========
 
@@ -415,17 +381,6 @@ func (mp *MessageProcessor) RestoreFullContext(sess *session.Session, backupID s
 }
 
 // addTaskInstructions 添加任务指令
-func (mp *MessageProcessor) addTaskInstructions(messages []llm.Message) {
-	for i := len(messages) - 1; i >= 0; i-- {
-		if messages[i].Role == "user" {
-			taskInstruction := "\n\nthink about the task and break it down into a list of todos and then call the todo_update tool to create the todos"
-			if !strings.Contains(messages[i].Content, "think about the task") {
-				messages[i].Content += taskInstruction
-			}
-			break
-		}
-	}
-}
 
 // ========== 随机消息生成 ==========
 

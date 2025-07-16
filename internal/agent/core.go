@@ -251,7 +251,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 					for _, missingID := range missingIDs {
 						// 尝试找到对应的工具名称
-						var toolName string = "unknown"
+						var toolName = "unknown"
 						for _, tc := range choice.Message.ToolCalls {
 							if tc.ID == missingID {
 								toolName = tc.Function.Name

@@ -89,36 +89,6 @@ func (cm *ContextManager) estimateTokenUsage(messages []*session.Message) int {
 	return totalChars / 3
 }
 
-func (cm *ContextManager) separateMessages(messages []*session.Message) ([]*session.Message, []*session.Message) {
-	var systemMessages []*session.Message
-	var conversationMessages []*session.Message
-
-	for _, msg := range messages {
-		if msg.Role == "system" {
-			systemMessages = append(systemMessages, msg)
-		} else {
-			conversationMessages = append(conversationMessages, msg)
-		}
-	}
-
-	return systemMessages, conversationMessages
-}
-
-func (cm *ContextManager) calculateRecentMessageCount(totalConversation int) int {
-	// Keep at least 5 recent messages, or 20% of conversation, whichever is higher
-	minRecent := 5
-	if totalConversation < minRecent {
-		return totalConversation // Can't keep more than we have
-	}
-
-	ratioRecent := int(float64(totalConversation) * 0.2)
-
-	if ratioRecent > minRecent {
-		return ratioRecent
-	}
-	return minRecent
-}
-
 // Data structures
 
 // ContextAnalysis represents the result of context length analysis
