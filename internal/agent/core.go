@@ -70,7 +70,12 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 	// 构建系统提示（只需构建一次）
 	systemPrompt := rc.promptHandler.buildToolDrivenTaskPrompt(taskCtx)
-	messages := rc.messageProcessor.BuildMessagesFromSession(ctx, sess, task, systemPrompt)
+	messages := []llm.Message{
+		{
+			Role:    "system",
+			Content: systemPrompt,
+		},
+	}
 
 	// 执行工具驱动的ReAct循环
 	maxIterations := 25 // 减少迭代次数，依赖智能工具调用
@@ -89,8 +94,8 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		}
 
 		// 每次迭代更新消息列表，添加最新的会话内容
-		currentMessages := rc.messageProcessor.UpdateMessagesWithLatestSession(ctx, sess, messages)
-
+		compressMessages := rc.messageProcessor.compressMessages(sess.GetMessages())
+		currentMessages := rc.messageProcessor.ConvertSessionToLLM(compressMessages)
 		// 构建可用工具列表 - 每轮都包含工具定义以确保模型能调用工具
 		tools := rc.toolHandler.buildToolDefinitions()
 

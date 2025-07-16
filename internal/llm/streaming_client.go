@@ -200,10 +200,9 @@ func (c *StreamingLLMClient) ChatStream(ctx context.Context, req *ChatRequest) (
 		maxTokenSize := 1024 * 1024 // 1MB
 		buf := make([]byte, maxTokenSize)
 		scanner.Buffer(buf, maxTokenSize)
-		
+
 		for scanner.Scan() {
 			line := scanner.Text()
-			log.Printf("DEBUG: Line: %s", line)
 			// Skip empty lines and comments
 			if line == "" || strings.HasPrefix(line, ":") {
 				continue

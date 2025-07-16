@@ -111,158 +111,6 @@ func (mp *MessageProcessor) ConvertLLMToSession(llmMessages []llm.Message) []*se
 	return messages
 }
 
-// ========== 消息构建 ==========
-
-// BuildMessagesFromSession 从会话构建消息列表，整合所有相关功能
-func (mp *MessageProcessor) BuildMessagesFromSession(ctx context.Context, sess *session.Session, task string, systemPrompt string) []llm.Message {
-	var messages []llm.Message
-
-	// 添加系统提示
-	messages = append(messages, llm.Message{
-		Role:    "system",
-		Content: systemPrompt,
-	})
-
-	// 处理会话消息
-	if sess != nil {
-		sessionMessages := sess.GetMessages()
-		
-		// 整合内存信息
-		integratedMessages := mp.integrateMemoryInfo(ctx, sessionMessages)
-		
-		// 智能压缩
-		compressedMessages := mp.compressMessages(integratedMessages)
-		
-		// 转换为 LLM 格式并过滤系统消息
-		convertedMessages := mp.convertAndFilter(compressedMessages, true)
-		messages = append(messages, convertedMessages...)
-
-		// 如果是首次迭代，添加任务指令
-		if len(sessionMessages) == 1 {
-			mp.addTaskInstructions(messages)
-		}
-	} else {
-		// 新会话，添加任务消息
-		messages = append(messages, llm.Message{
-			Role:    "user",
-			Content: task + "\n\nthink about the task and break it down into a list of todos and then call the todo_update tool to create the todos",
-		})
-	}
-
-	return messages
-}
-
-// UpdateMessagesWithLatestSession 更新消息列表，包含最新会话内容
-func (mp *MessageProcessor) UpdateMessagesWithLatestSession(ctx context.Context, sess *session.Session, baseMessages []llm.Message) []llm.Message {
-	if sess == nil {
-		return baseMessages
-	}
-
-	// 提取系统消息和非系统消息
-	var systemMsg llm.Message
-	var nonSystemMessages []llm.Message
-	
-	if len(baseMessages) > 0 && baseMessages[0].Role == "system" {
-		systemMsg = baseMessages[0]
-		nonSystemMessages = baseMessages[1:]
-	} else {
-		nonSystemMessages = baseMessages
-	}
-
-	// 处理会话消息
-	sessionMessages := sess.GetMessages()
-	integratedMessages := mp.integrateMemoryInfo(ctx, sessionMessages)
-	
-	// 合并会话消息和新消息
-	allMessages := make([]*session.Message, 0, len(integratedMessages)+len(nonSystemMessages))
-	allMessages = append(allMessages, integratedMessages...)
-	
-	// 将非系统消息转换为session格式并添加
-	for _, msg := range nonSystemMessages {
-		sessionMsg := &session.Message{
-			Role:      msg.Role,
-			Content:   msg.Content,
-			Metadata:  make(map[string]interface{}),
-			Timestamp: time.Now(),
-		}
-		
-		// 处理工具调用
-		if len(msg.ToolCalls) > 0 {
-			sessionMsg.ToolCalls = make([]session.ToolCall, 0, len(msg.ToolCalls))
-			for _, tc := range msg.ToolCalls {
-				sessionMsg.ToolCalls = append(sessionMsg.ToolCalls, session.ToolCall{
-					ID:   tc.ID,
-					Name: tc.Function.Name,
-				})
-			}
-		}
-		
-		// 处理工具调用 ID
-		if msg.Role == "tool" && msg.ToolCallId != "" {
-			sessionMsg.Metadata["tool_call_id"] = msg.ToolCallId
-		}
-		
-		allMessages = append(allMessages, sessionMsg)
-	}
-
-	// 智能压缩（只在需要时触发）
-	compressedMessages := mp.compressMessages(allMessages)
-	convertedMessages := mp.convertAndFilter(compressedMessages, true)
-
-	// 构建最终消息列表
-	var messages []llm.Message
-	if systemMsg.Role == "system" {
-		messages = append(messages, systemMsg)
-	}
-	messages = append(messages, convertedMessages...)
-
-	return messages
-}
-
-// ========== 内存集成 ==========
-
-// integrateMemoryInfo 整合内存信息到消息中
-func (mp *MessageProcessor) integrateMemoryInfo(ctx context.Context, sessionMessages []*session.Message) []*session.Message {
-	// 检查内存信息
-	memoriesValue := ctx.Value(MemoriesKey)
-	if memoriesValue == nil {
-		return sessionMessages
-	}
-
-	recallResult, ok := memoriesValue.(*memory.RecallResult)
-	if !ok || len(recallResult.Items) == 0 {
-		return sessionMessages
-	}
-
-	// 创建内存消息
-	memoryContent := mp.formatMemoryContent(recallResult.Items)
-	memoryMessage := &session.Message{
-		Role:    "system",
-		Content: memoryContent,
-		Metadata: map[string]interface{}{
-			"type":             "memory_context",
-			"memory_items":     len(recallResult.Items),
-			"integration_time": time.Now().Unix(),
-		},
-		Timestamp: time.Now(),
-	}
-
-	// 插入内存消息
-	integratedMessages := make([]*session.Message, 0, len(sessionMessages)+1)
-	
-	// 保留第一个系统消息
-	if len(sessionMessages) > 0 && sessionMessages[0].Role == "system" {
-		integratedMessages = append(integratedMessages, sessionMessages[0])
-		integratedMessages = append(integratedMessages, memoryMessage)
-		integratedMessages = append(integratedMessages, sessionMessages[1:]...)
-	} else {
-		integratedMessages = append(integratedMessages, memoryMessage)
-		integratedMessages = append(integratedMessages, sessionMessages...)
-	}
-
-	return integratedMessages
-}
-
 // formatMemoryContent 格式化内存内容
 func (mp *MessageProcessor) formatMemoryContent(memories []*memory.MemoryItem) string {
 	if len(memories) == 0 {
@@ -303,8 +151,8 @@ func (mp *MessageProcessor) formatMemoryContent(memories []*memory.MemoryItem) s
 // compressMessages 智能压缩消息
 func (mp *MessageProcessor) compressMessages(sessionMessages []*session.Message) []*session.Message {
 	const (
-		MaxMessages = 20
-		MaxTokens   = 60000
+		MaxMessages = 100
+		MaxTokens   = 600000
 		RecentKeep  = 6
 	)
 
@@ -318,92 +166,17 @@ func (mp *MessageProcessor) compressMessages(sessionMessages []*session.Message)
 
 	log.Printf("[INFO] Message compression triggered: %d messages, estimated %d tokens",
 		len(sessionMessages), mp.tokenEstimator.EstimateSessionMessages(sessionMessages))
-
-	// 分离消息类型
-	var recentMessages, importantMessages, regularMessages []*session.Message
-
-	// 保留最近的消息
-	recentStart := len(sessionMessages) - RecentKeep
-	if recentStart < 0 {
-		recentStart = 0
-	}
-	recentMessages = sessionMessages[recentStart:]
-
-	// 分析之前的消息
-	for i := 0; i < recentStart; i++ {
-		msg := sessionMessages[i]
-		if mp.isImportantMessage(msg) {
-			importantMessages = append(importantMessages, msg)
-		} else {
-			regularMessages = append(regularMessages, msg)
-		}
-	}
-
 	// 构建压缩后的消息
 	var compressedMessages []*session.Message
-	compressedMessages = append(compressedMessages, importantMessages...)
-
-	// 处理普通消息
-	if len(regularMessages) > 10 {
-		summaryMsg := mp.createMessageSummary(regularMessages)
-		if summaryMsg != nil {
-			compressedMessages = append(compressedMessages, summaryMsg)
-		}
-		// 保留最后几条普通消息
-		keepCount := 3
-		if len(regularMessages) > keepCount {
-			compressedMessages = append(compressedMessages, regularMessages[len(regularMessages)-keepCount:]...)
-		} else {
-			compressedMessages = append(compressedMessages, regularMessages...)
-		}
-	} else {
-		compressedMessages = append(compressedMessages, regularMessages...)
+	summaryMsg := mp.createMessageSummary(sessionMessages)
+	if summaryMsg != nil {
+		compressedMessages = append(compressedMessages, summaryMsg)
 	}
-
-	compressedMessages = append(compressedMessages, recentMessages...)
 
 	log.Printf("[INFO] Message compression completed: %d -> %d messages",
 		len(sessionMessages), len(compressedMessages))
 
 	return compressedMessages
-}
-
-// isImportantMessage 判断消息是否重要
-func (mp *MessageProcessor) isImportantMessage(msg *session.Message) bool {
-	// 内存消息重要
-	if msgType, ok := msg.Metadata["type"].(string); ok {
-		if msgType == "memory_context" || strings.Contains(msgType, "memory") {
-			return true
-		}
-	}
-
-	// 包含内存相关内容
-	if strings.Contains(msg.Content, "## Relevant Context from Memory") ||
-		strings.Contains(msg.Content, "### CodeContext") ||
-		strings.Contains(msg.Content, "### TaskHistory") {
-		return true
-	}
-
-	// 工具调用重要
-	if len(msg.ToolCalls) > 0 {
-		return true
-	}
-
-	// 错误信息重要
-	content := strings.ToLower(msg.Content)
-	errorKeywords := []string{"error", "failed", "exception", "panic", "bug"}
-	for _, keyword := range errorKeywords {
-		if strings.Contains(content, keyword) {
-			return true
-		}
-	}
-
-	// 长消息和代码块重要
-	if len(msg.Content) > 200 || strings.Contains(msg.Content, "```") {
-		return true
-	}
-
-	return false
 }
 
 // createMessageSummary 创建消息摘要
@@ -684,53 +457,6 @@ func (mp *MessageProcessor) RestoreFullContext(sess *session.Session, backupID s
 		return fmt.Errorf("context manager not available")
 	}
 	return mp.contextMgr.RestoreFullContext(sess, backupID)
-}
-
-// ========== 辅助函数 ==========
-
-// convertAndFilter 转换并过滤消息
-func (mp *MessageProcessor) convertAndFilter(sessionMessages []*session.Message, skipSystem bool) []llm.Message {
-	messages := make([]llm.Message, 0, len(sessionMessages))
-
-	for _, msg := range sessionMessages {
-		if skipSystem && msg.Role == "system" {
-			continue
-		}
-		messages = append(messages, mp.convertSingleMessage(msg))
-	}
-
-	return messages
-}
-
-// convertSingleMessage 转换单条消息
-func (mp *MessageProcessor) convertSingleMessage(msg *session.Message) llm.Message {
-	llmMsg := llm.Message{
-		Role:    msg.Role,
-		Content: msg.Content,
-	}
-
-	// 处理工具调用
-	if len(msg.ToolCalls) > 0 {
-		llmMsg.ToolCalls = make([]llm.ToolCall, 0, len(msg.ToolCalls))
-		for _, tc := range msg.ToolCalls {
-			llmMsg.ToolCalls = append(llmMsg.ToolCalls, llm.ToolCall{
-				ID:   tc.ID,
-				Type: "function",
-				Function: llm.Function{
-					Name: tc.Name,
-				},
-			})
-		}
-	}
-
-	// 处理工具调用 ID
-	if msg.Role == "tool" {
-		if callID, ok := msg.Metadata["tool_call_id"].(string); ok {
-			llmMsg.ToolCallId = callID
-		}
-	}
-
-	return llmMsg
 }
 
 // addTaskInstructions 添加任务指令
