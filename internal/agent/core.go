@@ -87,8 +87,13 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		// 第一次迭代更新消息列表，添加最新的会话内容
 		if iteration == 1 {
 			sess := rc.messageProcessor.GetCurrentSession(ctx, rc.agent)
-			sessMessages := rc.messageProcessor.compressMessages(sess.GetMessages())
-			llmMessages := rc.messageProcessor.ConvertSessionToLLM(sessMessages)
+			sessionMessages := rc.messageProcessor.compressMessages(sess.GetMessages())
+			llmMessages := rc.messageProcessor.ConvertSessionToLLM(sessionMessages)
+			messages = append(messages, llmMessages...)
+		} else {
+			sessionMessages := rc.messageProcessor.ConvertLLMToSession(messages)
+			sessionMessages = rc.messageProcessor.compressMessages(sessionMessages)
+			llmMessages := rc.messageProcessor.ConvertSessionToLLM(sessionMessages)
 			messages = append(messages, llmMessages...)
 		}
 		// 构建可用工具列表 - 每轮都包含工具定义以确保模型能调用工具

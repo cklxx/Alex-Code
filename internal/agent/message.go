@@ -118,7 +118,7 @@ func (mp *MessageProcessor) ConvertLLMToSession(llmMessages []llm.Message) []*se
 func (mp *MessageProcessor) compressMessages(sessionMessages []*session.Message) []*session.Message {
 	const (
 		MaxMessages = 100
-		MaxTokens   = 600000
+		MaxTokens   = 100000
 		RecentKeep  = 6
 	)
 
