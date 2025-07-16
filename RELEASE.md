@@ -1,44 +1,44 @@
-# 发布指南
+# Release Guide
 
-本文档说明如何使用新添加的自动化构建和发布系统。
+This document explains how to use the newly added automated build and release system.
 
-## 🚀 首次发布
+## 🚀 First Release
 
-### 1. 推送 Tag 触发自动发布
+### 1. Push Tag to Trigger Automatic Release
 
 ```bash
-# 创建并推送 tag
+# Create and push tag
 git tag v1.0.0
 git push origin v1.0.0
 ```
 
-### 2. 手动触发发布 (可选)
+### 2. Manual Release Trigger (Optional)
 
-也可以在 GitHub 仓库的 Actions 页面手动触发 Release 工作流：
+You can also manually trigger the Release workflow on the GitHub repository's Actions page:
 
-1. 访问 GitHub 仓库
-2. 点击 "Actions" 标签
-3. 选择 "Release" 工作流
-4. 点击 "Run workflow"
-5. 输入版本号 (如 `v1.0.0`)
-6. 点击 "Run workflow"
+1. Visit the GitHub repository
+2. Click the "Actions" tab
+3. Select the "Release" workflow
+4. Click "Run workflow"
+5. Enter version number (e.g., `v1.0.0`)
+6. Click "Run workflow"
 
-## 📦 发布内容
+## 📦 Release Contents
 
-每次发布会自动生成以下文件：
+Each release automatically generates the following files:
 
-- `alex-linux-amd64` - Linux x64 二进制文件
-- `alex-linux-arm64` - Linux ARM64 二进制文件  
-- `alex-darwin-amd64` - macOS Intel 二进制文件
-- `alex-darwin-arm64` - macOS Apple Silicon 二进制文件
-- `alex-windows-amd64.exe` - Windows x64 二进制文件
-- `checksums.txt` - SHA256 校验文件
+- `alex-linux-amd64` - Linux x64 binary
+- `alex-linux-arm64` - Linux ARM64 binary  
+- `alex-darwin-amd64` - macOS Intel binary
+- `alex-darwin-arm64` - macOS Apple Silicon binary
+- `alex-windows-amd64.exe` - Windows x64 binary
+- `checksums.txt` - SHA256 checksum file
 
-## 🛠️ 安装方式
+## 🛠️ Installation Methods
 
-发布后，用户可以通过以下方式安装：
+After release, users can install through the following methods:
 
-### 快速安装 (推荐)
+### Quick Install (Recommended)
 
 **Linux/macOS:**
 ```bash
@@ -50,96 +50,96 @@ curl -sSfL https://raw.githubusercontent.com/cklxx/Alex-Code/main/scripts/instal
 iwr -useb https://raw.githubusercontent.com/cklxx/Alex-Code/main/scripts/install.ps1 | iex
 ```
 
-### 手动下载
+### Manual Download
 
-用户也可以直接从 Releases 页面下载对应平台的二进制文件。
+Users can also directly download the corresponding platform binary from the Releases page.
 
-## ⚙️ 配置说明
+## ⚙️ Configuration Instructions
 
-### 修改 GitHub 仓库路径
+### Modify GitHub Repository Path
 
-在发布前，请确保修改以下文件中的仓库路径：
+Before releasing, please ensure you modify the repository path in the following files:
 
-1. **安装脚本中的仓库路径:**
-   - `scripts/install.sh` 第9行: `GITHUB_REPO="cklxx/Alex-Code"`
-   - `scripts/install.ps1` 第6行: `[string]$Repository = "cklxx/Alex-Code"`
+1. **Repository path in installation scripts:**
+   - `scripts/install.sh` line 9: `GITHUB_REPO="cklxx/Alex-Code"`
+   - `scripts/install.ps1` line 6: `[string]$Repository = "cklxx/Alex-Code"`
 
-2. **文档中的链接:**
-   - `docs/installation.md` 中的所有GitHub链接
+2. **Links in documentation:**
+   - All GitHub links in `docs/installation.md`
 
-### 版本号格式
+### Version Number Format
 
-建议使用语义化版本号格式：
-- `v1.0.0` - 主要版本
-- `v1.1.0` - 次要版本  
-- `v1.1.1` - 补丁版本
+Recommend using semantic versioning format:
+- `v1.0.0` - Major version
+- `v1.1.0` - Minor version  
+- `v1.1.1` - Patch version
 
-## 🔍 验证发布
+## 🔍 Verify Release
 
-发布完成后，可以通过以下方式验证：
+After release completion, you can verify through the following methods:
 
-1. **检查 Releases 页面:**
-   - 确认所有平台的二进制文件都已生成
-   - 确认 checksums.txt 文件存在
+1. **Check Releases page:**
+   - Confirm all platform binaries have been generated
+   - Confirm checksums.txt file exists
 
-2. **测试安装脚本:**
+2. **Test installation scripts:**
    ```bash
-   # 测试Linux/macOS安装脚本
+   # Test Linux/macOS installation script
    ./scripts/install.sh --version v1.0.0 --repo your-org/your-repo
    
-   # 测试Windows安装脚本
+   # Test Windows installation script
    .\scripts\install.ps1 -Version v1.0.0 -Repository "your-org/your-repo"
    ```
 
-3. **验证二进制文件:**
+3. **Verify binary files:**
    ```bash
-   # 下载并测试二进制文件
+   # Download and test binary
    alex --version
    alex --help
    ```
 
-## 📋 发布检查清单
+## 📋 Release Checklist
 
-在发布前请确认：
+Before releasing, please confirm:
 
-- [ ] 代码已提交并推送到主分支
-- [ ] 版本号已在代码中更新 (如果需要)
-- [ ] 安装脚本中的仓库路径已正确配置
-- [ ] 文档中的链接已更新为正确的仓库路径
-- [ ] 已测试主要功能正常工作
-- [ ] 准备好发布说明 (GitHub会自动生成)
+- [ ] Code has been committed and pushed to main branch
+- [ ] Version number updated in code (if needed)
+- [ ] Repository path correctly configured in installation scripts
+- [ ] Links in documentation updated to correct repository path
+- [ ] Main functionality tested and working properly
+- [ ] Release notes prepared (GitHub will auto-generate)
 
-## 🐛 故障排除
+## 🐛 Troubleshooting
 
-### 构建失败
+### Build Failures
 
-如果 GitHub Actions 构建失败：
+If GitHub Actions build fails:
 
-1. 检查 Actions 页面的错误日志
-2. 确认 Go 版本兼容性
-3. 检查依赖项是否正确
-4. 验证 LDFLAGS 是否正确设置
+1. Check error logs on Actions page
+2. Confirm Go version compatibility
+3. Check if dependencies are correct
+4. Verify LDFLAGS are correctly set
 
-### 发布失败  
+### Release Failures  
 
-如果发布过程失败：
+If release process fails:
 
-1. 确认 GITHUB_TOKEN 权限正确
-2. 检查 tag 格式是否正确
-3. 确认没有重复的 tag
+1. Confirm GITHUB_TOKEN permissions are correct
+2. Check if tag format is correct
+3. Confirm no duplicate tags exist
 
-### 安装脚本问题
+### Installation Script Issues
 
-如果用户反馈安装问题：
+If users report installation problems:
 
-1. 检查二进制文件是否正确生成
-2. 验证下载链接是否有效
-3. 确认文件权限设置正确
+1. Check if binaries are correctly generated
+2. Verify download links are valid
+3. Confirm file permissions are set correctly
 
-## 📞 支持
+## 📞 Support
 
-如果遇到问题，可以：
+If you encounter issues, you can:
 
-1. 查看 GitHub Actions 日志
-2. 检查 Issues 页面的类似问题
-3. 创建新的 Issue 寻求帮助 
+1. Check GitHub Actions logs
+2. Look for similar issues on the Issues page
+3. Create a new Issue for help 
