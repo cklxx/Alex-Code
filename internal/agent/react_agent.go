@@ -30,7 +30,6 @@ const (
 type ReactCoreInterface interface {
 	SolveTask(ctx context.Context, task string, streamCallback StreamCallback) (*types.ReactTaskResult, error)
 	GetContextStats(sess *session.Session) *contextmgr.ContextStats
-	ForceContextSummarization(ctx context.Context, sess *session.Session) (*contextmgr.ContextProcessingResult, error)
 	RestoreFullContext(sess *session.Session, backupID string) error
 }
 

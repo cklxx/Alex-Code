@@ -47,15 +47,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	rc.streamCallback = streamCallback
 	rc.llmHandler.streamCallback = streamCallback
 
-	// 获取当前会话
-	sess := rc.messageProcessor.GetCurrentSession(ctx, rc.agent)
-	if sess != nil {
-		// 检查并处理上下文溢出
-		if err := rc.messageProcessor.HandleContextOverflow(ctx, sess, streamCallback); err != nil {
-			log.Printf("[WARNING] Context overflow handling failed: %v", err)
-		}
-	}
-
 	// 生成任务ID
 	taskID := generateTaskID()
 
@@ -93,19 +84,23 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 				Metadata: map[string]any{"iteration": iteration, "phase": "tool_driven_processing"}})
 		}
 
-		// 每次迭代更新消息列表，添加最新的会话内容
-		compressMessages := rc.messageProcessor.compressMessages(sess.GetMessages())
-		currentMessages := rc.messageProcessor.ConvertSessionToLLM(compressMessages)
+		// 第一次迭代更新消息列表，添加最新的会话内容
+		if iteration == 1 {
+			sess := rc.messageProcessor.GetCurrentSession(ctx, rc.agent)
+			sessMessages := rc.messageProcessor.compressMessages(sess.GetMessages())
+			llmMessages := rc.messageProcessor.ConvertSessionToLLM(sessMessages)
+			messages = append(messages, llmMessages...)
+		}
 		// 构建可用工具列表 - 每轮都包含工具定义以确保模型能调用工具
 		tools := rc.toolHandler.buildToolDefinitions()
 
 		request := &llm.ChatRequest{
-			Messages:   currentMessages,
+			Messages:   messages,
 			ModelType:  llm.BasicModel,
 			Tools:      tools,
 			ToolChoice: "auto",
 			Config:     rc.agent.llmConfig,
-			MaxTokens:  16384,
+			MaxTokens:  rc.agent.llmConfig.MaxTokens,
 		}
 		// 获取LLM实例
 		client, err := llm.GetLLMInstance(llm.BasicModel)
@@ -332,11 +327,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 // GetContextStats - 获取上下文统计信息
 func (rc *ReactCore) GetContextStats(sess *session.Session) *contextmgr.ContextStats {
 	return rc.messageProcessor.GetContextStats(sess)
-}
-
-// ForceContextSummarization - 强制进行上下文总结
-func (rc *ReactCore) ForceContextSummarization(ctx context.Context, sess *session.Session) (*contextmgr.ContextProcessingResult, error) {
-	return rc.messageProcessor.ForceContextSummarization(ctx, sess)
 }
 
 // RestoreFullContext - 恢复完整上下文

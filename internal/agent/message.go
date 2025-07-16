@@ -395,43 +395,6 @@ func (mp *MessageProcessor) GetCurrentSession(ctx context.Context, agent *ReactA
 	return nil
 }
 
-// ========== 上下文处理 ==========
-
-// HandleContextOverflow 处理上下文溢出
-func (mp *MessageProcessor) HandleContextOverflow(ctx context.Context, sess *session.Session, streamCallback StreamCallback) error {
-	analysis, err := mp.contextMgr.CheckContextLength(sess)
-	if err != nil {
-		return fmt.Errorf("failed to check context length: %w", err)
-	}
-
-	if analysis.RequiresTrimming {
-		if streamCallback != nil {
-			streamCallback(StreamChunk{
-				Type:     "context_management",
-				Content:  fmt.Sprintf("⚠️ Context overflow detected (%d tokens), summarizing...", analysis.EstimatedTokens),
-				Metadata: map[string]any{"action": "summarizing", "tokens": analysis.EstimatedTokens},
-			})
-		}
-
-		result, err := mp.contextMgr.ProcessContextOverflow(ctx, sess)
-		if err != nil {
-			return fmt.Errorf("failed to process context overflow: %w", err)
-		}
-
-		if streamCallback != nil {
-			streamCallback(StreamChunk{
-				Type:     "context_management",
-				Content:  fmt.Sprintf("✅ Context summarized: %d → %d messages", result.OriginalCount, result.ProcessedCount),
-				Metadata: map[string]any{"action": "completed", "backup_id": result.BackupID},
-			})
-		}
-
-		log.Printf("[INFO] Context summarized: %d → %d messages", result.OriginalCount, result.ProcessedCount)
-	}
-
-	return nil
-}
-
 // GetContextStats 获取上下文统计信息
 func (mp *MessageProcessor) GetContextStats(sess *session.Session) *contextmgr.ContextStats {
 	if mp.contextMgr == nil || sess == nil {
@@ -441,14 +404,6 @@ func (mp *MessageProcessor) GetContextStats(sess *session.Session) *contextmgr.C
 		}
 	}
 	return mp.contextMgr.GetContextStats(sess)
-}
-
-// ForceContextSummarization 强制进行上下文总结
-func (mp *MessageProcessor) ForceContextSummarization(ctx context.Context, sess *session.Session) (*contextmgr.ContextProcessingResult, error) {
-	if mp.contextMgr == nil {
-		return nil, fmt.Errorf("context manager not available")
-	}
-	return mp.contextMgr.ProcessContextOverflow(ctx, sess)
 }
 
 // RestoreFullContext 恢复完整上下文

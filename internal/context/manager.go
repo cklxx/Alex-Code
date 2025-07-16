@@ -1,10 +1,6 @@
 package context
 
 import (
-	"context"
-	"fmt"
-	"time"
-
 	"alex/internal/llm"
 	"alex/internal/session"
 )
@@ -42,104 +38,6 @@ func NewContextManager(llmClient llm.Client, config *ContextLengthConfig) *Conte
 		summarizer:       NewMessageSummarizer(llmClient, config),
 		preservationMgr:  NewContextPreservationManager(),
 	}
-}
-
-// CheckContextLength analyzes if the session context is approaching limits
-func (cm *ContextManager) CheckContextLength(sess *session.Session) (*ContextAnalysis, error) {
-	messages := sess.GetMessages()
-	if len(messages) == 0 {
-		return &ContextAnalysis{
-			TotalMessages:    0,
-			EstimatedTokens:  0,
-			RequiresTrimming: false,
-		}, nil
-	}
-
-	// Estimate token usage
-	totalTokens := cm.estimateTokenUsage(messages)
-
-	analysis := &ContextAnalysis{
-		TotalMessages:     len(messages),
-		EstimatedTokens:   totalTokens,
-		RequiresTrimming:  totalTokens > cm.maxContextTokens,
-		ShouldSummarize:   totalTokens > int(float64(cm.maxContextTokens)*0.75), // 75% threshold
-		CompressionNeeded: totalTokens > int(float64(cm.maxContextTokens)*0.9),  // 90% threshold
-	}
-
-	return analysis, nil
-}
-
-// ProcessContextOverflow handles context overflow by summarizing messages
-func (cm *ContextManager) ProcessContextOverflow(ctx context.Context, sess *session.Session) (*ContextProcessingResult, error) {
-	analysis, err := cm.CheckContextLength(sess)
-	if err != nil {
-		return nil, fmt.Errorf("failed to analyze context: %w", err)
-	}
-
-	if !analysis.RequiresTrimming {
-		return &ContextProcessingResult{
-			Action:         "no_action",
-			OriginalCount:  analysis.TotalMessages,
-			ProcessedCount: analysis.TotalMessages,
-		}, nil
-	}
-
-	messages := sess.GetMessages()
-
-	// Separate system messages and conversation messages
-	systemMessages, conversationMessages := cm.separateMessages(messages)
-
-	// Preserve context for restoration
-	contextBackup := cm.preservationMgr.CreateBackup(sess)
-
-	// Summarize conversation messages (excluding recent ones)
-	recentCount := cm.calculateRecentMessageCount(len(conversationMessages))
-	messagesToSummarize := conversationMessages[:len(conversationMessages)-recentCount]
-	recentMessages := conversationMessages[len(conversationMessages)-recentCount:]
-
-	summary, err := cm.summarizer.SummarizeMessages(ctx, messagesToSummarize)
-	if err != nil {
-		return nil, fmt.Errorf("failed to summarize messages: %w", err)
-	}
-
-	// Create new message list with summary + recent messages
-	newMessages := make([]*session.Message, 0)
-
-	// Add system messages back
-	newMessages = append(newMessages, systemMessages...)
-
-	// Add summary as a system message
-	summaryMsg := &session.Message{
-		Role:    "system",
-		Content: fmt.Sprintf("## Conversation Summary\n\n%s\n\n---\n\nThe above is a summary of the previous conversation. Continue from here with full context awareness.", summary.Summary),
-		Metadata: map[string]interface{}{
-			"type":              "context_summary",
-			"original_count":    len(messagesToSummarize),
-			"summary_timestamp": time.Now().Unix(),
-			"backup_id":         contextBackup.ID,
-			"key_points":        summary.KeyPoints,
-			"topics":            summary.Topics,
-		},
-		Timestamp: time.Now(),
-	}
-	newMessages = append(newMessages, summaryMsg)
-
-	// Add recent messages
-	newMessages = append(newMessages, recentMessages...)
-
-	// Update session with new message list
-	sess.ClearMessages()
-	for _, msg := range newMessages {
-		sess.AddMessage(msg)
-	}
-
-	return &ContextProcessingResult{
-		Action:         "summarized",
-		OriginalCount:  len(messages),
-		ProcessedCount: len(newMessages),
-		Summary:        summary,
-		BackupID:       contextBackup.ID,
-	}, nil
 }
 
 // RestoreFullContext restores the complete conversation history

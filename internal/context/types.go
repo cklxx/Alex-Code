@@ -68,17 +68,3 @@ type Engine interface {
 	Close() error
 	Stats() EngineStats
 }
-
-// === 配置类型 ===
-
-// Config 简化的配置结构（向后兼容ModularEngine）
-type Config struct {
-	Engine *EngineConfig `json:"engine"`
-}
-
-// DefaultConfig 默认配置
-func DefaultConfig() *Config {
-	return &Config{
-		Engine: DefaultEngineConfig(),
-	}
-}
