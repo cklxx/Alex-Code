@@ -93,8 +93,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		} else {
 			sessionMessages := rc.messageProcessor.ConvertLLMToSession(messages)
 			sessionMessages = rc.messageProcessor.compressMessages(sessionMessages)
-			llmMessages := rc.messageProcessor.ConvertSessionToLLM(sessionMessages)
-			messages = append(messages, llmMessages...)
+			messages = rc.messageProcessor.ConvertSessionToLLM(sessionMessages)
 		}
 		// 构建可用工具列表 - 每轮都包含工具定义以确保模型能调用工具
 		tools := rc.toolHandler.buildToolDefinitions()
