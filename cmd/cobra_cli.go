@@ -163,6 +163,7 @@ through streaming responses and advanced tool calling capabilities.
 	rootCmd.AddCommand(createToolsCommands(cli))
 	rootCmd.AddCommand(newBatchCommand())
 	rootCmd.AddCommand(newVersionCommand())
+	rootCmd.AddCommand(newInitCommand(cli))
 
 	// Configure viper
 	viper.SetConfigName("deep-coding-config")

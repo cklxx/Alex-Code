@@ -4,6 +4,8 @@ import (
 	"alex/pkg/types"
 	"embed"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -102,11 +104,14 @@ func (p *PromptLoader) ListPrompts() []string {
 
 // GetReActThinkingPrompt returns the ReAct thinking phase prompt
 func (p *PromptLoader) GetReActThinkingPrompt(taskCtx *types.ReactTaskContext) (string, error) {
+	// Try to read ALEX.md from working directory, fallback to default if not found
+	memory := p.loadProjectMemory(taskCtx.WorkingDir)
+
 	variables := map[string]string{
 		"WorkingDir":    taskCtx.WorkingDir,
 		"DirectoryInfo": taskCtx.DirectoryInfo.Description,
 		"Goal":          taskCtx.Goal,
-		"Memory":        "You are a helpful assistant that can help the user with their tasks.",
+		"Memory":        memory,
 		"LastUpdate":    taskCtx.LastUpdate.Format(time.RFC3339),
 	}
 
@@ -135,4 +140,35 @@ func (p *PromptLoader) GetUserContextPrompt(conversationHistory, currentRequest 
 		"current_request":      currentRequest,
 	}
 	return p.RenderPrompt("user_context", variables)
+}
+
+// loadProjectMemory loads project memory from ALEX.md file if it exists
+func (p *PromptLoader) loadProjectMemory(workingDir string) string {
+	defaultMemory := "You are a helpful assistant that can help the user with their tasks."
+
+	if workingDir == "" {
+		return defaultMemory
+	}
+
+	alexFilePath := filepath.Join(workingDir, "ALEX.md")
+
+	// Check if ALEX.md exists
+	if _, err := os.Stat(alexFilePath); os.IsNotExist(err) {
+		return defaultMemory
+	}
+
+	// Try to read ALEX.md content
+	content, err := os.ReadFile(alexFilePath)
+	if err != nil {
+		// If read fails, return default
+		return defaultMemory
+	}
+
+	// Return file content as memory, or default if empty
+	fileContent := strings.TrimSpace(string(content))
+	if fileContent == "" {
+		return defaultMemory
+	}
+
+	return fileContent
 }
