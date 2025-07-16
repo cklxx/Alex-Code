@@ -571,3 +571,81 @@ func TestFileOperationsIntegration(t *testing.T) {
 		}
 	})
 }
+
+func TestFileReplaceProjectRelativePath(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "file_replace_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
+
+	// Create context with working directory
+	ctx := context.Background()
+	ctx = WithWorkingDir(ctx, tempDir)
+
+	t.Run("FileReplace_ProjectRelativePath", func(t *testing.T) {
+		// Test file creation with project-relative path (leading slash)
+		replaceTool := CreateFileReplaceTool()
+		testContent := `import { ReactNode } from 'react';
+
+export interface ContainerProps {
+    children: ReactNode;
+    className?: string;
+}
+
+export const Container: React.FC<ContainerProps> = ({ children, className }) => {
+    return (
+        <div className={className}>
+            {children}
+        </div>
+    );
+};`
+
+		args := map[string]interface{}{
+			"file_path": "/src/core/ContainerTypes.ts", // Project-relative path with leading slash
+			"content":   testContent,
+		}
+
+		result, err := replaceTool.Execute(ctx, args)
+		if err != nil {
+			t.Fatalf("failed to create file with project-relative path: %v", err)
+		}
+
+		if result == nil || result.Content == "" {
+			t.Error("expected non-empty result")
+		}
+
+		// Verify file was created in correct location (tempDir/src/core/ContainerTypes.ts)
+		expectedPath := filepath.Join(tempDir, "src", "core", "ContainerTypes.ts")
+		if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+			t.Errorf("file was not created at expected path: %s", expectedPath)
+		}
+
+		// Verify file content
+		content, err := os.ReadFile(expectedPath)
+		if err != nil {
+			t.Fatalf("failed to read created file: %v", err)
+		}
+
+		if string(content) != testContent {
+			t.Errorf("file content mismatch")
+		}
+
+		// Test that src directory was created
+		srcDir := filepath.Join(tempDir, "src")
+		if _, err := os.Stat(srcDir); os.IsNotExist(err) {
+			t.Error("src directory was not created")
+		}
+
+		// Test that core directory was created
+		coreDir := filepath.Join(tempDir, "src", "core")
+		if _, err := os.Stat(coreDir); os.IsNotExist(err) {
+			t.Error("core directory was not created")
+		}
+	})
+}
