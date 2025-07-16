@@ -105,7 +105,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			Tools:      tools,
 			ToolChoice: "auto",
 			Config:     rc.agent.llmConfig,
-			MaxTokens:  128000,
+			MaxTokens:  16384,
 		}
 		// 获取LLM实例
 		client, err := llm.GetLLMInstance(llm.BasicModel)
