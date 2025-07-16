@@ -182,6 +182,12 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			})
 		}
 
+		if len(choice.Message.Content) > 0 {
+			streamCallback(StreamChunk{
+				Type:     "thinking_result",
+				Content:  choice.Message.Content,
+				Metadata: map[string]any{"iteration": iteration, "phase": "thinking_result"}})
+		}
 		// 添加assistant消息到对话历史和session
 		// 重要修复：即使没有content，也要添加包含工具调用的assistant消息
 		if len(choice.Message.Content) > 0 || len(choice.Message.ToolCalls) > 0 {
