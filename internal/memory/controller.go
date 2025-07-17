@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"alex/internal/session"
+	"alex/internal/utils"
 )
 
 // MemoryController controls when and what memories should be written
 type MemoryController struct {
-	config *MemoryControlConfig
+	config          *MemoryControlConfig
+	contentAnalyzer *utils.ContentAnalyzer
 }
 
 // MemoryControlConfig defines rules for memory storage
@@ -80,7 +82,10 @@ func NewMemoryController() *MemoryController {
 		},
 	}
 
-	return &MemoryController{config: config}
+	return &MemoryController{
+		config:          config,
+		contentAnalyzer: utils.NewContentAnalyzer(),
+	}
 }
 
 // ShouldCreateMemory determines if a message should create memory items
@@ -232,7 +237,7 @@ func (mc *MemoryController) determineCategory(content string, msg *session.Messa
 	}
 
 	// 检查代码相关
-	if mc.containsKeywords(content, mc.config.CodeKeywords) || mc.hasCodeBlocks(msg.Content) {
+	if mc.containsKeywords(content, mc.config.CodeKeywords) || mc.contentAnalyzer.HasCodeContent(msg.Content) {
 		return CodeContext
 	}
 
@@ -289,7 +294,7 @@ func (mc *MemoryController) calculateImportance(content string, msg *session.Mes
 	}
 
 	// 代码块加权
-	if mc.hasCodeBlocks(msg.Content) {
+	if mc.contentAnalyzer.HasCodeContent(msg.Content) {
 		importance += 0.2
 	}
 
@@ -319,7 +324,7 @@ func (mc *MemoryController) generateTags(content string, msg *session.Message, c
 	}
 
 	// 添加内容特征标签
-	if mc.hasCodeBlocks(msg.Content) {
+	if mc.contentAnalyzer.HasCodeContent(msg.Content) {
 		tags = append(tags, "code")
 	}
 
@@ -379,13 +384,6 @@ func (mc *MemoryController) containsKeywords(content string, keywords []string) 
 	return false
 }
 
-func (mc *MemoryController) hasCodeBlocks(content string) bool {
-	return strings.Contains(content, "```") ||
-		strings.Contains(content, "func ") ||
-		strings.Contains(content, "class ") ||
-		strings.Contains(content, "def ") ||
-		strings.Contains(content, "import ")
-}
 
 func (mc *MemoryController) calculateTextSimilarity(text1, text2 string) float64 {
 	// 简单的关键词重叠计算

@@ -11,15 +11,17 @@ import (
 
 	"alex/internal/llm"
 	"alex/internal/session"
+	"alex/internal/utils"
 )
 
 // MemoryManager coordinates short-term and long-term memory systems
 type MemoryManager struct {
-	shortTerm  *ShortTermMemoryManager
-	longTerm   *LongTermMemoryManager
-	compressor *ContextCompressor
-	controller *MemoryController
-	llmClient  llm.Client
+	shortTerm       *ShortTermMemoryManager
+	longTerm        *LongTermMemoryManager
+	compressor      *ContextCompressor
+	controller      *MemoryController
+	llmClient       llm.Client
+	contentAnalyzer *utils.ContentAnalyzer
 }
 
 // NewMemoryManager creates a new unified memory manager
@@ -44,11 +46,12 @@ func NewMemoryManager(llmClient llm.Client) (*MemoryManager, error) {
 	controller := NewMemoryController()
 
 	return &MemoryManager{
-		shortTerm:  shortTerm,
-		longTerm:   longTerm,
-		compressor: compressor,
-		controller: controller,
-		llmClient:  llmClient,
+		shortTerm:       shortTerm,
+		longTerm:        longTerm,
+		compressor:      compressor,
+		controller:      controller,
+		llmClient:       llmClient,
+		contentAnalyzer: utils.NewContentAnalyzer(),
 	}, nil
 }
 
@@ -509,7 +512,7 @@ func (mm *MemoryManager) createSpecializedMemories(sessionID string, msg *sessio
 
 	// Create code-specific memories for code blocks
 	if category == CodeContext {
-		codeBlocks := mm.extractCodeBlocks(msg.Content)
+		codeBlocks := mm.contentAnalyzer.ExtractCodeBlocks(msg.Content)
 		if len(codeBlocks) > 0 {
 			memory := &MemoryItem{
 				ID:         fmt.Sprintf("code_%s_%d", sessionID, time.Now().UnixNano()),
@@ -551,32 +554,3 @@ func (mm *MemoryManager) formatToolArgs(args map[string]interface{}) string {
 	return result
 }
 
-func (mm *MemoryManager) extractCodeBlocks(content string) []string {
-	var blocks []string
-	lines := strings.Split(content, "\n")
-	var currentBlock []string
-	inBlock := false
-
-	for _, line := range lines {
-		if strings.HasPrefix(line, "```") {
-			if inBlock {
-				if len(currentBlock) > 0 {
-					blocks = append(blocks, strings.Join(currentBlock, "\n"))
-				}
-				currentBlock = nil
-				inBlock = false
-			} else {
-				inBlock = true
-			}
-		} else if inBlock {
-			currentBlock = append(currentBlock, line)
-		}
-	}
-
-	// Handle unclosed code blocks
-	if inBlock && len(currentBlock) > 0 {
-		blocks = append(blocks, strings.Join(currentBlock, "\n"))
-	}
-
-	return blocks
-}

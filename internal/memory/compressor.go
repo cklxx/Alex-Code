@@ -10,12 +10,16 @@ import (
 
 	"alex/internal/llm"
 	"alex/internal/session"
+	"alex/internal/utils"
 )
 
 // ContextCompressor handles intelligent compression of conversation context
 type ContextCompressor struct {
-	llmClient llm.Client
-	config    *CompressionConfig
+	llmClient       llm.Client
+	config          *CompressionConfig
+	tokenEstimator  *utils.TokenEstimator
+	contentAnalyzer *utils.ContentAnalyzer
+	summarizer      *utils.ConversationSummarizer
 }
 
 // CompressionResult represents the result of context compression
@@ -43,8 +47,11 @@ func NewContextCompressor(llmClient llm.Client, config *CompressionConfig) *Cont
 	}
 
 	return &ContextCompressor{
-		llmClient: llmClient,
-		config:    config,
+		llmClient:       llmClient,
+		config:          config,
+		tokenEstimator:  utils.NewTokenEstimator(),
+		contentAnalyzer: utils.NewContentAnalyzer(),
+		summarizer:      utils.NewConversationSummarizer(llmClient),
 	}
 }
 
@@ -54,7 +61,7 @@ func (cc *ContextCompressor) NeedsCompression(messages []*session.Message, maxTo
 		return false
 	}
 
-	estimatedTokens := cc.estimateTokenUsage(messages)
+	estimatedTokens := cc.tokenEstimator.EstimateMessages(messages)
 	usageRatio := float64(estimatedTokens) / float64(maxTokens)
 
 	return usageRatio >= cc.config.Threshold
@@ -90,13 +97,15 @@ func (cc *ContextCompressor) Compress(ctx context.Context, sessionID string, mes
 	// Perform compression if we have messages to compress
 	if len(toCompress) > 0 {
 		if cc.config.EnableLLMCompress {
-			compressedSummary, memoryItems, err = cc.llmCompress(ctx, sessionID, toCompress)
+			compressedSummary, err = cc.summarizer.SummarizeMessages(ctx, toCompress)
+			if err != nil {
+				// Fallback to simple compression if LLM fails
+				compressedSummary, memoryItems = cc.simpleCompress(sessionID, toCompress)
+			} else {
+				memoryItems = cc.ExtractMemories(sessionID, toCompress)
+			}
 		} else {
 			compressedSummary, memoryItems = cc.simpleCompress(sessionID, toCompress)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("compression failed: %w", err)
 		}
 	}
 
@@ -112,8 +121,8 @@ func (cc *ContextCompressor) Compress(ctx context.Context, sessionID string, mes
 	}
 
 	// Calculate tokens saved
-	originalTokens := cc.estimateTokenUsage(messages)
-	compressedTokens := cc.estimateTokenUsage(result.PreservedItems) + len(compressedSummary)/3
+	originalTokens := cc.tokenEstimator.EstimateMessages(messages)
+	compressedTokens := cc.tokenEstimator.EstimateMessages(result.PreservedItems) + cc.tokenEstimator.EstimateText(compressedSummary)
 	result.TokensSaved = originalTokens - compressedTokens
 
 	return result, nil
@@ -133,49 +142,6 @@ func (cc *ContextCompressor) ExtractMemories(sessionID string, messages []*sessi
 
 // Private helper methods
 
-func (cc *ContextCompressor) llmCompress(ctx context.Context, sessionID string, messages []*session.Message) (string, []*MemoryItem, error) {
-	// Format messages for LLM
-	conversationText := cc.formatMessages(messages)
-
-	// Create compression prompt
-	prompt := cc.buildCompressionPrompt(conversationText, len(messages))
-
-	// Call LLM for compression
-	req := &llm.ChatRequest{
-		Messages: []llm.Message{
-			{
-				Role:    "system",
-				Content: "You are an expert conversation compressor. Create concise but comprehensive summaries that preserve all important information, decisions, code changes, and context needed for continuation.",
-			},
-			{
-				Role:    "user",
-				Content: prompt,
-			},
-		},
-		ModelType:   llm.ReasoningModel,
-		Temperature: 0.1,
-		MaxTokens:   1500,
-	}
-
-	response, err := cc.llmClient.Chat(ctx, req)
-	if err != nil {
-		return "", nil, fmt.Errorf("LLM compression failed: %w", err)
-	}
-
-	if len(response.Choices) == 0 {
-		return "", nil, fmt.Errorf("no compression response")
-	}
-
-	// Parse structured response
-	summary, memories, err := cc.parseCompressionResponse(sessionID, response.Choices[0].Message.Content)
-	if err != nil {
-		// Fallback to simple summary
-		summary = response.Choices[0].Message.Content
-		memories = cc.ExtractMemories(sessionID, messages)
-	}
-
-	return summary, memories, nil
-}
 
 func (cc *ContextCompressor) simpleCompress(sessionID string, messages []*session.Message) (string, []*MemoryItem) {
 	var parts []string
@@ -224,7 +190,7 @@ func (cc *ContextCompressor) extractMemoriesFromMessage(sessionID string, msg *s
 			SessionID:  sessionID,
 			Type:       ShortTermMemory,
 			Category:   CodeContext,
-			Content:    cc.extractCodeBlocks(msg.Content),
+			Content:    strings.Join(cc.contentAnalyzer.ExtractCodeBlocks(msg.Content), "\n---\n"),
 			Importance: 0.8,
 			CreatedAt:  msg.Timestamp,
 			Tags:       []string{"code", "development"},
@@ -252,13 +218,13 @@ func (cc *ContextCompressor) extractMemoriesFromMessage(sessionID string, msg *s
 	}
 
 	// Extract error patterns
-	if cc.containsError(msg.Content) {
+	if cc.contentAnalyzer.ContainsError(msg.Content) {
 		memory := &MemoryItem{
 			ID:         fmt.Sprintf("error_%s_%d", sessionID, time.Now().UnixNano()),
 			SessionID:  sessionID,
 			Type:       LongTermMemory,
 			Category:   ErrorPatterns,
-			Content:    cc.extractErrorInfo(msg.Content),
+			Content:    cc.contentAnalyzer.ExtractErrorInfo(msg.Content),
 			Importance: 0.9,
 			CreatedAt:  msg.Timestamp,
 			Tags:       []string{"error", "debugging"},
@@ -292,14 +258,6 @@ func (cc *ContextCompressor) filterAndRankMemories(memories []*MemoryItem) []*Me
 	}
 
 	return filtered
-}
-
-func (cc *ContextCompressor) estimateTokenUsage(messages []*session.Message) int {
-	totalChars := 0
-	for _, msg := range messages {
-		totalChars += len(msg.Content) + 50 // 50 chars overhead
-	}
-	return totalChars / 3 // Rough estimation: 3 chars per token
 }
 
 func (cc *ContextCompressor) separateMessages(messages []*session.Message) ([]*session.Message, []*session.Message) {
@@ -442,30 +400,6 @@ func (cc *ContextCompressor) parseCompressionResponse(sessionID string, content 
 	return response.Summary, memories, nil
 }
 
-func (cc *ContextCompressor) extractCodeBlocks(content string) string {
-	var blocks []string
-	lines := strings.Split(content, "\n")
-	var currentBlock []string
-	inBlock := false
-
-	for _, line := range lines {
-		if strings.HasPrefix(line, "```") {
-			if inBlock {
-				if len(currentBlock) > 0 {
-					blocks = append(blocks, strings.Join(currentBlock, "\n"))
-				}
-				currentBlock = nil
-				inBlock = false
-			} else {
-				inBlock = true
-			}
-		} else if inBlock {
-			currentBlock = append(currentBlock, line)
-		}
-	}
-
-	return strings.Join(blocks, "\n---\n")
-}
 
 func (cc *ContextCompressor) extractTopics(messages []*session.Message) []string {
 	wordCount := make(map[string]int)
@@ -529,28 +463,4 @@ func (cc *ContextCompressor) formatArgs(args map[string]interface{}) string {
 	return string(data)
 }
 
-func (cc *ContextCompressor) containsError(content string) bool {
-	errorKeywords := []string{"error", "exception", "failed", "panic", "fatal"}
-	lower := strings.ToLower(content)
 
-	for _, keyword := range errorKeywords {
-		if strings.Contains(lower, keyword) {
-			return true
-		}
-	}
-	return false
-}
-
-func (cc *ContextCompressor) extractErrorInfo(content string) string {
-	lines := strings.Split(content, "\n")
-	var errorLines []string
-
-	for _, line := range lines {
-		lower := strings.ToLower(line)
-		if strings.Contains(lower, "error") || strings.Contains(lower, "exception") || strings.Contains(lower, "failed") {
-			errorLines = append(errorLines, strings.TrimSpace(line))
-		}
-	}
-
-	return strings.Join(errorLines, "\n")
-}

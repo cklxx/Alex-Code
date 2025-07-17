@@ -3,6 +3,7 @@ package context
 import (
 	"alex/internal/llm"
 	"alex/internal/session"
+	"alex/internal/utils"
 )
 
 // ContextManager handles intelligent context management for long conversations
@@ -11,7 +12,9 @@ type ContextManager struct {
 	maxContextTokens int
 	summarizer       *MessageSummarizer
 	preservationMgr  *ContextPreservationManager
+	tokenEstimator   *utils.TokenEstimator
 }
+
 
 // ContextLengthConfig defines configuration for context length management
 type ContextLengthConfig struct {
@@ -37,6 +40,7 @@ func NewContextManager(llmClient llm.Client, config *ContextLengthConfig) *Conte
 		maxContextTokens: config.MaxTokens,
 		summarizer:       NewMessageSummarizer(llmClient, config),
 		preservationMgr:  NewContextPreservationManager(),
+		tokenEstimator:   utils.NewTokenEstimator(),
 	}
 }
 
@@ -72,22 +76,12 @@ func (cm *ContextManager) GetContextStats(sess *session.Session) *ContextStats {
 		UserMessages:      userMsgs,
 		AssistantMessages: assistantMsgs,
 		SummaryMessages:   summaryMsgs,
-		EstimatedTokens:   cm.estimateTokenUsage(messages),
+		EstimatedTokens:   cm.tokenEstimator.EstimateMessages(messages),
 		MaxTokens:         cm.maxContextTokens,
 	}
 }
 
 // Private helper methods
-
-func (cm *ContextManager) estimateTokenUsage(messages []*session.Message) int {
-	totalChars := 0
-	for _, msg := range messages {
-		totalChars += len(msg.Content)
-		totalChars += 50 // Estimated overhead per message (higher for more realistic estimation)
-	}
-	// More conservative estimation: 3 characters per token on average
-	return totalChars / 3
-}
 
 // Data structures
 

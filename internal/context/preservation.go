@@ -28,10 +28,10 @@ type ContextBackup struct {
 // NewContextPreservationManager creates a new context preservation manager
 func NewContextPreservationManager() *ContextPreservationManager {
 	homeDir, _ := os.UserHomeDir()
-	backupDir := filepath.Join(homeDir, ".deep-coding-context-backups")
+	backupDir := filepath.Join(homeDir, ".alex-context-backups")
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
 		// Fall back to temp directory if backup dir creation fails
-		backupDir = filepath.Join(os.TempDir(), "deep-coding-context-backups")
+		backupDir = filepath.Join(os.TempDir(), "alex-context-backups")
 		_ = os.MkdirAll(backupDir, 0755) // Ignore error as fallback
 	}
 
@@ -93,103 +93,6 @@ func (cpm *ContextPreservationManager) RestoreBackup(sess *session.Session, back
 	}
 
 	return nil
-}
-
-// ListBackups returns all available backups for a session
-func (cpm *ContextPreservationManager) ListBackups(sessionID string) ([]*ContextBackup, error) {
-	files, err := os.ReadDir(cpm.backupDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read backup directory: %w", err)
-	}
-
-	var backups []*ContextBackup
-	for _, file := range files {
-		if !file.IsDir() && filepath.Ext(file.Name()) == ".json" {
-			backup, err := cpm.loadBackup(file.Name()[:len(file.Name())-5])
-			if err != nil {
-				continue // Skip corrupted backups
-			}
-
-			if backup.SessionID == sessionID {
-				backups = append(backups, backup)
-			}
-		}
-	}
-
-	return backups, nil
-}
-
-// CleanupOldBackups removes backups older than the specified duration
-func (cpm *ContextPreservationManager) CleanupOldBackups(maxAge time.Duration) error {
-	files, err := os.ReadDir(cpm.backupDir)
-	if err != nil {
-		return fmt.Errorf("failed to read backup directory: %w", err)
-	}
-
-	cutoff := time.Now().Add(-maxAge)
-
-	for _, file := range files {
-		if !file.IsDir() && filepath.Ext(file.Name()) == ".json" {
-			info, err := file.Info()
-			if err != nil {
-				continue
-			}
-
-			if info.ModTime().Before(cutoff) {
-				filePath := filepath.Join(cpm.backupDir, file.Name())
-				if err := os.Remove(filePath); err != nil {
-					fmt.Printf("Warning: failed to remove old backup %s: %v\n", file.Name(), err)
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-// GetBackupStats returns statistics about stored backups
-func (cpm *ContextPreservationManager) GetBackupStats() (map[string]interface{}, error) {
-	files, err := os.ReadDir(cpm.backupDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read backup directory: %w", err)
-	}
-
-	totalBackups := 0
-	totalSize := int64(0)
-	oldestBackup := time.Now()
-	newestBackup := time.Time{}
-
-	for _, file := range files {
-		if !file.IsDir() && filepath.Ext(file.Name()) == ".json" {
-			info, err := file.Info()
-			if err != nil {
-				continue
-			}
-
-			totalBackups++
-			totalSize += info.Size()
-
-			if info.ModTime().Before(oldestBackup) {
-				oldestBackup = info.ModTime()
-			}
-			if info.ModTime().After(newestBackup) {
-				newestBackup = info.ModTime()
-			}
-		}
-	}
-
-	stats := map[string]interface{}{
-		"total_backups": totalBackups,
-		"total_size":    totalSize,
-		"backup_dir":    cpm.backupDir,
-	}
-
-	if totalBackups > 0 {
-		stats["oldest_backup"] = oldestBackup
-		stats["newest_backup"] = newestBackup
-	}
-
-	return stats, nil
 }
 
 // Private helper methods
