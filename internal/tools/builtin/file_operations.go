@@ -267,6 +267,9 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{
 	// Perform the replacement (only one occurrence)
 	newContent := strings.Replace(originalContent, oldString, newString, 1)
 
+	// Calculate diff statistics
+	diffStats := calculateDiffStats(originalContent, newContent)
+
 	// Write the modified content
 	err = os.WriteFile(resolvedPath, []byte(newContent), 0644)
 	if err != nil {
@@ -276,8 +279,18 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{
 	// Get file info after writing
 	fileInfo, _ := os.Stat(resolvedPath)
 
+	// Create enhanced output message
+	var contentBuilder strings.Builder
+	newLineCount := len(strings.Split(newContent, "\n"))
+	contentBuilder.WriteString(fmt.Sprintf("Updated %s with %d additions and %d deletions (%d lines total)\n", filePath, diffStats.Additions, diffStats.Deletions, newLineCount))
+	
+	if diffStats.DiffPreview != "" {
+		contentBuilder.WriteString("\nDiff preview:\n")
+		contentBuilder.WriteString(diffStats.DiffPreview)
+	}
+
 	return &ToolResult{
-		Content: fmt.Sprintf("Successfully edited file %s: replaced text (%d bytes)", filePath, len(newContent)),
+		Content: contentBuilder.String(),
 		Files:   []string{resolvedPath},
 		Data: map[string]interface{}{
 			"file_path":         filePath,
@@ -289,6 +302,9 @@ func (t *FileUpdateTool) Execute(ctx context.Context, args map[string]interface{
 			"lines_total":       len(strings.Split(newContent, "\n")),
 			"modified":          fileInfo.ModTime().Unix(),
 			"replacements_made": 1,
+			"additions":         diffStats.Additions,
+			"deletions":         diffStats.Deletions,
+			"diff_preview":      diffStats.DiffPreview,
 		},
 	}, nil
 }
@@ -352,13 +368,21 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 		return nil, fmt.Errorf("failed to create directories: %w", err)
 	}
 
-	// Check if file exists to determine operation type
+	// Check if file exists to determine operation type and get original content
 	var operation string
+	var originalContent string
 	if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
 		operation = "created"
+		originalContent = ""
 	} else {
 		operation = "overwritten"
+		if existingContent, err := os.ReadFile(resolvedPath); err == nil {
+			originalContent = string(existingContent)
+		}
 	}
+
+	// Calculate diff statistics
+	diffStats := calculateDiffStats(originalContent, content)
 
 	// Write the content to file (overwrites if exists)
 	err := os.WriteFile(resolvedPath, []byte(content), 0644)
@@ -369,8 +393,22 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 	// Get file info after writing
 	fileInfo, _ := os.Stat(resolvedPath)
 
+	// Create enhanced output message
+	var contentBuilder strings.Builder
+	newLineCount := len(strings.Split(content, "\n"))
+	if operation == "created" {
+		contentBuilder.WriteString(fmt.Sprintf("Created %s with %d lines", filePath, newLineCount))
+	} else {
+		contentBuilder.WriteString(fmt.Sprintf("Updated %s with %d additions and %d deletions (%d lines total)", filePath, diffStats.Additions, diffStats.Deletions, newLineCount))
+	}
+	
+	if diffStats.DiffPreview != "" && operation == "overwritten" {
+		contentBuilder.WriteString("\n\nDiff preview:\n")
+		contentBuilder.WriteString(diffStats.DiffPreview)
+	}
+
 	return &ToolResult{
-		Content: fmt.Sprintf("Successfully %s file %s (%d bytes)", operation, filePath, len(content)),
+		Content: contentBuilder.String(),
 		Files:   []string{resolvedPath},
 		Data: map[string]interface{}{
 			"file_path":     filePath,
@@ -379,6 +417,9 @@ func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface
 			"bytes_written": len(content),
 			"lines_total":   len(strings.Split(content, "\n")),
 			"modified":      fileInfo.ModTime().Unix(),
+			"additions":     diffStats.Additions,
+			"deletions":     diffStats.Deletions,
+			"diff_preview":  diffStats.DiffPreview,
 		},
 	}, nil
 }
@@ -778,4 +819,100 @@ func getFileIcon(ext string) string {
 	default:
 		return "📄"
 	}
+}
+
+// DiffStats represents the statistics of a diff operation
+type DiffStats struct {
+	Additions int
+	Deletions int
+	DiffPreview string
+}
+
+// calculateDiffStats calculates the additions and deletions between old and new content
+func calculateDiffStats(oldContent, newContent string) DiffStats {
+	oldLines := strings.Split(oldContent, "\n")
+	newLines := strings.Split(newContent, "\n")
+	
+	// Simple diff algorithm - count line additions and deletions
+	additions := 0
+	deletions := 0
+	
+	// Use a simple LCS approach to calculate diff
+	oldSet := make(map[string]bool)
+	newSet := make(map[string]bool)
+	
+	for _, line := range oldLines {
+		oldSet[line] = true
+	}
+	
+	for _, line := range newLines {
+		newSet[line] = true
+	}
+	
+	// Count additions (lines in new but not in old)
+	for _, line := range newLines {
+		if !oldSet[line] {
+			additions++
+		}
+	}
+	
+	// Count deletions (lines in old but not in new)
+	for _, line := range oldLines {
+		if !newSet[line] {
+			deletions++
+		}
+	}
+	
+	// Generate diff preview
+	diffPreview := generateDiffPreview(oldLines, newLines)
+	
+	return DiffStats{
+		Additions: additions,
+		Deletions: deletions,
+		DiffPreview: diffPreview,
+	}
+}
+
+// generateDiffPreview generates a git-style diff preview
+func generateDiffPreview(oldLines, newLines []string) string {
+	var diffBuilder strings.Builder
+	
+	// Find the actual changed section
+	oldSet := make(map[string]int)
+	newSet := make(map[string]int)
+	
+	for i, line := range oldLines {
+		oldSet[line] = i
+	}
+	
+	for i, line := range newLines {
+		newSet[line] = i
+	}
+	
+	// Simple diff display - show first few changes
+	changeCount := 0
+	maxChanges := 5
+	
+	// Show deletions
+	for _, line := range oldLines {
+		if _, exists := newSet[line]; !exists && changeCount < maxChanges {
+			diffBuilder.WriteString(fmt.Sprintf("-%s\n", line))
+			changeCount++
+		}
+	}
+	
+	// Show additions
+	for _, line := range newLines {
+		if _, exists := oldSet[line]; !exists && changeCount < maxChanges {
+			diffBuilder.WriteString(fmt.Sprintf("+%s\n", line))
+			changeCount++
+		}
+	}
+	
+	preview := diffBuilder.String()
+	if len(preview) > 500 {
+		preview = preview[:500] + "..."
+	}
+	
+	return preview
 }

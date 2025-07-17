@@ -12,6 +12,54 @@ import (
 	"alex/pkg/types"
 )
 
+// MCPConfig represents MCP configuration (imported from mcp package)
+type MCPConfig struct {
+	Enabled         bool                    `json:"enabled"`
+	Servers         map[string]*ServerConfig `json:"servers"`
+	GlobalTimeout   time.Duration           `json:"global_timeout"`
+	AutoRefresh     bool                    `json:"auto_refresh"`
+	RefreshInterval time.Duration           `json:"refresh_interval"`
+	Security        *SecurityConfig         `json:"security,omitempty"`
+	Logging         *LoggingConfig          `json:"logging,omitempty"`
+}
+
+// ServerConfig represents MCP server configuration
+type ServerConfig struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Type        string            `json:"type"`
+	Command     string            `json:"command"`
+	Args        []string          `json:"args"`
+	Env         map[string]string `json:"env"`
+	WorkDir     string            `json:"workDir"`
+	AutoStart   bool              `json:"autoStart"`
+	AutoRestart bool              `json:"autoRestart"`
+	Timeout     time.Duration     `json:"timeout"`
+	Enabled     bool              `json:"enabled"`
+}
+
+// SecurityConfig represents MCP security configuration
+type SecurityConfig struct {
+	AllowedCommands      []string          `json:"allowed_commands"`
+	BlockedCommands      []string          `json:"blocked_commands"`
+	AllowedPackages      []string          `json:"allowed_packages"`
+	BlockedPackages      []string          `json:"blocked_packages"`
+	RequireConfirmation  bool              `json:"require_confirmation"`
+	SandboxMode          bool              `json:"sandbox_mode"`
+	MaxProcesses         int               `json:"max_processes"`
+	MaxMemoryMB          int               `json:"max_memory_mb"`
+	AllowedEnvironment   map[string]string `json:"allowed_environment"`
+	RestrictedPaths      []string          `json:"restricted_paths"`
+}
+
+// LoggingConfig represents MCP logging configuration
+type LoggingConfig struct {
+	Level       string `json:"level"`
+	LogRequests bool   `json:"log_requests"`
+	LogResponses bool   `json:"log_responses"`
+	LogFile     string `json:"log_file,omitempty"`
+}
+
 // Config holds application configuration with multi-model support
 type Config struct {
 	// Legacy single model config (for backward compatibility)
@@ -32,6 +80,9 @@ type Config struct {
 
 	// Tool configuration
 	TavilyAPIKey string `json:"tavilyApiKey,omitempty"`
+
+	// MCP configuration
+	MCP *MCPConfig `json:"mcp,omitempty"`
 }
 
 // Manager handles configuration persistence and retrieval
@@ -90,6 +141,8 @@ func (m *Manager) Get(key string) (interface{}, error) {
 		return m.config.Models, nil
 	case "tavilyApiKey":
 		return m.config.TavilyAPIKey, nil
+	case "mcp":
+		return m.config.MCP, nil
 	default:
 		return nil, fmt.Errorf("unknown config key: %s", key)
 	}
@@ -181,6 +234,10 @@ func (m *Manager) Set(key string, value interface{}) error {
 	case "models":
 		if models, ok := value.(map[llm.ModelType]*llm.ModelConfig); ok {
 			m.config.Models = models
+		}
+	case "mcp":
+		if mcp, ok := value.(*MCPConfig); ok {
+			m.config.MCP = mcp
 		}
 	case "stream_response", "confidence_threshold", "allowed_tools", "max_concurrency", "tool_timeout", "restricted_paths", "session_timeout", "max_messages_per_session":
 		// Legacy fields - ignore for simplified config
@@ -352,6 +409,96 @@ func (m *Manager) SetModelConfig(modelType llm.ModelType, config *llm.ModelConfi
 	return m.save()
 }
 
+// GetMCPConfig returns the MCP configuration
+func (m *Manager) GetMCPConfig() *MCPConfig {
+	if m.config.MCP == nil {
+		m.config.MCP = getDefaultMCPConfig()
+	}
+	return m.config.MCP
+}
+
+// AddServerConfig adds a new MCP server configuration
+func (c *MCPConfig) AddServerConfig(serverConfig *ServerConfig) error {
+	if c.Servers == nil {
+		c.Servers = make(map[string]*ServerConfig)
+	}
+	c.Servers[serverConfig.ID] = serverConfig
+	return nil
+}
+
+// ListServerConfigs returns all MCP server configurations
+func (c *MCPConfig) ListServerConfigs() []*ServerConfig {
+	if c.Servers == nil {
+		return nil
+	}
+	
+	configs := make([]*ServerConfig, 0, len(c.Servers))
+	for _, config := range c.Servers {
+		configs = append(configs, config)
+	}
+	return configs
+}
+
+// ToMCPConfig converts config.MCPConfig to mcp.MCPConfig
+func (c *MCPConfig) ToMCPConfig() interface{} {
+	// This is a placeholder - we need to import mcp package to do the conversion
+	// For now, return self and handle conversion in the calling code
+	return c
+}
+
+// SetMCPConfig sets the MCP configuration
+func (m *Manager) SetMCPConfig(config *MCPConfig) error {
+	m.config.MCP = config
+	return m.save()
+}
+
+// UpdateMCPServerConfig updates or adds an MCP server configuration
+func (m *Manager) UpdateMCPServerConfig(serverConfig *ServerConfig) error {
+	if m.config.MCP == nil {
+		m.config.MCP = getDefaultMCPConfig()
+	}
+	
+	if m.config.MCP.Servers == nil {
+		m.config.MCP.Servers = make(map[string]*ServerConfig)
+	}
+	
+	m.config.MCP.Servers[serverConfig.ID] = serverConfig
+	return m.save()
+}
+
+// RemoveMCPServerConfig removes an MCP server configuration
+func (m *Manager) RemoveMCPServerConfig(serverID string) error {
+	if m.config.MCP == nil || m.config.MCP.Servers == nil {
+		return nil
+	}
+	
+	delete(m.config.MCP.Servers, serverID)
+	return m.save()
+}
+
+// GetMCPServerConfig returns a specific MCP server configuration
+func (m *Manager) GetMCPServerConfig(serverID string) (*ServerConfig, bool) {
+	if m.config.MCP == nil || m.config.MCP.Servers == nil {
+		return nil, false
+	}
+	
+	config, exists := m.config.MCP.Servers[serverID]
+	return config, exists
+}
+
+// ListMCPServerConfigs returns all MCP server configurations
+func (m *Manager) ListMCPServerConfigs() []*ServerConfig {
+	if m.config.MCP == nil || m.config.MCP.Servers == nil {
+		return nil
+	}
+	
+	configs := make([]*ServerConfig, 0, len(m.config.MCP.Servers))
+	for _, config := range m.config.MCP.Servers {
+		configs = append(configs, config)
+	}
+	return configs
+}
+
 // GetConfig returns the complete configuration
 func (m *Manager) GetConfig() *Config {
 	return m.config
@@ -441,6 +588,68 @@ func getDefaultConfig() *Config {
 				Temperature: 0.3,
 				MaxTokens:   4000, // 统一token限制
 			},
+		},
+
+		// MCP configuration
+		MCP: getDefaultMCPConfig(),
+	}
+}
+
+// getDefaultMCPConfig returns the default MCP configuration
+func getDefaultMCPConfig() *MCPConfig {
+	return &MCPConfig{
+		Enabled:         true,
+		Servers:         make(map[string]*ServerConfig),
+		GlobalTimeout:   30 * time.Second,
+		AutoRefresh:     true,
+		RefreshInterval: 5 * time.Minute,
+		Security: &SecurityConfig{
+			AllowedCommands: []string{
+				"npx",
+				"node",
+				"python",
+				"python3",
+			},
+			BlockedCommands: []string{
+				"rm",
+				"rmdir",
+				"del",
+				"format",
+				"sudo",
+				"su",
+			},
+			AllowedPackages: []string{
+				"@modelcontextprotocol/server-*",
+				"mcp-*",
+			},
+			RequireConfirmation: false,
+			SandboxMode:         true,
+			MaxProcesses:        10,
+			MaxMemoryMB:         512,
+			AllowedEnvironment: map[string]string{
+				"NODE_ENV": "production",
+				"PATH":     "",
+			},
+			RestrictedPaths: []string{
+				"/etc",
+				"/var",
+				"/usr",
+				"/bin",
+				"/sbin",
+				"/root",
+				"/home",
+				"/tmp",
+				"/System",
+				"/Library",
+				"/Applications",
+				"/Volumes",
+			},
+		},
+		Logging: &LoggingConfig{
+			Level:        "info",
+			LogRequests:  true,
+			LogResponses: false,
+			LogFile:      "",
 		},
 	}
 }
