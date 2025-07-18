@@ -374,7 +374,7 @@ func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args m
 
 	resultObj := &types.ReactToolResult{
 		Success:  true,
-		Content:  result.Content,
+		Content:  strings.TrimLeft(result.Content, " \t"),
 		Data:     result.Data,
 		Duration: duration,
 		ToolName: toolName,

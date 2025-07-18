@@ -65,17 +65,17 @@ func (t *TodoCreateTool) Validate(args map[string]interface{}) error {
 
 func (t *TodoCreateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	title := args["title"].(string)
-	
+
 	description := ""
 	if d, ok := args["description"]; ok {
 		description = d.(string)
 	}
-	
+
 	priority := "medium"
 	if p, ok := args["priority"]; ok {
 		priority = p.(string)
 	}
-	
+
 	var tags []string
 	if t, ok := args["tags"]; ok {
 		if tagArray, ok := t.([]interface{}); ok {
@@ -86,28 +86,28 @@ func (t *TodoCreateTool) Execute(ctx context.Context, args map[string]interface{
 			}
 		}
 	}
-	
+
 	// Get session directory from context
-	sessionDir := getSessionDirectoryFromContext(ctx)
+	sessionDir := getSessionDirectoryFromContext()
 	if sessionDir == "" {
 		return nil, fmt.Errorf("session directory not found in context")
 	}
-	
+
 	// Create todo entry
 	todoID := generateTodoID()
-	todoEntry := fmt.Sprintf("## %s\n\n**ID:** %s\n**Priority:** %s\n**Status:** pending\n**Created:** %d\n\n", 
+	todoEntry := fmt.Sprintf("## %s\n\n**ID:** %s\n**Priority:** %s\n**Status:** pending\n**Created:** %d\n\n",
 		title, todoID, priority, getCurrentTimestamp())
-	
+
 	if description != "" {
 		todoEntry += fmt.Sprintf("**Description:**\n%s\n\n", description)
 	}
-	
+
 	if len(tags) > 0 {
 		todoEntry += fmt.Sprintf("**Tags:** %s\n\n", strings.Join(tags, ", "))
 	}
-	
+
 	todoEntry += "---\n\n"
-	
+
 	// Append to todo file
 	todoFile := filepath.Join(sessionDir, "todos.md")
 	file, err := os.OpenFile(todoFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -115,12 +115,12 @@ func (t *TodoCreateTool) Execute(ctx context.Context, args map[string]interface{
 		return nil, fmt.Errorf("failed to open todo file: %w", err)
 	}
 	defer func() { _ = file.Close() }()
-	
+
 	_, err = file.WriteString(todoEntry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write todo entry: %w", err)
 	}
-	
+
 	return &ToolResult{
 		Content: fmt.Sprintf("Created todo item: %s (ID: %s)", title, todoID),
 		Data: map[string]interface{}{
@@ -136,7 +136,7 @@ func (t *TodoCreateTool) Execute(ctx context.Context, args map[string]interface{
 }
 
 // Helper functions
-func getSessionDirectoryFromContext(ctx context.Context) string {
+func getSessionDirectoryFromContext() string {
 	// This would typically get the session directory from context
 	// For now, returning a placeholder
 	return "/tmp/alex-session"

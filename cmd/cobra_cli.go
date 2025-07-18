@@ -317,7 +317,8 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 		}
 	case "thinking_result":
 		// Render thinking result as markdown if it contains markdown
-		content = DeepCodingResult(chunk.Content)
+		content = RenderMarkdown(chunk.Content)
+		content = "\n" + DeepCodingResult(content)
 		if !strings.HasSuffix(content, "\n") {
 			content += "\n"
 		}
@@ -351,12 +352,6 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 		content = DeepCodingToolExecution("⎿ ", chunk.Content)
 	case "tool_error":
 		content = DeepCodingError(chunk.Content) + "\n"
-	case "final_answer":
-		content = RenderMarkdown(chunk.Content)
-		content = "\n" + DeepCodingResult(content)
-		if !strings.HasSuffix(content, "\n") {
-			content += "\n"
-		}
 	case "iteration":
 		// Handle ReAct iteration chunks - these represent steps in the think-act-observe cycle
 		if cli.debug {

@@ -305,14 +305,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 		} else {
 			finalAnswer := choice.Message.Content
 
-			if isStreaming {
-				streamCallback(StreamChunk{
-					Type:            "final_answer",
-					Content:         finalAnswer,
-					TotalTokensUsed: taskCtx.TokensUsed,
-					Metadata:        map[string]any{"iteration": iteration}})
-			}
-
 			step.Action = "direct_answer"
 			step.Observation = finalAnswer
 			step.Duration = time.Since(step.Timestamp)
