@@ -188,7 +188,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			})
 		}
 
-		if len(choice.Message.Content) > 0 {
+		if len(choice.Message.Content) > 0 && len(choice.Message.ToolCalls) > 0 {
 			streamCallback(StreamChunk{
 				Type:     "thinking_result",
 				Content:  choice.Message.Content,
