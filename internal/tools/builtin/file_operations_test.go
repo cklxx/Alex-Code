@@ -450,8 +450,9 @@ func TestFileOperationsIntegration(t *testing.T) {
 			t.Fatalf("failed to read file: %v", err)
 		}
 
-		if readResult.Content != testContent {
-			t.Errorf("expected content %q, got %q", testContent, readResult.Content)
+		expectedContent := "    1→Hello, World!\n    2→This is a test file."
+		if readResult.Content != expectedContent {
+			t.Errorf("expected content %q, got %q", expectedContent, readResult.Content)
 		}
 	})
 

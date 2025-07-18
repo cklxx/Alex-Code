@@ -2,7 +2,6 @@ package builtin
 
 import (
 	"alex/internal/config"
-	"alex/internal/session"
 )
 
 // GetAllBuiltinTools returns a list of all builtin tools
@@ -12,8 +11,6 @@ func GetAllBuiltinTools() []Tool {
 
 // GetAllBuiltinToolsWithConfig returns a list of all builtin tools with configuration
 func GetAllBuiltinToolsWithConfig(configManager *config.Manager) []Tool {
-	// Create a session manager for session-aware tools
-	sessionManager, _ := session.NewManager()
 
 	// Create web search tool and configure it if config is available
 	webSearchTool := CreateWebSearchTool()
@@ -29,9 +26,10 @@ func GetAllBuiltinToolsWithConfig(configManager *config.Manager) []Tool {
 		// Thinking and reasoning tools
 		NewThinkTool(),
 
-		// Task management tools (session-aware)
-		NewSessionTodoUpdateTool(sessionManager),
-		NewSessionTodoReadTool(sessionManager),
+		// Task management tools 
+		CreateTodoCreateTool(),
+		CreateTodoUpdateTool(),
+		CreateTodoListTool(),
 
 		// File tools
 		CreateFileReadTool(),
@@ -42,6 +40,7 @@ func GetAllBuiltinToolsWithConfig(configManager *config.Manager) []Tool {
 		// Search tools
 		CreateGrepTool(),
 		CreateRipgrepTool(),
+		CreateFindTool(),
 
 		// Web search tools
 		webSearchTool,
@@ -59,15 +58,16 @@ func GetToolByName(name string) Tool {
 
 // GetToolByNameWithConfig creates a tool instance by name with configuration
 func GetToolByNameWithConfig(name string, configManager *config.Manager) Tool {
-	sessionManager, _ := session.NewManager()
 
 	switch name {
 	case "think":
 		return NewThinkTool()
+	case "todo_create":
+		return CreateTodoCreateTool()
 	case "todo_update":
-		return NewSessionTodoUpdateTool(sessionManager)
-	case "todo_read":
-		return NewSessionTodoReadTool(sessionManager)
+		return CreateTodoUpdateTool()
+	case "todo_list":
+		return CreateTodoListTool()
 	case "file_read":
 		return CreateFileReadTool()
 	case "file_update":
@@ -80,6 +80,8 @@ func GetToolByNameWithConfig(name string, configManager *config.Manager) Tool {
 		return CreateGrepTool()
 	case "ripgrep":
 		return CreateRipgrepTool()
+	case "find":
+		return CreateFindTool()
 	case "web_search":
 		webSearchTool := CreateWebSearchTool()
 		if configManager != nil {
@@ -106,7 +108,6 @@ func GetToolsByCategory() map[string][]Tool {
 
 // GetToolsByCategoryWithConfig returns tools grouped by category with configuration
 func GetToolsByCategoryWithConfig(configManager *config.Manager) map[string][]Tool {
-	sessionManager, _ := session.NewManager()
 
 	// Create web search tools and configure them if config is available
 	webSearchTool := CreateWebSearchTool()
@@ -124,8 +125,9 @@ func GetToolsByCategoryWithConfig(configManager *config.Manager) map[string][]To
 			NewThinkTool(),
 		},
 		"task_management": {
-			NewSessionTodoUpdateTool(sessionManager),
-			NewSessionTodoReadTool(sessionManager),
+			CreateTodoCreateTool(),
+			CreateTodoUpdateTool(),
+			CreateTodoListTool(),
 		},
 		"file": {
 			CreateFileReadTool(),
@@ -136,6 +138,7 @@ func GetToolsByCategoryWithConfig(configManager *config.Manager) map[string][]To
 		"search": {
 			CreateGrepTool(),
 			CreateRipgrepTool(),
+			CreateFindTool(),
 		},
 		"web": {
 			webSearchTool,

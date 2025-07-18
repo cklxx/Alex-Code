@@ -51,6 +51,22 @@ func (vf *ValidationFramework) AddStringField(fieldName, description string) *Va
 	})
 }
 
+// AddRequiredStringField adds a required string field that can be empty
+func (vf *ValidationFramework) AddRequiredStringField(fieldName, description string) *ValidationFramework {
+	return vf.AddRule(ValidationRule{
+		FieldName:   fieldName,
+		Type:        reflect.TypeOf(""),
+		Required:    true,
+		Description: description,
+		Validator: func(value interface{}) error {
+			if _, ok := value.(string); !ok {
+				return fmt.Errorf("%s must be a string", fieldName)
+			}
+			return nil
+		},
+	})
+}
+
 // AddOptionalStringField adds an optional string field validation
 func (vf *ValidationFramework) AddOptionalStringField(fieldName, description string) *ValidationFramework {
 	return vf.AddRule(ValidationRule{
@@ -148,6 +164,30 @@ func (vf *ValidationFramework) AddBoolField(fieldName, description string, requi
 			}
 			if _, ok := value.(bool); !ok {
 				return fmt.Errorf("%s must be a boolean", fieldName)
+			}
+			return nil
+		},
+	})
+}
+
+// AddOptionalBooleanField adds an optional boolean field validation
+func (vf *ValidationFramework) AddOptionalBooleanField(fieldName, description string) *ValidationFramework {
+	return vf.AddBoolField(fieldName, description, false)
+}
+
+// AddOptionalArrayField adds an optional array field validation
+func (vf *ValidationFramework) AddOptionalArrayField(fieldName, description string) *ValidationFramework {
+	return vf.AddRule(ValidationRule{
+		FieldName:   fieldName,
+		Type:        reflect.TypeOf([]interface{}{}),
+		Required:    false,
+		Description: description,
+		Validator: func(value interface{}) error {
+			if value == nil {
+				return nil // Optional field
+			}
+			if _, ok := value.([]interface{}); !ok {
+				return fmt.Errorf("%s must be an array", fieldName)
 			}
 			return nil
 		},

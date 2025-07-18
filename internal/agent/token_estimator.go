@@ -3,58 +3,90 @@ package agent
 import (
 	"alex/internal/llm"
 	"alex/internal/session"
+	"regexp"
+	"strings"
 )
 
 // TokenEstimator provides unified token estimation logic
 type TokenEstimator struct {
-	// Configuration for token estimation
-	charsPerToken int
-	overhead      int
+	// Patterns for improved token estimation
+	wordPattern *regexp.Regexp
+	codePattern *regexp.Regexp
 }
 
 // NewTokenEstimator creates a new token estimator
 func NewTokenEstimator() *TokenEstimator {
 	return &TokenEstimator{
-		charsPerToken: 3,   // Rough estimate: 3 characters = 1 token
-		overhead:      100, // Overhead for role, metadata, etc.
+		wordPattern: regexp.MustCompile(`\b\w+\b`),
+		codePattern: regexp.MustCompile("```[\\s\\S]*?```|`[^`]*`"),
 	}
 }
 
 // EstimateSessionMessages estimates tokens for session messages
 func (te *TokenEstimator) EstimateSessionMessages(messages []*session.Message) int {
-	totalChars := 0
+	totalTokens := 0
 
 	for _, msg := range messages {
-		totalChars += len(msg.Content) + te.overhead
+		contentTokens := te.estimateContentTokens(msg.Content)
+		totalTokens += contentTokens + 10 // Role and metadata overhead
 
 		// Add tokens for tool calls
 		for _, tc := range msg.ToolCalls {
-			totalChars += len(tc.Name) + len(tc.ID) + 50 // Tool call overhead
+			totalTokens += len(tc.Name)/3 + len(tc.ID)/3 + 15 // Tool call overhead
 		}
 	}
 
-	return totalChars / te.charsPerToken
+	return totalTokens
+}
+
+// estimateContentTokens provides more accurate token estimation for content
+func (te *TokenEstimator) estimateContentTokens(content string) int {
+	if content == "" {
+		return 0
+	}
+
+	// Handle code blocks separately
+	codeBlocks := te.codePattern.FindAllString(content, -1)
+	textWithoutCode := te.codePattern.ReplaceAllString(content, "")
+	
+	// Count tokens in regular text
+	words := te.wordPattern.FindAllString(textWithoutCode, -1)
+	regularTokens := len(words)
+	
+	// Add punctuation and spacing tokens (roughly 1 token per 4 characters)
+	nonWordChars := len(textWithoutCode) - len(strings.Join(words, ""))
+	regularTokens += nonWordChars / 4
+	
+	// Count tokens in code blocks (code is more token-dense)
+	codeTokens := 0
+	for _, codeBlock := range codeBlocks {
+		// Code blocks: approximately 2 characters per token
+		codeTokens += len(codeBlock) / 2
+	}
+	
+	return regularTokens + codeTokens
 }
 
 // EstimateLLMMessages estimates tokens for LLM messages
 func (te *TokenEstimator) EstimateLLMMessages(messages []llm.Message) int {
-	totalChars := 0
+	totalTokens := 0
 
 	for _, msg := range messages {
-		totalChars += len(msg.Content) + te.overhead
+		contentTokens := te.estimateContentTokens(msg.Content)
+		totalTokens += contentTokens + 10 // Role and metadata overhead
 
 		// Add tokens for tool calls
 		for _, tc := range msg.ToolCalls {
-			totalChars += len(tc.Function.Name) + len(tc.ID) + 50 // Tool call overhead
+			totalTokens += len(tc.Function.Name)/3 + len(tc.ID)/3 + 15 // Tool call overhead
 		}
 	}
 
-	return totalChars / te.charsPerToken
+	return totalTokens
 }
 
 // EstimateString estimates tokens for a string
 func (te *TokenEstimator) EstimateString(content string) int {
-	return (len(content) + te.overhead) / te.charsPerToken
+	return te.estimateContentTokens(content)
 }
 
 // EstimateMessages estimates tokens for mixed message types
