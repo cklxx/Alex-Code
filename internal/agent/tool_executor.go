@@ -12,6 +12,7 @@ import (
 	"alex/internal/llm"
 	"alex/internal/tools/builtin"
 	"alex/pkg/types"
+	"github.com/kaptinlin/jsonrepair"
 )
 
 // ToolExecutor - 工具执行器
@@ -35,11 +36,30 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 
 		var args map[string]interface{}
 		if tc.Function.Arguments != "" {
+			// 首先尝试直接解析JSON
 			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
 				log.Printf("[ERROR] Failed to parse tool arguments: %v", err)
 				log.Printf("[ERROR] Raw JSON content: %q", tc.Function.Arguments)
 				log.Printf("[ERROR] JSON length: %d", len(tc.Function.Arguments))
-				continue
+				
+				// 尝试使用jsonrepair库修复JSON
+				log.Printf("[INFO] Attempting to repair JSON using jsonrepair library")
+				fixedJSON, repairErr := jsonrepair.JSONRepair(tc.Function.Arguments)
+				if repairErr != nil {
+					log.Printf("[ERROR] JSON repair failed: %v", repairErr)
+					continue
+				}
+				
+				log.Printf("[INFO] JSON repaired successfully, new length: %d", len(fixedJSON))
+				log.Printf("[DEBUG] Repaired JSON: %q", fixedJSON)
+				
+				// 尝试解析修复后的JSON
+				if err := json.Unmarshal([]byte(fixedJSON), &args); err != nil {
+					log.Printf("[ERROR] Failed to parse even after JSON repair: %v", err)
+					continue
+				}
+				
+				log.Printf("[INFO] Successfully parsed repaired JSON")
 			}
 		}
 
