@@ -188,7 +188,7 @@ func main() {
 
 	// Stop MCP manager
 	fmt.Println("\nStopping MCP Manager...")
-	mcpManager.Stop()
+	_ = mcpManager.Stop()
 
 	fmt.Println("\nMCP Demo completed successfully!")
 }

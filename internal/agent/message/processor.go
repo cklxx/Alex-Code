@@ -151,14 +151,6 @@ func (mp *MessageProcessor) RestoreFullContext(sess *session.Session, backupID s
 }
 
 // Helper methods
-func (mp *MessageProcessor) calculateCompressionRatio(messages []*session.Message) float64 {
-	if len(messages) == 0 {
-		return 0.0
-	}
-	
-	// Simple ratio calculation
-	return 0.7 // Placeholder
-}
 
 func (mp *MessageProcessor) countSystemMessages(messages []*session.Message) int {
 	count := 0

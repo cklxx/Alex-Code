@@ -23,7 +23,7 @@ func NewMCPTool(client *Client, tool protocol.Tool) *MCPTool {
 	// Parse the input schema
 	var schema map[string]interface{}
 	if tool.InputSchema != nil {
-		json.Unmarshal(tool.InputSchema, &schema)
+		_ = json.Unmarshal(tool.InputSchema, &schema)
 	}
 
 	return &MCPTool{

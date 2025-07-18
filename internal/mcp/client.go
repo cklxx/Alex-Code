@@ -91,7 +91,7 @@ func (c *Client) Connect(ctx context.Context, config *ClientConfig) error {
 
 	// Initialize the session
 	if err := c.initialize(config); err != nil {
-		c.transport.Disconnect()
+		_ = c.transport.Disconnect()
 		return fmt.Errorf("failed to initialize session: %w", err)
 	}
 

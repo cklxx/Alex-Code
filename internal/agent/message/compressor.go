@@ -47,6 +47,105 @@ func (mc *MessageCompressor) CompressMessages(messages []*session.Message) []*se
 	return messages
 }
 
+// findToolAwareSplitPoint finds the split point that respects tool call pairs
+func (mc *MessageCompressor) findToolAwareSplitPoint(messages []*session.Message, recentKeep int) int {
+	if len(messages) <= recentKeep {
+		return 0
+	}
+
+	// 从后往前扫描，确保工具调用和响应成对保留
+	keptCount := 0
+	splitPoint := len(messages)
+
+	for i := len(messages) - 1; i >= 0 && keptCount < recentKeep; i-- {
+		msg := messages[i]
+
+		// 如果是工具响应消息，需要确保对应的工具调用也被保留
+		if msg.Role == "tool" {
+			if toolCallId, ok := msg.Metadata["tool_call_id"].(string); ok && toolCallId != "" {
+				// 向前查找对应的工具调用
+				foundToolCall := false
+				for j := i - 1; j >= 0; j-- {
+					if messages[j].Role == "assistant" && len(messages[j].ToolCalls) > 0 {
+						// 检查是否包含匹配的工具调用ID
+						for _, tc := range messages[j].ToolCalls {
+							if tc.ID == toolCallId {
+								foundToolCall = true
+								break
+							}
+						}
+						if foundToolCall {
+							break
+						}
+					}
+				}
+				
+				// 如果找到了对应的工具调用，并且它在切分点之前，需要调整切分点
+				if foundToolCall {
+					// 继续向前查找，确保包含完整的工具调用序列
+					for j := i - 1; j >= 0; j-- {
+						if messages[j].Role == "assistant" && len(messages[j].ToolCalls) > 0 {
+							// 检查这个助手消息是否包含当前工具响应的调用
+							hasMatchingCall := false
+							for _, tc := range messages[j].ToolCalls {
+								if tc.ID == toolCallId {
+									hasMatchingCall = true
+									break
+								}
+							}
+							if hasMatchingCall {
+								splitPoint = j
+								keptCount = len(messages) - j
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// 如果是助手消息且包含工具调用，需要确保所有对应的工具响应都被保留
+		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
+			allResponsesIncluded := true
+			maxResponseIndex := i
+
+			// 检查所有工具调用是否都有对应的响应在保留范围内
+			for _, tc := range msg.ToolCalls {
+				responseFound := false
+				for j := i + 1; j < len(messages); j++ {
+					if messages[j].Role == "tool" {
+						if callId, ok := messages[j].Metadata["tool_call_id"].(string); ok && callId == tc.ID {
+							responseFound = true
+							if j > maxResponseIndex {
+								maxResponseIndex = j
+							}
+							break
+						}
+					}
+				}
+				if !responseFound {
+					allResponsesIncluded = false
+					break
+				}
+			}
+
+			// 如果所有响应都在范围内，调整切分点以包含完整序列
+			if allResponsesIncluded {
+				splitPoint = i
+				keptCount = len(messages) - i
+			}
+		}
+
+		// 简单情况：如果还没有达到保留数量限制，继续向前
+		if keptCount < recentKeep {
+			splitPoint = i
+			keptCount++
+		}
+	}
+
+	return splitPoint
+}
+
 // aggressiveCompress applies aggressive compression
 func (mc *MessageCompressor) aggressiveCompress(messages []*session.Message, recentKeep int) []*session.Message {
 	if len(messages) <= recentKeep {
@@ -64,11 +163,8 @@ func (mc *MessageCompressor) aggressiveCompress(messages []*session.Message, rec
 		}
 	}
 	
-	// Keep recent messages
-	recentStart := len(messages) - recentKeep
-	if recentStart < 0 {
-		recentStart = 0
-	}
+	// Find tool-aware split point
+	recentStart := mc.findToolAwareSplitPoint(messages, recentKeep)
 	
 	// Messages to compress
 	for i := 0; i < recentStart; i++ {
@@ -117,11 +213,8 @@ func (mc *MessageCompressor) moderateCompress(messages []*session.Message, recen
 	// Select important messages to keep
 	importantMessages := mc.selectImportantMessages(messages, recentKeep/2)
 	
-	// Keep recent messages
-	recentStart := len(messages) - recentKeep
-	if recentStart < 0 {
-		recentStart = 0
-	}
+	// Find tool-aware split point
+	recentStart := mc.findToolAwareSplitPoint(messages, recentKeep)
 	
 	// Messages to compress (exclude important and recent)
 	importantSet := make(map[*session.Message]bool)
@@ -174,11 +267,8 @@ func (mc *MessageCompressor) lightCompress(messages []*session.Message, recentKe
 		}
 	}
 	
-	// Keep recent messages
-	recentStart := len(messages) - recentKeep
-	if recentStart < 0 {
-		recentStart = 0
-	}
+	// Find tool-aware split point
+	recentStart := mc.findToolAwareSplitPoint(messages, recentKeep)
 	
 	// Filter out low-value messages from older messages
 	for i := 0; i < recentStart; i++ {

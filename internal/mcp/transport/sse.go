@@ -149,7 +149,7 @@ func (t *SSETransport) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JSON
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// For notifications (no ID), return immediately
 	if req.ID == nil {
@@ -207,7 +207,7 @@ func (t *SSETransport) SendNotification(notification *protocol.JSONRPCNotificati
 	if err != nil {
 		return fmt.Errorf("failed to send notification: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -267,7 +267,7 @@ func (t *SSETransport) connectSSE() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to SSE endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected SSE status code: %d", resp.StatusCode)

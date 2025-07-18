@@ -124,8 +124,8 @@ func TestMCPConfigListServerConfigs(t *testing.T) {
 		Timeout: 30 * time.Second,
 	}
 
-	config.AddServerConfig(serverConfig1)
-	config.AddServerConfig(serverConfig2)
+	_ = config.AddServerConfig(serverConfig1)
+	_ = config.AddServerConfig(serverConfig2)
 
 	// Test ListServerConfigs
 	configs = config.ListServerConfigs()
@@ -196,7 +196,7 @@ func TestMCPConfigJSONSerialization(t *testing.T) {
 		Enabled: true,
 		Timeout: 30 * time.Second,
 	}
-	config.AddServerConfig(serverConfig)
+	_ = config.AddServerConfig(serverConfig)
 
 	// Test JSON serialization
 	jsonData, err := config.ToJSON()
@@ -246,7 +246,7 @@ func TestMCPConfigClone(t *testing.T) {
 		Enabled: true,
 		Timeout: 30 * time.Second,
 	}
-	config.AddServerConfig(serverConfig)
+	_ = config.AddServerConfig(serverConfig)
 
 	// Test cloning
 	clone := config.Clone()

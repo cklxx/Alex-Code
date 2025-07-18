@@ -126,12 +126,12 @@ func (t *StdioTransport) Disconnect() error {
 	}
 
 	if t.stdin != nil {
-		t.stdin.Close()
+		_ = t.stdin.Close()
 	}
 
 	if t.cmd != nil && t.cmd.Process != nil {
-		t.cmd.Process.Kill()
-		t.cmd.Wait()
+		_ = t.cmd.Process.Kill()
+		_ = t.cmd.Wait()
 	}
 
 	t.connected = false
@@ -235,7 +235,7 @@ func (t *StdioTransport) readStdout() {
 	defer func() {
 		t.mu.Lock()
 		if t.stdout != nil {
-			t.stdout.Close()
+			_ = t.stdout.Close()
 		}
 		t.mu.Unlock()
 	}()
@@ -273,7 +273,7 @@ func (t *StdioTransport) readStderr() {
 	defer func() {
 		t.mu.Lock()
 		if t.stderr != nil {
-			t.stderr.Close()
+			_ = t.stderr.Close()
 		}
 		t.mu.Unlock()
 	}()

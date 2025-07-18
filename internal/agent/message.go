@@ -135,9 +135,9 @@ func (mp *MessageProcessor) ConvertLLMToSession(llmMessages []llm.Message) []*se
 // compressMessages 智能压缩消息
 func (mp *MessageProcessor) compressMessages(sessionMessages []*session.Message) []*session.Message {
 	const (
-		MaxMessages = 80   // 降低消息数量阈值
-		MaxTokens   = 6000 // 降低token阈值，预留空间
-		RecentKeep  = 10   // 保留更多最近消息
+		MaxMessages = 80     // 降低消息数量阈值
+		MaxTokens   = 600000 // 降低token阈值，预留空间
+		RecentKeep  = 10     // 保留更多最近消息
 	)
 
 	// 检查是否需要压缩 - 更早触发
@@ -153,20 +153,6 @@ func (mp *MessageProcessor) compressMessages(sessionMessages []*session.Message)
 		return mp.aggressiveCompress(sessionMessages, RecentKeep)
 	}
 
-	// 中等压力：保留重要消息和最近消息
-	if len(sessionMessages) > 40 || estimatedTokens > 4000 {
-		log.Printf("[INFO] Medium pressure compression triggered: %d messages, estimated %d tokens",
-			len(sessionMessages), estimatedTokens)
-		return mp.moderateCompress(sessionMessages, RecentKeep)
-	}
-
-	// 低压力：只做轻微整理
-	if len(sessionMessages) > 25 || estimatedTokens > 3500 {
-		log.Printf("[INFO] Light compression triggered: %d messages, estimated %d tokens",
-			len(sessionMessages), estimatedTokens)
-		return mp.lightCompress(sessionMessages, RecentKeep)
-	}
-
 	return sessionMessages
 }
 
@@ -176,11 +162,11 @@ func (mp *MessageProcessor) aggressiveCompress(messages []*session.Message, rece
 		return messages
 	}
 
-	// 保留最近的消息
-	recentMessages := messages[len(messages)-recentKeep:]
+	// 保留最近的消息，考虑工具调用配对
+	recentMessages := mp.keepRecentMessagesWithToolPairing(messages, recentKeep)
 
 	// 对其余消息创建摘要
-	oldMessages := messages[:len(messages)-recentKeep]
+	oldMessages := messages[:len(messages)-len(recentMessages)]
 	summaryMsg := mp.createMessageSummary(oldMessages)
 
 	var result []*session.Message
@@ -193,114 +179,103 @@ func (mp *MessageProcessor) aggressiveCompress(messages []*session.Message, rece
 	return result
 }
 
-// moderateCompress 中等压缩：选择性保留重要消息
-func (mp *MessageProcessor) moderateCompress(messages []*session.Message, recentKeep int) []*session.Message {
-	if len(messages) <= recentKeep+5 {
+// keepRecentMessagesWithToolPairing 保留最近的消息，保持工具调用配对完整
+func (mp *MessageProcessor) keepRecentMessagesWithToolPairing(messages []*session.Message, recentKeep int) []*session.Message {
+	if len(messages) <= recentKeep {
 		return messages
 	}
 
-	// 保留最近的消息
-	recentMessages := messages[len(messages)-recentKeep:]
+	// 从后往前扫描，确保工具调用和响应成对保留
+	keptCount := 0
+	splitPoint := len(messages)
 
-	// 从旧消息中选择重要的消息
-	oldMessages := messages[:len(messages)-recentKeep]
-	importantMessages := mp.selectImportantMessages(oldMessages, 5)
+	for i := len(messages) - 1; i >= 0 && keptCount < recentKeep; i-- {
+		msg := messages[i]
 
-	var result []*session.Message
-	result = append(result, importantMessages...)
-	result = append(result, recentMessages...)
-
-	log.Printf("[INFO] Moderate compression: %d -> %d messages", len(messages), len(result))
-	return result
-}
-
-// lightCompress 轻度压缩：移除低价值消息
-func (mp *MessageProcessor) lightCompress(messages []*session.Message, recentKeep int) []*session.Message {
-	var result []*session.Message
-
-	for i, msg := range messages {
-		// 总是保留最近的消息
-		if i >= len(messages)-recentKeep {
-			result = append(result, msg)
-			continue
-		}
-
-		// 移除低价值消息
-		if mp.isLowValueMessage(msg) {
-			continue
-		}
-
-		result = append(result, msg)
-	}
-
-	log.Printf("[INFO] Light compression: %d -> %d messages", len(messages), len(result))
-	return result
-}
-
-// selectImportantMessages 选择重要消息
-func (mp *MessageProcessor) selectImportantMessages(messages []*session.Message, maxCount int) []*session.Message {
-	if len(messages) <= maxCount {
-		return messages
-	}
-
-	// 计算消息重要性分数
-	type msgWithScore struct {
-		msg   *session.Message
-		score float64
-	}
-
-	var scored []msgWithScore
-	for _, msg := range messages {
-		score := mp.calculateMessageImportance(msg)
-		scored = append(scored, msgWithScore{msg, score})
-	}
-
-	// 按分数排序
-	for i := 0; i < len(scored)-1; i++ {
-		for j := i + 1; j < len(scored); j++ {
-			if scored[i].score < scored[j].score {
-				scored[i], scored[j] = scored[j], scored[i]
+		// 如果是工具响应消息，需要确保对应的工具调用也被保留
+		if msg.Role == "tool" {
+			if toolCallId, ok := msg.Metadata["tool_call_id"].(string); ok && toolCallId != "" {
+				// 向前查找对应的工具调用
+				foundToolCall := false
+				for j := i - 1; j >= 0; j-- {
+					if messages[j].Role == "assistant" && len(messages[j].ToolCalls) > 0 {
+						// 检查是否包含匹配的工具调用ID
+						for _, tc := range messages[j].ToolCalls {
+							if tc.ID == toolCallId {
+								foundToolCall = true
+								break
+							}
+						}
+						if foundToolCall {
+							break
+						}
+					}
+				}
+				
+				// 如果找到了对应的工具调用，并且它在切分点之前，需要调整切分点
+				if foundToolCall {
+					// 继续向前查找，确保包含完整的工具调用序列
+					for j := i - 1; j >= 0; j-- {
+						if messages[j].Role == "assistant" && len(messages[j].ToolCalls) > 0 {
+							// 检查这个助手消息是否包含当前工具响应的调用
+							hasMatchingCall := false
+							for _, tc := range messages[j].ToolCalls {
+								if tc.ID == toolCallId {
+									hasMatchingCall = true
+									break
+								}
+							}
+							if hasMatchingCall {
+								splitPoint = j
+								keptCount = len(messages) - j
+								break
+							}
+						}
+					}
+				}
 			}
 		}
-	}
 
-	// 选择前maxCount个
-	var result []*session.Message
-	for i := 0; i < maxCount && i < len(scored); i++ {
-		result = append(result, scored[i].msg)
-	}
+		// 如果是助手消息且包含工具调用，需要确保所有对应的工具响应都被保留
+		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
+			allResponsesIncluded := true
+			maxResponseIndex := i
 
-	return result
-}
+			// 检查所有工具调用是否都有对应的响应在保留范围内
+			for _, tc := range msg.ToolCalls {
+				responseFound := false
+				for j := i + 1; j < len(messages); j++ {
+					if messages[j].Role == "tool" {
+						if callId, ok := messages[j].Metadata["tool_call_id"].(string); ok && callId == tc.ID {
+							responseFound = true
+							if j > maxResponseIndex {
+								maxResponseIndex = j
+							}
+							break
+						}
+					}
+				}
+				if !responseFound {
+					allResponsesIncluded = false
+					break
+				}
+			}
 
-// isLowValueMessage 判断是否为低价值消息
-func (mp *MessageProcessor) isLowValueMessage(msg *session.Message) bool {
-	content := strings.TrimSpace(msg.Content)
+			// 如果所有响应都在范围内，调整切分点以包含完整序列
+			if allResponsesIncluded {
+				splitPoint = i
+				keptCount = len(messages) - i
+			}
+		}
 
-	// 空消息不被认为是低价值消息（在别处处理）
-	if len(content) == 0 {
-		return false
-	}
-
-	// 短消息通常价值较低
-	if len(content) < 10 {
-		return true
-	}
-
-	// 纯确认消息
-	lowValuePhrases := []string{
-		"好的", "OK", "ok", "是的", "收到", "明白", "了解", "谢谢",
-		"好", "行", "没问题", "可以", "继续", "next", "yes", "no",
-	}
-
-	contentLower := strings.ToLower(content)
-	for _, phrase := range lowValuePhrases {
-		if contentLower == strings.ToLower(phrase) {
-			return true
+		// 简单情况：如果还没有达到保留数量限制，继续向前
+		if keptCount < recentKeep {
+			splitPoint = i
+			keptCount++
 		}
 	}
 
-	return false
+	return messages[splitPoint:]
 }
 
 // calculateMessageImportance 计算消息重要性

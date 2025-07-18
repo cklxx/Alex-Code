@@ -114,7 +114,7 @@ func (t *TodoCreateTool) Execute(ctx context.Context, args map[string]interface{
 	if err != nil {
 		return nil, fmt.Errorf("failed to open todo file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	
 	_, err = file.WriteString(todoEntry)
 	if err != nil {

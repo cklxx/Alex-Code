@@ -74,14 +74,14 @@ func (m *Manager) Stop() error {
 
 	// Stop all clients
 	for _, client := range m.clients {
-		client.Disconnect()
+		_ = client.Disconnect()
 	}
 
 	// Stop all servers
 	for id, transportInterface := range m.transports {
 		if serverConfig, exists := m.config.Servers[id]; exists {
 			if stdioTransport, ok := transportInterface.(*transport.StdioTransport); ok {
-				m.serverManager.StopServer(context.Background(), serverConfig, stdioTransport)
+				_ = m.serverManager.StopServer(context.Background(), serverConfig, stdioTransport)
 			}
 		}
 	}
@@ -146,7 +146,7 @@ func (m *Manager) startServer(serverConfig *ServerConfig) error {
 		Transport: transport,
 		Timeout:   serverConfig.Timeout,
 	}); err != nil {
-		transport.Disconnect()
+		_ = transport.Disconnect()
 		return fmt.Errorf("failed to connect client: %w", err)
 	}
 
@@ -173,7 +173,7 @@ func (m *Manager) StopServer(serverID string) error {
 	}
 
 	// Disconnect client
-	client.Disconnect()
+	_ = client.Disconnect()
 
 	// Stop server
 	if transportInterface, exists := m.transports[serverID]; exists {
@@ -192,7 +192,7 @@ func (m *Manager) StopServer(serverID string) error {
 				Enabled:     serverConfig.Enabled,
 			}
 			if stdioTransport, ok := transportInterface.(*transport.StdioTransport); ok {
-				m.serverManager.StopServer(context.Background(), mcpServerConfig, stdioTransport)
+				_ = m.serverManager.StopServer(context.Background(), mcpServerConfig, stdioTransport)
 			}
 		}
 	}
@@ -295,6 +295,7 @@ func (m *Manager) autoRefreshLoop() {
 			if err := m.refreshTools(); err != nil {
 				// Log error but continue
 				// TODO: Add proper logging
+				continue
 			}
 		}
 	}
@@ -362,7 +363,7 @@ func (m *Manager) UpdateConfig(newConfig *MCPConfig) error {
 	// Stop if disabling
 	if !newConfig.Enabled && m.config.Enabled {
 		for id := range m.clients {
-			m.StopServer(id)
+			_ = m.StopServer(id)
 		}
 	}
 
@@ -374,7 +375,7 @@ func (m *Manager) UpdateConfig(newConfig *MCPConfig) error {
 		for _, serverConfig := range enabledServers {
 			if serverConfig.AutoStart {
 				if _, exists := m.clients[serverConfig.ID]; !exists {
-					m.startServer(serverConfig)
+					_ = m.startServer(serverConfig)
 				}
 			}
 		}

@@ -21,13 +21,13 @@ func NewMessageConverter() *MessageConverter {
 // ConvertSessionToLLM converts session messages to LLM messages
 func (mc *MessageConverter) ConvertSessionToLLM(sessionMessages []*session.Message) []llm.Message {
 	var llmMessages []llm.Message
-	
+
 	for _, msg := range sessionMessages {
 		llmMsg := llm.Message{
 			Role:    msg.Role,
 			Content: msg.Content,
 		}
-		
+
 		// Convert tool calls if present
 		if len(msg.ToolCalls) > 0 {
 			for _, tc := range msg.ToolCalls {
@@ -37,7 +37,7 @@ func (mc *MessageConverter) ConvertSessionToLLM(sessionMessages []*session.Messa
 						args = string(argsBytes)
 					}
 				}
-				
+
 				llmMsg.ToolCalls = append(llmMsg.ToolCalls, llm.ToolCall{
 					ID: tc.ID,
 					Function: llm.Function{
@@ -47,17 +47,17 @@ func (mc *MessageConverter) ConvertSessionToLLM(sessionMessages []*session.Messa
 				})
 			}
 		}
-		
+
 		llmMessages = append(llmMessages, llmMsg)
 	}
-	
+
 	return llmMessages
 }
 
 // ConvertLLMToSession converts LLM messages to session messages
 func (mc *MessageConverter) ConvertLLMToSession(llmMessages []llm.Message) []*session.Message {
 	var sessionMessages []*session.Message
-	
+
 	for _, msg := range llmMessages {
 		sessionMsg := &session.Message{
 			Role:      msg.Role,
@@ -68,7 +68,7 @@ func (mc *MessageConverter) ConvertLLMToSession(llmMessages []llm.Message) []*se
 				"timestamp": time.Now().Unix(),
 			},
 		}
-		
+
 		// Convert tool calls if present
 		if len(msg.ToolCalls) > 0 {
 			for _, tc := range msg.ToolCalls {
@@ -81,7 +81,7 @@ func (mc *MessageConverter) ConvertLLMToSession(llmMessages []llm.Message) []*se
 						}
 					}
 				}
-				
+
 				sessionMsg.ToolCalls = append(sessionMsg.ToolCalls, session.ToolCall{
 					ID:   tc.ID,
 					Name: tc.Function.Name,
@@ -89,28 +89,28 @@ func (mc *MessageConverter) ConvertLLMToSession(llmMessages []llm.Message) []*se
 				})
 			}
 		}
-		
+
 		sessionMessages = append(sessionMessages, sessionMsg)
 	}
-	
+
 	return sessionMessages
 }
 
 // ConvertToDisplayFormat converts messages to a human-readable format
 func (mc *MessageConverter) ConvertToDisplayFormat(messages []*session.Message) string {
 	var parts []string
-	
+
 	for i, msg := range messages {
 		var part strings.Builder
-		
+
 		// Add message header
 		part.WriteString(fmt.Sprintf("Message %d [%s]:\n", i+1, msg.Role))
-		
+
 		// Add content
 		if msg.Content != "" {
 			part.WriteString(fmt.Sprintf("Content: %s\n", msg.Content))
 		}
-		
+
 		// Add tool calls if present
 		if len(msg.ToolCalls) > 0 {
 			part.WriteString("Tool Calls:\n")
@@ -123,18 +123,18 @@ func (mc *MessageConverter) ConvertToDisplayFormat(messages []*session.Message) 
 				}
 			}
 		}
-		
+
 		// Add metadata if present
-		if msg.Metadata != nil && len(msg.Metadata) > 0 {
+		if len(msg.Metadata) > 0 {
 			part.WriteString("Metadata:\n")
 			for key, value := range msg.Metadata {
 				part.WriteString(fmt.Sprintf("  %s: %v\n", key, value))
 			}
 		}
-		
+
 		parts = append(parts, part.String())
 	}
-	
+
 	return strings.Join(parts, "\n---\n")
 }
 
@@ -146,14 +146,14 @@ func (mc *MessageConverter) SanitizeMessage(msg *session.Message) *session.Messa
 		Timestamp: msg.Timestamp,
 		Metadata:  make(map[string]interface{}),
 	}
-	
+
 	// Copy safe metadata
 	for key, value := range msg.Metadata {
 		if mc.isSafeMetadataKey(key) {
 			sanitized.Metadata[key] = value
 		}
 	}
-	
+
 	// Copy and sanitize tool calls
 	for _, tc := range msg.ToolCalls {
 		sanitizedTC := session.ToolCall{
@@ -163,7 +163,7 @@ func (mc *MessageConverter) SanitizeMessage(msg *session.Message) *session.Messa
 		}
 		sanitized.ToolCalls = append(sanitized.ToolCalls, sanitizedTC)
 	}
-	
+
 	return sanitized
 }
 
@@ -171,14 +171,14 @@ func (mc *MessageConverter) SanitizeMessage(msg *session.Message) *session.Messa
 func (mc *MessageConverter) sanitizeContent(content string) string {
 	// Remove potential API keys, tokens, passwords
 	sanitized := content
-	
+
 	// Simple pattern matching for sensitive data
 	if strings.Contains(strings.ToLower(sanitized), "api") ||
 		strings.Contains(strings.ToLower(sanitized), "token") ||
 		strings.Contains(strings.ToLower(sanitized), "password") {
 		sanitized = "[REDACTED]"
 	}
-	
+
 	return sanitized
 }
 
@@ -187,7 +187,7 @@ func (mc *MessageConverter) sanitizeArgs(args map[string]interface{}) map[string
 	if args == nil {
 		return nil
 	}
-	
+
 	sanitized := make(map[string]interface{})
 	for key, value := range args {
 		if mc.isSensitiveKey(key) {
@@ -196,7 +196,7 @@ func (mc *MessageConverter) sanitizeArgs(args map[string]interface{}) map[string
 			sanitized[key] = value
 		}
 	}
-	
+
 	return sanitized
 }
 
@@ -206,14 +206,14 @@ func (mc *MessageConverter) isSafeMetadataKey(key string) bool {
 		"api_key", "token", "password", "secret",
 		"auth", "credential", "private_key",
 	}
-	
+
 	lowerKey := strings.ToLower(key)
 	for _, unsafe := range unsafeKeys {
 		if strings.Contains(lowerKey, unsafe) {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -223,13 +223,13 @@ func (mc *MessageConverter) isSensitiveKey(key string) bool {
 		"api_key", "token", "password", "secret",
 		"auth", "credential", "private_key", "key",
 	}
-	
+
 	lowerKey := strings.ToLower(key)
 	for _, sensitive := range sensitiveKeys {
 		if strings.Contains(lowerKey, sensitive) {
 			return true
 		}
 	}
-	
+
 	return false
 }
