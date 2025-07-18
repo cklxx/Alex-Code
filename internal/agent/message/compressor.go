@@ -10,19 +10,20 @@ import (
 
 	"alex/internal/llm"
 	"alex/internal/session"
+	"alex/internal/utils"
 )
 
 // MessageCompressor handles message compression operations
 type MessageCompressor struct {
 	llmClient      llm.Client
-	tokenEstimator *TokenEstimator
+	tokenEstimator *utils.TokenEstimator
 }
 
 // NewMessageCompressor creates a new message compressor
 func NewMessageCompressor(llmClient llm.Client) *MessageCompressor {
 	return &MessageCompressor{
 		llmClient:      llmClient,
-		tokenEstimator: NewTokenEstimator(),
+		tokenEstimator: utils.NewTokenEstimator(),
 	}
 }
 
@@ -528,7 +529,7 @@ func (mc *MessageCompressor) createStatisticalSummary(messages []*session.Messag
 func (mc *MessageCompressor) estimateTokens(messages []*session.Message) int {
 	total := 0
 	for _, msg := range messages {
-		total += mc.tokenEstimator.EstimateTokens(msg.Content)
+		total += mc.tokenEstimator.EstimateText(msg.Content)
 	}
 	return total
 }
