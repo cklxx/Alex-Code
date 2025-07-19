@@ -10,6 +10,7 @@ import (
 	"alex/internal/config"
 	contextmgr "alex/internal/context"
 	"alex/internal/llm"
+	"alex/internal/mcp"
 	"alex/internal/memory"
 	"alex/internal/prompts"
 	"alex/internal/session"
@@ -109,7 +110,11 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	// 初始化工具
 	tools := make(map[string]builtin.Tool)
 	builtinTools := builtin.GetAllBuiltinToolsWithConfig(configManager)
-	for _, tool := range builtinTools {
+	
+	// 集成MCP工具
+	allTools := integrateWithMCPTools(configManager, builtinTools)
+	
+	for _, tool := range allTools {
 		tools[tool.Name()] = tool
 	}
 
@@ -463,4 +468,90 @@ func (r *ReactAgent) GetMemoryStats() map[string]interface{} {
 	}
 	
 	return r.memoryManager.GetMemoryStats()
+}
+
+// integrateWithMCPTools - 集成MCP工具
+func integrateWithMCPTools(configManager *config.Manager, builtinTools []builtin.Tool) []builtin.Tool {
+	// 获取MCP配置
+	configMCP := configManager.GetMCPConfig()
+	if !configMCP.Enabled {
+		log.Printf("[INFO] MCP integration is disabled")
+		return builtinTools
+	}
+
+	// 转换配置格式
+	mcpConfig := convertConfigToMCP(configMCP)
+	
+	// 创建MCP管理器
+	mcpManager := mcp.NewManager(mcpConfig)
+	
+	// 启动MCP管理器
+	ctx := context.Background()
+	if err := mcpManager.Start(ctx); err != nil {
+		log.Printf("[WARN] Failed to start MCP manager: %v", err)
+		return builtinTools
+	}
+	
+	// 集成工具
+	allTools := mcpManager.IntegrateWithBuiltinTools(builtinTools)
+	log.Printf("[INFO] Integrated %d MCP tools with %d builtin tools", len(allTools)-len(builtinTools), len(builtinTools))
+	
+	return allTools
+}
+
+// convertConfigToMCP - 转换配置格式从config包到mcp包
+func convertConfigToMCP(configMCP *config.MCPConfig) *mcp.MCPConfig {
+	mcpConfig := &mcp.MCPConfig{
+		Enabled:         configMCP.Enabled,
+		Servers:         make(map[string]*mcp.ServerConfig),
+		GlobalTimeout:   configMCP.GlobalTimeout,
+		AutoRefresh:     configMCP.AutoRefresh,
+		RefreshInterval: configMCP.RefreshInterval,
+	}
+	
+	// 转换服务器配置
+	for id, configServer := range configMCP.Servers {
+		mcpServer := &mcp.ServerConfig{
+			ID:          configServer.ID,
+			Name:        configServer.Name,
+			Type:        mcp.SpawnerType(configServer.Type),
+			Command:     configServer.Command,
+			Args:        configServer.Args,
+			Env:         configServer.Env,
+			WorkDir:     configServer.WorkDir,
+			AutoStart:   configServer.AutoStart,
+			AutoRestart: configServer.AutoRestart,
+			Timeout:     configServer.Timeout,
+			Enabled:     configServer.Enabled,
+		}
+		mcpConfig.Servers[id] = mcpServer
+	}
+	
+	// 转换安全配置
+	if configMCP.Security != nil {
+		mcpConfig.Security = &mcp.SecurityConfig{
+			AllowedCommands:      configMCP.Security.AllowedCommands,
+			BlockedCommands:      configMCP.Security.BlockedCommands,
+			AllowedPackages:      configMCP.Security.AllowedPackages,
+			BlockedPackages:      configMCP.Security.BlockedPackages,
+			RequireConfirmation:  configMCP.Security.RequireConfirmation,
+			SandboxMode:          configMCP.Security.SandboxMode,
+			MaxProcesses:         configMCP.Security.MaxProcesses,
+			MaxMemoryMB:          configMCP.Security.MaxMemoryMB,
+			AllowedEnvironment:   configMCP.Security.AllowedEnvironment,
+			RestrictedPaths:      configMCP.Security.RestrictedPaths,
+		}
+	}
+	
+	// 转换日志配置
+	if configMCP.Logging != nil {
+		mcpConfig.Logging = &mcp.LoggingConfig{
+			Level:        configMCP.Logging.Level,
+			LogRequests:  configMCP.Logging.LogRequests,
+			LogResponses: configMCP.Logging.LogResponses,
+			LogFile:      configMCP.Logging.LogFile,
+		}
+	}
+	
+	return mcpConfig
 }

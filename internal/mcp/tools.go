@@ -155,12 +155,17 @@ func (r *MCPToolRegistry) RegisterClient(id string, client *Client) error {
 
 	// Register all tools from this client
 	tools := client.GetTools()
+	
 	for _, tool := range tools {
 		mcpTool := NewMCPTool(client, tool)
 		toolName := mcpTool.Name()
 		r.tools[toolName] = mcpTool
 	}
 
+	if len(tools) > 0 {
+		fmt.Printf("[INFO] MCP: Registered %d tools from server %s\n", len(tools), id)
+	}
+	
 	return nil
 }
 

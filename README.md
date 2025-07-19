@@ -5,9 +5,73 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Alex** is a high-performance, universally accessible AI software engineering assistant featuring advanced dual-architecture design with both legacy and modern ReAct (Reasoning and Acting) agent systems. Built in Go for maximum performance and designed for developers at all skill levels, Alex provides an intuitive natural language interface for code analysis, file operations, and development tasks through an intelligent agent architecture with advanced tool calling capabilities, comprehensive security, streaming responses, and **CodeAct integration** for interactive code learning and execution.
+**Alex** is a high-performance, universally accessible AI software engineering assistant built in Go with advanced ReAct (Reasoning and Acting) agent architecture. Featuring intelligent memory management, MCP (Model Context Protocol) integration, comprehensive tool ecosystem, and enterprise-grade performance optimizations, Alex provides developers with a powerful natural language interface for complex software engineering tasks including code analysis, debugging, refactoring, and automated problem-solving.
 
 🌐 **[Visit our website](https://cklxx.github.io/Alex-Code/)** | 📚 **[Documentation](docs/)** | 🚀 **[Quick Start](#quick-start)**
+
+## 🚀 Quick Download & Usage Guide
+
+### One-Minute Setup
+
+```bash
+# 1. Clone and build Alex (requires Go 1.21+)
+git clone https://github.com/cklxx/Alex-Code.git
+cd Alex-Code
+make build
+
+# 2. Get your free API key from OpenRouter
+# Visit: https://openrouter.ai/settings/keys
+
+# 3. Start using Alex immediately
+./alex                        # Interactive mode (will create config on first run)
+./alex "List all .go files"   # Single command mode
+```
+
+### First Time Configuration
+
+```bash
+# Alex will create ~/.alex-config.json on first run
+# Edit the file and replace "sk-or-xxx" with your actual OpenRouter API key
+
+# Or set via environment variable (no file editing needed)
+export OPENAI_API_KEY="your-openrouter-key-here"
+./alex "Hello Alex!"
+
+# Verify setup
+./alex config show
+```
+
+### Common Usage Patterns
+
+```bash
+# Code analysis and assistance
+./alex "Analyze this Go project structure"
+./alex "Help me optimize this function"
+./alex "Find potential bugs in the current directory"
+
+# File operations
+./alex "Create a new REST API endpoint"
+./alex "Refactor the authentication middleware"
+./alex "Add error handling to main.go"
+
+# Interactive development session
+./alex -i                     # Enter chat mode for extended conversations
+```
+
+### Quick Install (Recommended)
+
+**Linux/macOS:**
+```bash
+curl -sSfL https://raw.githubusercontent.com/cklxx/Alex-Code/main/scripts/install.sh | sh
+```
+
+**Windows:**
+```powershell
+iwr -useb https://raw.githubusercontent.com/cklxx/Alex-Code/main/scripts/install.ps1 | iex
+```
+
+### Pre-built Binaries
+Pre-compiled binaries for Linux, macOS, and Windows are available in the [Releases](https://github.com/cklxx/Alex-Code/releases) section.
 
 ## Quick Start
 
@@ -33,14 +97,16 @@ make build                    # Builds ./alex binary
 
 ## Core Features
 
-**🧠 Dual Agent Architecture**: Advanced ReAct (Reasoning and Acting) agent with fallback to legacy mode for maximum reliability  
-**🤖 CodeAct Integration**: Interactive code learning through direct execution and experimentation for enhanced problem solving  
-**🛠 Enhanced Tool Ecosystem**: 8+ built-in tools with intelligent recommendations, concurrent execution, and security validation  
-**🌐 Multi-Model LLM System**: Factory pattern supporting OpenAI, DeepSeek, OpenRouter with BasicModel and ReasoningModel types  
-**🔒 Security-First Design**: Enterprise-grade risk assessment, threat detection, command validation, and path protection  
-**⚡ High Performance**: Native Go implementation with concurrent tool execution and sub-30ms response times  
-**📝 Session-Aware Todo Management**: Persistent todo lists per session with context-aware task tracking  
-**🎯 Universal Access**: Natural language interface designed for developers at all skill levels
+**🧠 Advanced ReAct Architecture**: Production-ready agent with Think-Act-Observe cycles, streaming responses, and intelligent context management  
+**🧪 SWE-Bench Integration**: Complete evaluation framework compatible with SWE-Agent for standardized benchmarking  
+**🔌 MCP Protocol Support**: Full Model Context Protocol implementation with stdio/SSE transports and tool integration  
+**🧠 Intelligent Memory System**: Dual-layer memory with context compression, vector storage, and automatic summarization  
+**🛠 Rich Tool Ecosystem**: 12+ built-in tools including file ops, shell execution, search, web integration, and reasoning tools  
+**🌐 Multi-Model LLM System**: Advanced factory pattern supporting OpenAI, DeepSeek, OpenRouter with model-specific optimizations  
+**🔒 Enterprise Security**: Comprehensive risk assessment, path protection, command validation, and sandbox execution  
+**⚡ High Performance**: Native Go implementation with concurrent execution, memory optimization, and sub-30ms response times  
+**📊 Advanced Session Management**: Persistent conversations with context preservation, memory compression, and todo tracking  
+**🎯 Universal Accessibility**: Natural language interface optimized for developers at all experience levels
 
 ## Usage
 
@@ -70,40 +136,46 @@ make dev-safe                        # Safe development workflow
 make test-functionality              # Quick functionality test
 ```
 
-## Enhanced Tool System & CodeAct Integration
+## Advanced Tool System & Architecture
 
-**File Operations**: `file_read`, `file_update`, `file_replace`, `file_list`, `directory_create`  
-**Shell Execution**: `bash`, `script_runner`, `process_monitor` with security controls  
-**Search Tools**: `grep`, `ripgrep`, `find` with flexible pattern matching  
-**Session-Aware Todo Management**: `session_todo_read`, `session_todo_update` with persistent storage  
-**Web Integration**: `web_search` for information retrieval  
-**Reasoning Tools**: `think` for structured problem solving
+### Built-in Tool Suite
+**File Operations**: `file_read`, `file_update`, `file_replace`, `file_list` with intelligent path resolution  
+**Shell Execution**: `bash`, `code_executor` with security validation and sandbox controls  
+**Search & Analysis**: `grep`, `ripgrep`, `find` with advanced pattern matching and context awareness  
+**Task Management**: `todo_create`, `todo_update`, `todo_list` with session-aware persistence  
+**Web Integration**: `web_search` with Tavily API integration for real-time information retrieval  
+**Reasoning Tools**: `think` for structured problem-solving and decision making
 
-### 🤖 CodeAct Agent Integration
+### 🔌 MCP (Model Context Protocol) Integration
 
-Alex implements the **CodeAct** paradigm - an advanced approach where AI agents learn to solve coding tasks through **direct code execution** and **interactive experimentation**. This enables Alex to:
+Alex features full **MCP Protocol** support, enabling seamless integration with external tools and services:
 
-**🔬 Interactive Code Learning**
-- **Execute and Learn**: Runs code snippets to understand behavior and debug issues
-- **Iterative Refinement**: Tests solutions, observes results, and improves code through direct feedback
-- **Real-time Problem Solving**: Adapts solutions based on actual execution results rather than theoretical knowledge
+**🌐 Protocol Implementation**
+- **JSON-RPC 2.0**: Complete specification implementation with bidirectional communication
+- **Multiple Transports**: STDIO and Server-Sent Events (SSE) support for flexible deployment
+- **Tool Discovery**: Automatic tool registration and capability discovery from MCP servers
 
-**⚡ Enhanced Code Understanding**
-- **Dynamic Analysis**: Analyzes code behavior through execution rather than static analysis alone
-- **Context-Aware Debugging**: Uses execution results to understand complex codebases and dependencies
-- **Live Testing**: Validates solutions in real-time during development
+**🛠 Server Management**
+- **Dynamic Spawning**: Automatic MCP server lifecycle management with configuration-driven setup
+- **Health Monitoring**: Connection status tracking, automatic reconnection, and error recovery
+- **Resource Management**: Efficient resource allocation and cleanup for MCP server processes
 
-**🛠 Practical Implementation**
-- **Safety-First Execution**: Secure sandbox environment for code testing and experimentation
-- **Multi-Language Support**: CodeAct capabilities across Go, Python, JavaScript, and other languages
-- **Development Workflow Integration**: Seamlessly integrates with existing development tools and processes
+**🔧 Tool Integration**
+- **Unified Tool Registry**: Seamless integration of MCP tools with built-in tool ecosystem
+- **Security Validation**: Comprehensive parameter validation and security controls for external tools
+- **Performance Optimization**: Intelligent caching and connection pooling for MCP operations
 
-**Tool System Features:**
-- **Intelligent Recommendations**: Task-aware tool suggestions with confidence scoring
-- **Concurrent Execution**: Optimized parallel/sequential execution based on dependencies  
-- **Security Validation**: Comprehensive parameter and execution validation
-- **Performance Metrics**: Usage statistics, error tracking, execution metrics
-- **CodeAct Execution**: Safe code experimentation with learning-based improvements
+### 🧠 Advanced Memory & Context Management
+
+**Dual-Layer Memory System**:
+- **Short-term Memory**: In-memory conversation tracking with intelligent context window management
+- **Long-term Memory**: Vector-based storage with ChromeM and SQLite backends for persistent knowledge
+- **Context Compression**: Smart summarization and compression to maintain relevant context within token limits
+
+**Performance Features**:
+- **Concurrent Execution**: Intelligent parallel tool processing with dependency analysis
+- **Memory Optimization**: Automatic cleanup, compression, and efficient resource management
+- **Context Preservation**: Session-aware context management with backup and restoration capabilities
 
 ## Project Architecture
 
@@ -111,24 +183,30 @@ Alex implements the **CodeAct** paradigm - an advanced approach where AI agents 
 alex/
 ├── cmd/                    # CLI entry points and command handlers
 │   ├── main.go            # Primary application entry point
-│   └── config.go          # Advanced configuration management commands
+│   ├── cobra_cli.go       # Cobra-based CLI implementation
+│   ├── cobra_batch.go     # SWE-Bench batch processing
+│   └── modern_tui.go      # Advanced terminal UI components
 ├── internal/               # Private application code
-│   ├── agent/             # ReAct agent implementation with dual architecture
-│   ├── llm/               # Multi-model LLM integration layer
-│   ├── tools/             # Enhanced tool system with registry and execution
-│   │   ├── registry/      # Tool discovery and management
-│   │   ├── builtin/       # Core tool implementations
-│   │   └── execution/     # Tool execution engine
+│   ├── agent/             # ReAct agent with advanced memory management
+│   ├── llm/               # Multi-model LLM with session caching
+│   ├── tools/             # Enhanced tool system with MCP integration
+│   │   ├── builtin/       # 12+ core tool implementations
+│   │   └── code_executor.go # Safe code execution framework
+│   ├── memory/            # Dual-layer memory system
+│   ├── context/           # Context management and compression
+│   ├── mcp/               # Model Context Protocol implementation
+│   │   ├── protocol/      # JSON-RPC 2.0 protocol layer
+│   │   └── transport/     # STDIO and SSE transport mechanisms
 │   ├── prompts/           # Centralized prompt templates (markdown-based)
-│   ├── config/            # Multi-model configuration management
-│   ├── session/           # Persistent session management with todo system
-│   └── security/          # Security framework and threat detection
+│   ├── config/            # Advanced configuration management
+│   └── session/           # Persistent session management
+├── evaluation/            # SWE-Bench evaluation framework
+│   └── swe_bench/         # Complete SWE-Agent compatible implementation
 ├── pkg/                   # Library code for external use
-│   ├── interfaces/        # Public interfaces
-│   └── types/             # Public type definitions
-├── docs/                  # Comprehensive documentation
+│   └── types/             # Comprehensive type definitions
+├── docs/                  # Extensive documentation and guides
 ├── scripts/               # Development and automation scripts
-└── benchmarks/            # Performance testing and benchmarks
+└── examples/              # Usage examples and demonstrations
 ```
 
 ## Development
@@ -289,28 +367,33 @@ OPENAI_API_KEY="your-key" ./alex "Hello world"
 - **Lightweight Deployment**: Minimal resource usage, suitable for any development environment
 - **Extensible Design**: Clean interfaces for custom tool development and integration
 
-## Recent Updates (v1.0 - 2025)
+## Latest Updates (v1.0 - 2025)
 
-**🔄 Architecture Enhancements:**
-- **Unified Prompt System**: All prompts centralized in `internal/prompts` with markdown templates
-- **Session-Aware Todo Management**: Persistent todo lists per session with context injection
-- **Enhanced Tool System**: Intelligent recommendations, concurrent execution, performance metrics
-- **Simplified Context System**: Streamlined ProjectSummary replacing complex ProjectInfo/SystemEnv
+**🚀 Major Architecture Advances:**
+- **MCP Protocol Integration**: Full Model Context Protocol support with JSON-RPC 2.0, STDIO/SSE transports
+- **Advanced Memory System**: Dual-layer memory with vector storage, context compression, and intelligent summarization
+- **SWE-Bench Framework**: Complete evaluation system compatible with SWE-Agent for standardized benchmarking
+- **Enhanced Context Management**: Smart context window management with preservation, compression, and restoration
 
-**⚡ Performance Optimizations:**
-- **ReAct Agent Refinements**: Improved Think-Act-Observe cycle with streaming support
-- **Tool Calling Standardization**: OpenAI-compatible format throughout for better reliability
-- **Memory Management**: Enhanced session cleanup and resource optimization
+**⚡ Performance & Reliability:**
+- **Session Caching**: LLM response caching for improved performance and reduced API costs
+- **Concurrent Tool Execution**: Intelligent parallel processing with dependency analysis
+- **Memory Optimization**: Automatic cleanup, compression, and efficient resource management
+- **Enterprise Security**: Enhanced validation, sandbox execution, and comprehensive risk assessment
 
-**🔧 Developer Experience:**
-- **Enhanced Project Detection**: Better virtual environment detection for Python, Node.js, Rust
-- **Improved Build System**: Comprehensive Makefile with multiple workflow options
-- **Docker Development**: Complete containerized development environment
+**🛠 Developer Experience:**
+- **Modern Terminal UI**: Advanced TUI with real-time streaming and interactive components
+- **Comprehensive Tool Suite**: 12+ built-in tools with intelligent recommendations and validation
+- **Docker Development**: Complete containerized development environment with multi-stage builds
+- **Enhanced Build System**: Optimized Makefile with version injection and dependency management
 
 ## Documentation
 
 - **[CLAUDE.md](CLAUDE.md)**: Comprehensive project instructions and architecture overview
-- **[Software Engineering Roles Analysis](docs/software-engineering-roles-analysis.md)**: Analysis of roles and responsibilities across software engineering phases
+- **[Architecture Documentation](docs/architecture/)**: Detailed system design and component documentation
+- **[SWE-Bench Guide](evaluation/swe_bench/README.md)**: Complete guide to software engineering benchmarking
+- **[Memory System Guide](docs/memory-system-guide.md)**: Advanced memory management and context handling
+- **[MCP Integration Guide](docs/codeact/integration-guide.md)**: Model Context Protocol implementation details
 
 ## Contributing
 

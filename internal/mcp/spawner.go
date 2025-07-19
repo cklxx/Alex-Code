@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/mcp/protocol"
 	"alex/internal/mcp/transport"
 )
 
@@ -20,6 +21,7 @@ const (
 	SpawnerTypeNPX        SpawnerType = "npx"
 	SpawnerTypeExecutable SpawnerType = "executable"
 	SpawnerTypeDocker     SpawnerType = "docker"
+	SpawnerTypeHTTP       SpawnerType = "http"
 )
 
 // ServerConfig represents configuration for an MCP server
@@ -297,6 +299,157 @@ func (s *ExecutableSpawner) GetActiveServers() map[string]*transport.StdioTransp
 	return result
 }
 
+// SSETransportAdapter adapts SSE transport to StdioTransport interface
+type SSETransportAdapter struct {
+	sseTransport *transport.SSETransport
+	mu           sync.RWMutex
+	connected    bool
+}
+
+// Connect establishes the SSE connection
+func (a *SSETransportAdapter) Connect(ctx context.Context) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	
+	if err := a.sseTransport.Connect(ctx); err != nil {
+		return err
+	}
+	
+	a.connected = true
+	return nil
+}
+
+// Disconnect closes the SSE connection
+func (a *SSETransportAdapter) Disconnect() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	
+	if err := a.sseTransport.Disconnect(); err != nil {
+		return err
+	}
+	
+	a.connected = false
+	return nil
+}
+
+// IsConnected returns the connection status
+func (a *SSETransportAdapter) IsConnected() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.connected && a.sseTransport.IsConnected()
+}
+
+// SendRequest forwards to SSE transport
+func (a *SSETransportAdapter) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JSONRPCResponse, error) {
+	return a.sseTransport.SendRequest(req)
+}
+
+// SendNotification forwards to SSE transport
+func (a *SSETransportAdapter) SendNotification(notification *protocol.JSONRPCNotification) error {
+	return a.sseTransport.SendNotification(notification)
+}
+
+// ReceiveMessages forwards to SSE transport
+func (a *SSETransportAdapter) ReceiveMessages() <-chan []byte {
+	return a.sseTransport.ReceiveMessages()
+}
+
+// ReceiveErrors forwards to SSE transport
+func (a *SSETransportAdapter) ReceiveErrors() <-chan error {
+	return a.sseTransport.ReceiveErrors()
+}
+
+// NextRequestID forwards to SSE transport
+func (a *SSETransportAdapter) NextRequestID() int64 {
+	return a.sseTransport.NextRequestID()
+}
+
+// HTTPSpawner implements spawning MCP servers via HTTP/SSE transport
+type HTTPSpawner struct {
+	mu           sync.RWMutex
+	activeServers map[string]*transport.StdioTransport
+}
+
+// NewHTTPSpawner creates a new HTTP spawner
+func NewHTTPSpawner() *HTTPSpawner {
+	return &HTTPSpawner{
+		activeServers: make(map[string]*transport.StdioTransport),
+	}
+}
+
+// Spawn connects to an MCP server via HTTP/SSE
+func (s *HTTPSpawner) Spawn(ctx context.Context, config *ServerConfig) (*transport.StdioTransport, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Check if server is already connected
+	if existing, exists := s.activeServers[config.ID]; exists {
+		if existing.IsConnected() {
+			return existing, nil
+		}
+		// Clean up dead connection
+		delete(s.activeServers, config.ID)
+	}
+
+	// For HTTP transport, the Command field contains the URL
+	endpoint := config.Command
+	if endpoint == "" {
+		return nil, fmt.Errorf("HTTP spawner requires URL in command field")
+	}
+
+	// For HTTP transport, we create a special marker that the manager can recognize
+	// This is a temporary solution until we refactor the transport system
+	httpMarker := &transport.StdioTransport{}
+	
+	// Store the endpoint in a way the manager can access it later
+	// We'll modify the manager to handle HTTP servers specially
+	s.activeServers[config.ID] = httpMarker
+
+	fmt.Printf("[INFO] HTTP spawner: Created HTTP server marker for %s\n", endpoint)
+	
+	return httpMarker, nil
+}
+
+// Stop disconnects from an HTTP MCP server
+func (s *HTTPSpawner) Stop(ctx context.Context, transport *transport.StdioTransport) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if transport == nil {
+		return nil
+	}
+
+	// Find and remove from active servers
+	for id, t := range s.activeServers {
+		if t == transport {
+			delete(s.activeServers, id)
+			break
+		}
+	}
+
+	return transport.Disconnect()
+}
+
+// IsRunning checks if an HTTP transport is still connected
+func (s *HTTPSpawner) IsRunning(transport *transport.StdioTransport) bool {
+	if transport == nil {
+		return false
+	}
+	return transport.IsConnected()
+}
+
+// GetActiveServers returns a copy of active HTTP servers
+func (s *HTTPSpawner) GetActiveServers() map[string]*transport.StdioTransport {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make(map[string]*transport.StdioTransport)
+	for id, transport := range s.activeServers {
+		result[id] = transport
+	}
+	return result
+}
+
 // ServerManager manages multiple MCP server spawners
 type ServerManager struct {
 	spawners map[SpawnerType]Spawner
@@ -309,6 +462,7 @@ func NewServerManager() *ServerManager {
 		spawners: map[SpawnerType]Spawner{
 			SpawnerTypeNPX:        NewNPXSpawner(),
 			SpawnerTypeExecutable: NewExecutableSpawner(),
+			SpawnerTypeHTTP:       NewHTTPSpawner(),
 		},
 	}
 }
@@ -400,6 +554,10 @@ func ValidateServerConfig(config *ServerConfig) error {
 	case SpawnerTypeExecutable:
 		if config.Command == "" {
 			return fmt.Errorf("executable spawner requires command")
+		}
+	case SpawnerTypeHTTP:
+		if config.Command == "" {
+			return fmt.Errorf("HTTP spawner requires URL in command field")
 		}
 	default:
 		return fmt.Errorf("unsupported spawner type: %s", config.Type)

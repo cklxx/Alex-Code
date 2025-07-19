@@ -1,10 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
-**Alex - 高性能普惠的软件工程助手 v1.0** is a high-performance AI software engineering assistant built in Go, featuring ReAct (Reasoning and Acting) agent architecture with advanced tool calling capabilities, streaming responses, and comprehensive security.
+**Alex - 高性能普惠的软件工程助手 v1.0** is a production-ready AI software engineering assistant built in Go with ReAct agent architecture, MCP protocol integration, memory management, and SWE-Bench evaluation.
 
 ## Essential Development Commands
 
@@ -22,8 +20,9 @@ make vet                      # Run go vet
 
 ### Alex Usage
 ```bash
-# Interactive mode (ReAct agent)
-./alex -i
+# Interactive mode (auto-detects TTY)
+./alex                        # Auto-enters interactive mode
+./alex -i                     # Explicit interactive mode
 
 # Single prompt mode
 ./alex "Analyze the current directory structure"
@@ -31,60 +30,45 @@ make vet                      # Run go vet
 # Session management
 ./alex -r session_id -i       # Resume session
 ./alex session list           # List sessions
+./alex memory compress        # Compress session memory
+
+# SWE-Bench evaluation
+./alex run-batch --dataset.subset lite --workers 4 --output ./results
 
 # Configuration
 ./alex config show            # Show configuration
-./alex config set api_key sk-... # Set API key
 ```
 
 ## Architecture Overview
 
 ### Core Components
 
-1. **ReAct Agent** (`internal/agent/react_agent.go`)
-   - Think-Act-Observe cycle with streaming support
-   - Centralized prompt management via `internal/prompts`
-   - Session-based conversation management
-
-2. **Tool System** (`internal/tools/`)
-   - Built-in tools: file operations, shell execution, search, todos, web integration
-   - Dynamic tool registry with concurrent execution
-   - Security validation and sandboxing
-
-3. **LLM Integration** (`internal/llm/`)
-   - Multi-model support with factory pattern
-   - HTTP and streaming client implementations
-   - OpenAI-compatible tool calling format
-
-4. **Session Management** (`internal/session/`)
-   - File-based persistent storage (`~/.alex-sessions/`)
-   - Context preservation and message history
-   - Session-aware todo management
-
-5. **Configuration** (`internal/config/`)
-   - Multi-model configuration system
-   - Default: OpenRouter + DeepSeek Chat V3
-   - Environment variable overrides
+1. **ReAct Agent** (`internal/agent/`) - Think-Act-Observe cycle with streaming and memory
+2. **MCP Protocol** (`internal/mcp/`) - Model Context Protocol with JSON-RPC 2.0
+3. **Memory System** (`internal/memory/`, `internal/context/`) - Dual-layer with vector storage
+4. **Tool System** (`internal/tools/`) - 12+ built-in tools with MCP integration
+5. **LLM Integration** (`internal/llm/`) - Multi-model support with caching
+6. **Session Management** (`internal/session/`) - Persistent storage with compression
+7. **SWE-Bench** (`evaluation/swe_bench/`) - Evaluation system with parallel processing
+8. **Configuration** (`internal/config/`) - Multi-model config (default: OpenRouter + DeepSeek)
 
 ### Built-in Tools
-- **File Operations**: `file_read`, `file_update`, `file_replace`, `file_list`
-- **Shell Execution**: `bash`, `script_runner` with security controls
+- **File**: `file_read`, `file_update`, `file_replace`, `file_list`
+- **Shell**: `bash`, `code_executor` with sandbox controls
 - **Search**: `grep`, `ripgrep`, `find`
-- **Todo Management**: Session-aware task tracking
-- **Web Integration**: `web_search`
+- **Tasks**: `todo_create`, `todo_update`, `todo_list`
+- **Web**: `web_search` with Tavily API
+- **Reasoning**: `think`
+- **MCP**: Dynamic external tool integration
 
 ### Security Features
-- Risk assessment engine with dynamic scoring
-- Path protection for system directories
+- Risk assessment and path protection
 - Command safety detection
-- Configurable tool restrictions
+- Configurable restrictions
 
-## Performance Characteristics
-
-- **Target**: Sub-30ms execution times
-- **Concurrency**: Up to 10 parallel tool executions
-- **Memory**: <100MB baseline, <500MB peak
-- **Storage**: File-based sessions with automatic cleanup
+## Performance
+- Sub-30ms execution, 10 parallel tools, <100MB baseline memory
+- File-based sessions with automatic cleanup
 
 ## Code Principles
 
@@ -109,41 +93,23 @@ make vet                      # Run go vet
 4. **Error Handling**: Fail fast with clear error messages
 5. **No Over-Engineering**: Don't build for theoretical future needs
 
-## Current Status
-
-### Production Ready:
-- ✅ **ReAct Agent System**: Complete with streaming support
-- ✅ **Multi-Model LLM System**: Advanced factory pattern
-- ✅ **Tool System**: 8+ built-in tools with extensible registry
-- ✅ **Configuration Management**: Multi-model configuration
-- ✅ **Session Management**: File-based persistent storage
-- ✅ **CLI Interface**: Interactive and single-prompt modes
-
-### Performance:
-- Go-based implementation for maximum performance
-- 40-100x performance improvement over TypeScript predecessor
-- Concurrent tool execution with dependency management
-- Memory-efficient session management
-
-### Recent Changes (2025-07):
-- Session-aware todo system with context injection
-- Enhanced project detection for Python, Node.js, Rust
-- Simplified context system with ProjectSummary
-- Unified prompt system via `internal/prompts`
-- Continued code simplification
+## Status
+✅ Production ready with ReAct agent, MCP protocol, memory system, tools, SWE-Bench, caching, terminal UI, and security
 
 ## Testing
 
 ```bash
-# Test specific packages
-go test ./internal/agent/             # ReAct agent system
-go test ./internal/tools/builtin/     # Built-in tools
-go test ./internal/llm/               # LLM integration
-go test ./internal/session/           # Session management
+# Test packages
+go test ./internal/agent/ ./internal/tools/builtin/ ./internal/llm/ ./internal/memory/ ./internal/mcp/ ./internal/session/ ./evaluation/swe_bench/
 
-# Coverage testing
+# Quick tests
+make test-functionality
+make test-working
+
+# Coverage
 go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out
-```
 
-This represents a mature, production-ready AI coding assistant with enterprise-grade architecture while maintaining simplicity and performance focus.
+# SWE-Bench evaluation
+./alex run-batch --dataset.subset lite --instance-limit 5 --workers 2
+```

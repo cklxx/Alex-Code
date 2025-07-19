@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -50,9 +52,26 @@ func NewSSETransport(config *SSETransportConfig) *SSETransport {
 		config.MaxRetries = 3
 	}
 
-	client := &http.Client{
-		Timeout: config.Timeout,
+	// Create HTTP client with proxy-aware configuration
+	// Use a reasonable timeout for individual requests, but allow context to control overall lifetime
+	requestTimeout := 60 * time.Second // Increased for proxy environments
+	if config.Timeout > 0 && config.Timeout < requestTimeout {
+		requestTimeout = config.Timeout
 	}
+	
+	client := &http.Client{
+		Timeout: requestTimeout,
+		// Don't follow redirects automatically to better handle proxy issues
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 3 {
+				return fmt.Errorf("too many redirects")
+			}
+			return nil
+		},
+	}
+
+	// Check for proxy environment variables
+	checkProxyEnvironment()
 
 	return &SSETransport{
 		endpoint:    config.Endpoint,
@@ -61,6 +80,18 @@ func NewSSETransport(config *SSETransportConfig) *SSETransport {
 		errorsCh:    make(chan error, 10),
 		headers:     config.Headers,
 		pendingReqs: make(map[int64]chan *protocol.JSONRPCResponse),
+	}
+}
+
+// checkProxyEnvironment checks and logs proxy configuration
+func checkProxyEnvironment() {
+	proxies := []string{"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"}
+	
+	for _, proxy := range proxies {
+		if value := os.Getenv(proxy); value != "" {
+			fmt.Printf("[INFO] MCP: Using proxy %s\n", proxy)
+			break // Only log the first proxy found
+		}
 	}
 }
 
@@ -75,10 +106,23 @@ func (t *SSETransport) Connect(ctx context.Context) error {
 
 	t.ctx, t.cancel = context.WithCancel(ctx)
 
-	// Create SSE connection for server-to-client messages
+	// For context7, we need to generate a unique session ID
+	sessionID := fmt.Sprintf("alex-%d", time.Now().Unix())
+	
+	// Store session ID for later use
+	if t.headers == nil {
+		t.headers = make(map[string]string)
+	}
+	t.headers["MCP-Session-Id"] = sessionID
+
+	// Start persistent SSE connection
 	go t.startSSEConnection()
 
+	// Wait for connection to establish and receive server session ID
+	time.Sleep(1 * time.Second)
+
 	t.connected = true
+	fmt.Printf("[INFO] SSE: Context7 connection established\n")
 	return nil
 }
 
@@ -109,14 +153,39 @@ func (t *SSETransport) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JSON
 		return nil, fmt.Errorf("transport not connected")
 	}
 
+	// Check if context is still valid
+	if t.ctx.Err() != nil {
+		return nil, fmt.Errorf("transport context cancelled: %v", t.ctx.Err())
+	}
+
+	// If we have a session ID but connection seems dead, try to verify it's alive
+	if sessionID, exists := t.headers["MCP-Session-Id"]; exists && len(sessionID) > 0 {
+		// Connection should be alive if we have a session ID
+	}
+
 	// Serialize request
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
+	// For context7, use /messages endpoint for POST requests
+	postEndpoint := t.endpoint
+	if strings.Contains(t.endpoint, "/sse") {
+		postEndpoint = strings.Replace(t.endpoint, "/sse", "/messages", 1)
+	}
+	
+	// Add session ID as URL parameter if we have it
+	if sessionID, exists := t.headers["MCP-Session-Id"]; exists {
+		if strings.Contains(postEndpoint, "?") {
+			postEndpoint += "&sessionId=" + sessionID
+		} else {
+			postEndpoint += "?sessionId=" + sessionID
+		}
+	}
+	
 	// Create HTTP request
-	httpReq, err := http.NewRequestWithContext(t.ctx, "POST", t.endpoint, bytes.NewBuffer(data))
+	httpReq, err := http.NewRequestWithContext(t.ctx, "POST", postEndpoint, bytes.NewBuffer(data))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
@@ -151,6 +220,12 @@ func (t *SSETransport) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JSON
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Read response body for error handling
+	if resp.StatusCode >= 400 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
 	// For notifications (no ID), return immediately
 	if req.ID == nil {
 		if resp.StatusCode != http.StatusOK {
@@ -159,19 +234,24 @@ func (t *SSETransport) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JSON
 		return nil, nil
 	}
 
-	// For requests with ID, wait for response via SSE
-	if responseCh != nil {
-		select {
-		case response := <-responseCh:
-			return response, nil
-		case <-time.After(30 * time.Second):
-			return nil, fmt.Errorf("request timeout")
-		case <-t.ctx.Done():
-			return nil, fmt.Errorf("context cancelled")
+	// For context7, responses come via SSE, not HTTP response
+	// If we got a 202 Accepted, wait for the real response via SSE
+	if resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusOK {
+		if responseCh != nil {
+			// Increased timeout for proxy environments and slower MCP servers
+			timeout := 90 * time.Second
+			select {
+			case response := <-responseCh:
+				return response, nil
+			case <-time.After(timeout):
+				return nil, fmt.Errorf("MCP request timeout after %v", timeout)
+			case <-t.ctx.Done():
+				return nil, fmt.Errorf("context cancelled: %v", t.ctx.Err())
+			}
 		}
 	}
 
-	return nil, fmt.Errorf("no response channel for request")
+	return nil, fmt.Errorf("unexpected response handling")
 }
 
 // SendNotification sends a JSON-RPC notification
@@ -190,8 +270,23 @@ func (t *SSETransport) SendNotification(notification *protocol.JSONRPCNotificati
 		return fmt.Errorf("failed to marshal notification: %w", err)
 	}
 
+	// For context7, use /messages endpoint for POST requests
+	postEndpoint := t.endpoint
+	if strings.Contains(t.endpoint, "/sse") {
+		postEndpoint = strings.Replace(t.endpoint, "/sse", "/messages", 1)
+	}
+	
+	// Add session ID as URL parameter if we have it
+	if sessionID, exists := t.headers["MCP-Session-Id"]; exists {
+		if strings.Contains(postEndpoint, "?") {
+			postEndpoint += "&sessionId=" + sessionID
+		} else {
+			postEndpoint += "?sessionId=" + sessionID
+		}
+	}
+	
 	// Create HTTP request
-	httpReq, err := http.NewRequestWithContext(t.ctx, "POST", t.endpoint, bytes.NewBuffer(data))
+	httpReq, err := http.NewRequestWithContext(t.ctx, "POST", postEndpoint, bytes.NewBuffer(data))
 	if err != nil {
 		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
@@ -234,11 +329,12 @@ func (t *SSETransport) startSSEConnection() {
 			return
 		default:
 			if err := t.connectSSE(); err != nil {
+				// Only log first few errors to avoid spam
 				t.errorsCh <- fmt.Errorf("SSE connection failed: %w", err)
 				select {
 				case <-t.ctx.Done():
 					return
-				case <-time.After(1 * time.Second):
+				case <-time.After(2 * time.Second): // Increased retry delay for proxy stability
 					continue
 				}
 			}
@@ -248,17 +344,29 @@ func (t *SSETransport) startSSEConnection() {
 
 // connectSSE establishes the SSE connection
 func (t *SSETransport) connectSSE() error {
-	// Create SSE endpoint URL (typically /sse or /events)
-	sseEndpoint := strings.TrimSuffix(t.endpoint, "/messages") + "/sse"
+	// For context7, the SSE endpoint is the same as the main endpoint
+	sseEndpoint := t.endpoint
+	
+	// Add session ID as URL parameter if we have it
+	if sessionID, exists := t.headers["MCP-Session-Id"]; exists {
+		if strings.Contains(sseEndpoint, "?") {
+			sseEndpoint += "&sessionId=" + sessionID
+		} else {
+			sseEndpoint += "?sessionId=" + sessionID
+		}
+	}
 
 	req, err := http.NewRequestWithContext(t.ctx, "GET", sseEndpoint, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create SSE request: %w", err)
 	}
 
-	// Set SSE headers
+	// Set SSE headers optimized for proxy environments
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("User-Agent", "Alex-MCP-Client/1.0")
+	
 	for k, v := range t.headers {
 		req.Header.Set(k, v)
 	}
@@ -270,7 +378,8 @@ func (t *SSETransport) connectSSE() error {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected SSE status code: %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("SSE connection failed (status %d): %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	// Read SSE stream
@@ -311,6 +420,26 @@ func (t *SSETransport) connectSSE() error {
 
 // handleSSEMessage processes incoming SSE messages
 func (t *SSETransport) handleSSEMessage(data []byte) {
+	dataStr := string(data)
+	
+	// Check if this is a context7 endpoint message
+	if strings.HasPrefix(dataStr, "/messages?sessionId=") {
+		// Extract the server-provided session ID
+		parts := strings.Split(dataStr, "sessionId=")
+		if len(parts) == 2 {
+			serverSessionID := parts[1]
+			
+			// Update our session ID to match server's
+			t.mu.Lock()
+			if t.headers == nil {
+				t.headers = make(map[string]string)
+			}
+			t.headers["MCP-Session-Id"] = serverSessionID
+			t.mu.Unlock()
+		}
+		return
+	}
+	
 	// Try to parse as JSON-RPC response first
 	if protocol.IsResponse(data) {
 		var response protocol.JSONRPCResponse
@@ -344,13 +473,21 @@ func (t *SSETransport) handleResponse(response *protocol.JSONRPCResponse) {
 		return
 	}
 
-	id, ok := response.ID.(float64)
-	if !ok {
-		return
+	// Handle both float64 and int ID types
+	var id int64
+	switch v := response.ID.(type) {
+	case float64:
+		id = int64(v)
+	case int:
+		id = int64(v)
+	case int64:
+		id = v
+	default:
+		return // Unknown ID type
 	}
 
 	t.mu.Lock()
-	responseCh, exists := t.pendingReqs[int64(id)]
+	responseCh, exists := t.pendingReqs[id]
 	t.mu.Unlock()
 
 	if exists {

@@ -95,6 +95,7 @@ func (c *Client) Connect(ctx context.Context, config *ClientConfig) error {
 		return fmt.Errorf("failed to initialize session: %w", err)
 	}
 
+	// Set initialized flag after successful initialization
 	c.initialized = true
 	return nil
 }
@@ -150,9 +151,13 @@ func (c *Client) initialize(config *ClientConfig) error {
 	c.serverInfo = &initResp.ServerInfo
 	c.capabilities = &initResp.Capabilities
 
+	// Set initialized flag immediately after successful initialize response
+	c.initialized = true
+
 	// Load initial data
 	if err := c.loadInitialData(); err != nil {
-		return fmt.Errorf("failed to load initial data: %w", err)
+		// Don't fail completely if initial data loading fails
+		fmt.Printf("[WARN] MCP: Failed to load initial data from %s: %v\n", c.serverInfo.Name, err)
 	}
 
 	return nil

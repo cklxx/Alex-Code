@@ -3,6 +3,8 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,6 +13,14 @@ import (
 	"alex/internal/tools/builtin"
 )
 
+// ServerHealth represents health status of a server
+type ServerHealth struct {
+	LastChecked time.Time
+	IsHealthy   bool
+	ErrorCount  int
+	LastError   string
+}
+
 // Manager manages MCP clients and servers
 type Manager struct {
 	config        *MCPConfig
@@ -18,6 +28,7 @@ type Manager struct {
 	clients       map[string]*Client
 	transports    map[string]Transport
 	toolRegistry  *MCPToolRegistry
+	healthStatus  map[string]*ServerHealth
 	mu            sync.RWMutex
 	ctx           context.Context
 	cancel        context.CancelFunc
@@ -31,6 +42,7 @@ func NewManager(config *MCPConfig) *Manager {
 		clients:       make(map[string]*Client),
 		transports:    make(map[string]Transport),
 		toolRegistry:  NewMCPToolRegistry(),
+		healthStatus:  make(map[string]*ServerHealth),
 	}
 }
 
@@ -94,6 +106,11 @@ func (m *Manager) Stop() error {
 
 // startServer starts an MCP server
 func (m *Manager) startServer(serverConfig *ServerConfig) error {
+	// Perform health check for HTTP servers
+	if !m.checkServerHealth(serverConfig) {
+		fmt.Printf("[WARN] Skipping unhealthy server %s\n", serverConfig.ID)
+		return fmt.Errorf("server %s failed health check", serverConfig.ID)
+	}
 	// Convert config types
 	mcpServerConfig := &ServerConfig{
 		ID:          serverConfig.ID,
@@ -109,10 +126,34 @@ func (m *Manager) startServer(serverConfig *ServerConfig) error {
 		Enabled:     serverConfig.Enabled,
 	}
 
-	// Spawn server
-	transport, err := m.serverManager.SpawnServer(m.ctx, mcpServerConfig)
-	if err != nil {
-		return fmt.Errorf("failed to spawn server: %w", err)
+	// Handle HTTP servers specially - check BEFORE spawning
+	var clientTransport Transport
+	
+	if mcpServerConfig.Type == SpawnerTypeHTTP {
+		// Create SSE transport directly for HTTP servers
+		sseConfig := &transport.SSETransportConfig{
+			Endpoint: mcpServerConfig.Command,
+			Headers:  make(map[string]string),
+			Timeout:  mcpServerConfig.Timeout,
+		}
+		
+		// Add any custom headers from env
+		for k, v := range mcpServerConfig.Env {
+			if strings.HasPrefix(k, "HEADER_") {
+				headerName := strings.TrimPrefix(k, "HEADER_")
+				sseConfig.Headers[headerName] = v
+			}
+		}
+		
+		clientTransport = transport.NewSSETransport(sseConfig)
+		fmt.Printf("[INFO] Manager: Created SSE transport for %s\n", mcpServerConfig.Command)
+	} else {
+		// Use spawner for other server types
+		stdioTransport, err := m.serverManager.SpawnServer(m.ctx, mcpServerConfig)
+		if err != nil {
+			return fmt.Errorf("failed to spawn server: %w", err)
+		}
+		clientTransport = stdioTransport
 	}
 
 	// Create client
@@ -127,11 +168,12 @@ func (m *Manager) startServer(serverConfig *ServerConfig) error {
 			},
 			Sampling: &protocol.SamplingCapability{},
 		},
-		Transport: transport,
+		Transport: clientTransport,
 		Timeout:   serverConfig.Timeout,
 	})
 
-	// Connect client
+	// Connect client using manager's long-term context
+	// Don't use timeout context here as it would cancel all future operations
 	if err := client.Connect(m.ctx, &ClientConfig{
 		ClientInfo: protocol.ClientInfo{
 			Name:    "Alex",
@@ -143,16 +185,25 @@ func (m *Manager) startServer(serverConfig *ServerConfig) error {
 			},
 			Sampling: &protocol.SamplingCapability{},
 		},
-		Transport: transport,
+		Transport: clientTransport,
 		Timeout:   serverConfig.Timeout,
 	}); err != nil {
-		_ = transport.Disconnect()
+		_ = clientTransport.Disconnect()
+		fmt.Printf("[WARN] Connection timeout or failed for server %s: %v\n", serverConfig.ID, err)
+		
+		// Update health status
+		if health, exists := m.healthStatus[serverConfig.ID]; exists {
+			health.ErrorCount++
+			health.LastError = err.Error()
+			health.IsHealthy = false
+		}
+		
 		return fmt.Errorf("failed to connect client: %w", err)
 	}
 
 	// Store client and transport
 	m.clients[serverConfig.ID] = client
-	m.transports[serverConfig.ID] = transport
+	m.transports[serverConfig.ID] = clientTransport
 
 	// Register tools
 	if err := m.toolRegistry.RegisterClient(serverConfig.ID, client); err != nil {
@@ -396,4 +447,62 @@ func (m *Manager) IsEnabled() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.config.Enabled
+}
+
+// checkServerHealth performs a health check for HTTP servers
+func (m *Manager) checkServerHealth(serverConfig *ServerConfig) bool {
+	if serverConfig.Type != SpawnerTypeHTTP {
+		return true // Skip health check for non-HTTP servers
+	}
+
+	// Check cache first
+	if health, exists := m.healthStatus[serverConfig.ID]; exists {
+		if time.Since(health.LastChecked) < 5*time.Minute && health.ErrorCount < 3 {
+			return health.IsHealthy
+		}
+	}
+
+	// Perform health check
+	endpoint := serverConfig.Command
+	if !strings.HasPrefix(endpoint, "http") {
+		return false
+	}
+
+	// Try a simple HEAD request with short timeout
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Head(endpoint)
+	
+	isHealthy := false
+	errorMsg := ""
+	
+	if err != nil {
+		errorMsg = err.Error()
+	} else {
+		_ = resp.Body.Close()
+		// Accept any response (even 404) as "server is reachable"
+		isHealthy = resp.StatusCode < 500
+	}
+
+	// Update health status
+	health := m.healthStatus[serverConfig.ID]
+	if health == nil {
+		health = &ServerHealth{}
+		m.healthStatus[serverConfig.ID] = health
+	}
+
+	health.LastChecked = time.Now()
+	health.IsHealthy = isHealthy
+	health.LastError = errorMsg
+	
+	if !isHealthy {
+		health.ErrorCount++
+	} else {
+		health.ErrorCount = 0
+	}
+
+	if !isHealthy && health.ErrorCount <= 1 {
+		fmt.Printf("[WARN] MCP server %s health check failed: %s\n", serverConfig.ID, errorMsg)
+	}
+	
+	return isHealthy
 }

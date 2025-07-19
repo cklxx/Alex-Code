@@ -163,6 +163,7 @@ through streaming responses and advanced tool calling capabilities.
 	rootCmd.AddCommand(newSessionCommand(cli))
 	rootCmd.AddCommand(newMemoryCommand(cli))
 	rootCmd.AddCommand(createToolsCommands(cli))
+	rootCmd.AddCommand(newMCPCommand(cli))
 	rootCmd.AddCommand(newBatchCommand())
 	rootCmd.AddCommand(newVersionCommand())
 	rootCmd.AddCommand(newInitCommand(cli))
