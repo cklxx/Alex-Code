@@ -452,3 +452,15 @@ func NewLightPromptBuilder() *LightPromptBuilder {
 		promptLoader: promptLoader,
 	}
 }
+
+// GetMemoryStats - 获取内存统计信息
+func (r *ReactAgent) GetMemoryStats() map[string]interface{} {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	
+	if r.memoryManager == nil {
+		return nil
+	}
+	
+	return r.memoryManager.GetMemoryStats()
+}

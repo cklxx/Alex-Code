@@ -237,11 +237,19 @@ func (amm *ActiveMemoryManager) storeGeneratedMemories(generated *GeneratedMemor
 		return fmt.Errorf("memory manager not available")
 	}
 	
+	// Get project ID for the current context
+	projectID, err := amm.getProjectID()
+	if err != nil {
+		// Fall back to session-based storage if project ID is not available
+		return amm.storeGeneratedMemoriesLegacy(generated)
+	}
+	
 	for _, mem := range generated.Memories {
 		// 转换为memory.MemoryItem
 		memoryItem := &memory.MemoryItem{
-			ID:        fmt.Sprintf("%s_%s_%d", generated.SessionID, mem.Key, time.Now().UnixNano()),
-			SessionID: generated.SessionID,
+			ID:        fmt.Sprintf("%s_%s_%d", projectID, mem.Key, time.Now().UnixNano()),
+			ProjectID: projectID,
+			SessionID: generated.SessionID, // Keep for backwards compatibility
 			Type:      memory.LongTermMemory,
 			Category:  amm.mapCategory(mem.Category),
 			Content:   fmt.Sprintf("%s: %s", mem.Key, mem.Value),
@@ -271,8 +279,9 @@ func (amm *ActiveMemoryManager) storeGeneratedMemories(generated *GeneratedMemor
 	// 创建会话总结记忆
 	if generated.Summary != "" {
 		summaryItem := &memory.MemoryItem{
-			ID:        fmt.Sprintf("%s_summary_%d", generated.SessionID, generated.Timestamp.UnixNano()),
-			SessionID: generated.SessionID,
+			ID:        fmt.Sprintf("%s_summary_%d", projectID, generated.Timestamp.UnixNano()),
+			ProjectID: projectID,
+			SessionID: generated.SessionID, // Keep for backwards compatibility
 			Type:      memory.ShortTermMemory,
 			Category:  memory.TaskHistory,
 			Content:   generated.Summary,
@@ -492,5 +501,95 @@ func (mgt *MemoryGenerationTool) Validate(args map[string]interface{}) error {
 			return fmt.Errorf("reason must be a string")
 		}
 	}
+	return nil
+}
+
+// GetMemoryStats - 获取内存统计信息
+func (amm *ActiveMemoryManager) GetMemoryStats() map[string]interface{} {
+	if amm.memoryManager == nil {
+		return map[string]interface{}{
+			"short_term": map[string]interface{}{
+				"total_items": 0,
+				"total_size":  int64(0),
+			},
+			"long_term": map[string]interface{}{
+				"total_items": 0,
+				"total_size":  int64(0),
+			},
+			"total_items": 0,
+			"total_size":  int64(0),
+		}
+	}
+	
+	return amm.memoryManager.GetMemoryStats()
+}
+
+// getProjectID - 获取当前项目ID
+func (amm *ActiveMemoryManager) getProjectID() (string, error) {
+	// Import utils to get project ID
+	return "", fmt.Errorf("project ID not available") // TODO: implement project ID retrieval
+}
+
+// storeGeneratedMemoriesLegacy - 存储生成的记忆（向后兼容）
+func (amm *ActiveMemoryManager) storeGeneratedMemoriesLegacy(generated *GeneratedMemories) error {
+	for _, mem := range generated.Memories {
+		// 转换为memory.MemoryItem
+		memoryItem := &memory.MemoryItem{
+			ID:        fmt.Sprintf("%s_%s_%d", generated.SessionID, mem.Key, time.Now().UnixNano()),
+			SessionID: generated.SessionID,
+			Type:      memory.LongTermMemory,
+			Category:  amm.mapCategory(mem.Category),
+			Content:   fmt.Sprintf("%s: %s", mem.Key, mem.Value),
+			Metadata: map[string]interface{}{
+				"key":             mem.Key,
+				"value":           mem.Value,
+				"original_category": mem.Category,
+				"context":         mem.Context,
+				"generation_time": generated.Timestamp,
+				"auto_generated":  true,
+			},
+			Importance:  mem.Importance,
+			AccessCount: 0,
+			CreatedAt:   generated.Timestamp,
+			UpdatedAt:   generated.Timestamp,
+			LastAccess:  generated.Timestamp,
+			Tags:        mem.Tags,
+		}
+		
+		// 存储到memory系统
+		err := amm.Store(memoryItem)
+		if err != nil {
+			log.Printf("[WARN] Failed to store memory item %s: %v", mem.Key, err)
+		}
+	}
+	
+	// 创建会话总结记忆
+	if generated.Summary != "" {
+		summaryItem := &memory.MemoryItem{
+			ID:        fmt.Sprintf("%s_summary_%d", generated.SessionID, generated.Timestamp.UnixNano()),
+			SessionID: generated.SessionID,
+			Type:      memory.ShortTermMemory,
+			Category:  memory.TaskHistory,
+			Content:   generated.Summary,
+			Metadata: map[string]interface{}{
+				"type":            "conversation_summary",
+				"memory_count":    len(generated.Memories),
+				"generation_time": generated.Timestamp,
+				"auto_generated":  true,
+			},
+			Importance:  0.7,
+			AccessCount: 0,
+			CreatedAt:   generated.Timestamp,
+			UpdatedAt:   generated.Timestamp,
+			LastAccess:  generated.Timestamp,
+			Tags:        []string{"summary", "auto_generated"},
+		}
+		
+		err := amm.memoryManager.Store(summaryItem)
+		if err != nil {
+			log.Printf("[WARN] Failed to store summary memory: %v", err)
+		}
+	}
+	
 	return nil
 }

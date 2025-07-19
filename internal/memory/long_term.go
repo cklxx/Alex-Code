@@ -386,6 +386,16 @@ func (ltm *LongTermMemoryManager) removeFromIndexes(item *MemoryItem) {
 }
 
 func (ltm *LongTermMemoryManager) matchesQuery(item *MemoryItem, query *MemoryQuery) bool {
+	// Check project ID (most important filter)
+	if query.ProjectID != "" && item.ProjectID != query.ProjectID {
+		return false
+	}
+
+	// Check session ID (backwards compatibility)
+	if query.SessionID != "" && item.SessionID != query.SessionID {
+		return false
+	}
+
 	// Check types
 	if len(query.Types) > 0 {
 		found := false

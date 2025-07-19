@@ -31,6 +31,7 @@ var (
 	yellow = color.New(color.FgYellow).SprintFunc()
 	red    = color.New(color.FgRed).SprintFunc()
 	cyan   = color.New(color.FgCyan).SprintFunc()
+	purple = color.New(color.FgMagenta).SprintFunc()
 	gray   = color.New(color.FgHiBlack).SprintFunc()
 	bold   = color.New(color.Bold).SprintFunc()
 )
@@ -160,6 +161,7 @@ through streaming responses and advanced tool calling capabilities.
 	// Add subcommands
 	rootCmd.AddCommand(newConfigCommand(cli))
 	rootCmd.AddCommand(newSessionCommand(cli))
+	rootCmd.AddCommand(newMemoryCommand(cli))
 	rootCmd.AddCommand(createToolsCommands(cli))
 	rootCmd.AddCommand(newBatchCommand())
 	rootCmd.AddCommand(newVersionCommand())

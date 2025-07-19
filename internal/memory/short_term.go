@@ -7,10 +7,10 @@ import (
 	"time"
 )
 
-// ShortTermMemoryManager manages temporary, session-specific memories
+// ShortTermMemoryManager manages temporary, project-specific memories
 type ShortTermMemoryManager struct {
 	memories    map[string]*MemoryItem   // ID -> MemoryItem
-	sessionData map[string][]*MemoryItem // SessionID -> Items
+	projectData map[string][]*MemoryItem // ProjectID -> Items
 	maxItems    int
 	ttl         time.Duration
 	mutex       sync.RWMutex
@@ -20,7 +20,7 @@ type ShortTermMemoryManager struct {
 func NewShortTermMemoryManager(maxItems int, ttl time.Duration) *ShortTermMemoryManager {
 	return &ShortTermMemoryManager{
 		memories:    make(map[string]*MemoryItem),
-		sessionData: make(map[string][]*MemoryItem),
+		projectData: make(map[string][]*MemoryItem),
 		maxItems:    maxItems,
 		ttl:         ttl,
 	}
@@ -49,9 +49,9 @@ func (stm *ShortTermMemoryManager) Store(item *MemoryItem) error {
 	// Store in main map
 	stm.memories[item.ID] = item
 
-	// Add to session index
-	if item.SessionID != "" {
-		stm.sessionData[item.SessionID] = append(stm.sessionData[item.SessionID], item)
+	// Add to project index
+	if item.ProjectID != "" {
+		stm.projectData[item.ProjectID] = append(stm.projectData[item.ProjectID], item)
 	}
 
 	// Cleanup if needed
@@ -68,10 +68,17 @@ func (stm *ShortTermMemoryManager) Recall(query *MemoryQuery) *RecallResult {
 
 	var candidates []*MemoryItem
 
-	// Filter by session if specified
-	if query.SessionID != "" {
-		if items, exists := stm.sessionData[query.SessionID]; exists {
+	// Filter by project if specified
+	if query.ProjectID != "" {
+		if items, exists := stm.projectData[query.ProjectID]; exists {
 			candidates = items
+		}
+	} else if query.SessionID != "" {
+		// Backwards compatibility: filter by session
+		for _, item := range stm.memories {
+			if item.SessionID == query.SessionID {
+				candidates = append(candidates, item)
+			}
 		}
 	} else {
 		// Collect all items
@@ -145,12 +152,12 @@ func (stm *ShortTermMemoryManager) Delete(id string) error {
 	// Remove from main map
 	delete(stm.memories, id)
 
-	// Remove from session index
-	if item.SessionID != "" {
-		if items, exists := stm.sessionData[item.SessionID]; exists {
-			for i, sessionItem := range items {
-				if sessionItem.ID == id {
-					stm.sessionData[item.SessionID] = append(items[:i], items[i+1:]...)
+	// Remove from project index
+	if item.ProjectID != "" {
+		if items, exists := stm.projectData[item.ProjectID]; exists {
+			for i, projectItem := range items {
+				if projectItem.ID == id {
+					stm.projectData[item.ProjectID] = append(items[:i], items[i+1:]...)
 					break
 				}
 			}
@@ -160,12 +167,12 @@ func (stm *ShortTermMemoryManager) Delete(id string) error {
 	return nil
 }
 
-// GetSessionMemories retrieves all memories for a session
-func (stm *ShortTermMemoryManager) GetSessionMemories(sessionID string) []*MemoryItem {
+// GetProjectMemories retrieves all memories for a project
+func (stm *ShortTermMemoryManager) GetProjectMemories(projectID string) []*MemoryItem {
 	stm.mutex.RLock()
 	defer stm.mutex.RUnlock()
 
-	if items, exists := stm.sessionData[sessionID]; exists {
+	if items, exists := stm.projectData[projectID]; exists {
 		// Return copy to prevent external modification
 		result := make([]*MemoryItem, len(items))
 		copy(result, items)
@@ -175,16 +182,49 @@ func (stm *ShortTermMemoryManager) GetSessionMemories(sessionID string) []*Memor
 	return []*MemoryItem{}
 }
 
-// ClearSession removes all memories for a session
+// GetSessionMemories retrieves all memories for a session (backwards compatibility)
+func (stm *ShortTermMemoryManager) GetSessionMemories(sessionID string) []*MemoryItem {
+	stm.mutex.RLock()
+	defer stm.mutex.RUnlock()
+
+	var result []*MemoryItem
+	for _, item := range stm.memories {
+		if item.SessionID == sessionID {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+// ClearProject removes all memories for a project
+func (stm *ShortTermMemoryManager) ClearProject(projectID string) error {
+	stm.mutex.Lock()
+	defer stm.mutex.Unlock()
+
+	if items, exists := stm.projectData[projectID]; exists {
+		for _, item := range items {
+			delete(stm.memories, item.ID)
+		}
+		delete(stm.projectData, projectID)
+	}
+
+	return nil
+}
+
+// ClearSession removes all memories for a session (backwards compatibility)
 func (stm *ShortTermMemoryManager) ClearSession(sessionID string) error {
 	stm.mutex.Lock()
 	defer stm.mutex.Unlock()
 
-	if items, exists := stm.sessionData[sessionID]; exists {
-		for _, item := range items {
-			delete(stm.memories, item.ID)
+	var toDelete []string
+	for id, item := range stm.memories {
+		if item.SessionID == sessionID {
+			toDelete = append(toDelete, id)
 		}
-		delete(stm.sessionData, sessionID)
+	}
+
+	for _, id := range toDelete {
+		delete(stm.memories, id)
 	}
 
 	return nil

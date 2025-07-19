@@ -47,19 +47,33 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 				fixedJSON, repairErr := jsonrepair.JSONRepair(tc.Function.Arguments)
 				if repairErr != nil {
 					log.Printf("[ERROR] JSON repair failed: %v", repairErr)
-					continue
+					
+					// 如果jsonrepair失败，尝试简单的备用修复
+					log.Printf("[INFO] Attempting fallback repair method")
+					fallbackJSON := simpleFallbackRepair(tc.Function.Arguments)
+					if fallbackJSON != tc.Function.Arguments {
+						log.Printf("[INFO] Fallback repair applied, new length: %d", len(fallbackJSON))
+						if err := json.Unmarshal([]byte(fallbackJSON), &args); err != nil {
+							log.Printf("[ERROR] Fallback repair also failed: %v", err)
+							continue
+						}
+						log.Printf("[INFO] Successfully parsed fallback repaired JSON")
+					} else {
+						log.Printf("[ERROR] No repair method succeeded, skipping tool call")
+						continue
+					}
+				} else {
+					log.Printf("[INFO] JSON repaired successfully, new length: %d", len(fixedJSON))
+					log.Printf("[DEBUG] Repaired JSON: %q", fixedJSON)
+					
+					// 尝试解析修复后的JSON
+					if err := json.Unmarshal([]byte(fixedJSON), &args); err != nil {
+						log.Printf("[ERROR] Failed to parse even after JSON repair: %v", err)
+						continue
+					}
+					
+					log.Printf("[INFO] Successfully parsed repaired JSON")
 				}
-				
-				log.Printf("[INFO] JSON repaired successfully, new length: %d", len(fixedJSON))
-				log.Printf("[DEBUG] Repaired JSON: %q", fixedJSON)
-				
-				// 尝试解析修复后的JSON
-				if err := json.Unmarshal([]byte(fixedJSON), &args); err != nil {
-					log.Printf("[ERROR] Failed to parse even after JSON repair: %v", err)
-					continue
-				}
-				
-				log.Printf("[INFO] Successfully parsed repaired JSON")
 			}
 		}
 
@@ -436,4 +450,47 @@ func (te *ToolExecutor) injectWorkingDirContext(ctx context.Context) context.Con
 	}
 
 	return ctx
+}
+
+// simpleFallbackRepair - 简单的备用JSON修复方法
+// 当jsonrepair库失败时使用这个更保守的方法
+func simpleFallbackRepair(jsonStr string) string {
+	jsonStr = strings.TrimSpace(jsonStr)
+	
+	// 如果不是以{开始，无法修复
+	if !strings.HasPrefix(jsonStr, "{") {
+		return jsonStr
+	}
+	
+	// 基本的补全：确保有结束大括号
+	if !strings.HasSuffix(jsonStr, "}") {
+		// 如果在字符串中间截断，尝试找到最后一个完整的键值对
+		lastCommaIndex := strings.LastIndex(jsonStr, ",")
+		lastColonIndex := strings.LastIndex(jsonStr, ":")
+		
+		// 如果最后一个字符是逗号，说明可能是在键值对之间截断
+		if strings.HasSuffix(jsonStr, ",") {
+			jsonStr = jsonStr[:len(jsonStr)-1] // 移除最后的逗号
+		} else if lastCommaIndex > lastColonIndex {
+			// 如果最后一个逗号在最后一个冒号之后，说明可能是值没有完成
+			// 截断到最后一个逗号
+			jsonStr = jsonStr[:lastCommaIndex]
+		} else if lastColonIndex > 0 {
+			// 如果正在键值对中间，尝试找到键的开始
+			beforeColon := jsonStr[:lastColonIndex]
+			// 寻找键的开始引号
+			for i := len(beforeColon) - 1; i >= 0; i-- {
+				if beforeColon[i] == '"' {
+					// 找到了键的开始，截断到这里
+					jsonStr = jsonStr[:i]
+					break
+				}
+			}
+		}
+		
+		// 添加结束大括号
+		jsonStr += "}"
+	}
+	
+	return jsonStr
 }

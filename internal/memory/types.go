@@ -27,7 +27,8 @@ const (
 // MemoryItem represents a single memory entry
 type MemoryItem struct {
 	ID          string                 `json:"id"`
-	SessionID   string                 `json:"session_id"`
+	ProjectID   string                 `json:"project_id"`
+	SessionID   string                 `json:"session_id,omitempty"` // Keep for backwards compatibility
 	Type        MemoryType             `json:"type"`
 	Category    MemoryCategory         `json:"category"`
 	Content     string                 `json:"content"`
@@ -43,7 +44,8 @@ type MemoryItem struct {
 
 // MemoryQuery represents a query for memory retrieval
 type MemoryQuery struct {
-	SessionID     string           `json:"session_id,omitempty"`
+	ProjectID     string           `json:"project_id,omitempty"`
+	SessionID     string           `json:"session_id,omitempty"` // Keep for backwards compatibility
 	Types         []MemoryType     `json:"types,omitempty"`
 	Categories    []MemoryCategory `json:"categories,omitempty"`
 	Tags          []string         `json:"tags,omitempty"`

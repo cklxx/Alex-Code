@@ -167,8 +167,15 @@ func (mm *MemoryManager) ProcessContextCompression(ctx context.Context, sess *se
 
 // CreateMemoryFromMessage intelligently creates memory items from a message
 func (mm *MemoryManager) CreateMemoryFromMessage(ctx context.Context, sessionID string, msg *session.Message, sessionMessageCount int) ([]*MemoryItem, error) {
+	// Get project ID for the current context
+	projectID, err := mm.getProjectID()
+	if err != nil {
+		// Fall back to session-based approach
+		return mm.createMemoryFromMessageLegacy(ctx, sessionID, msg, sessionMessageCount)
+	}
+
 	// Get recent memory count for rate limiting
-	recentMemoryCount := mm.getRecentMemoryCount(sessionID, time.Hour)
+	recentMemoryCount := mm.getRecentMemoryCountForProject(projectID, time.Hour)
 
 	// Check if we should create memory from this message
 	if !mm.controller.ShouldCreateMemory(msg, sessionMessageCount, recentMemoryCount) {
@@ -188,8 +195,9 @@ func (mm *MemoryManager) CreateMemoryFromMessage(ctx context.Context, sessionID 
 
 	// Main content memory
 	mainMemory := &MemoryItem{
-		ID:         fmt.Sprintf("%s_%s_%d", category, sessionID, time.Now().UnixNano()),
-		SessionID:  sessionID,
+		ID:         fmt.Sprintf("%s_%s_%d", category, projectID, time.Now().UnixNano()),
+		ProjectID:  projectID,
+		SessionID:  sessionID, // Keep for backwards compatibility
 		Category:   category,
 		Content:    mm.extractRelevantContent(msg),
 		Importance: importance,
@@ -207,7 +215,7 @@ func (mm *MemoryManager) CreateMemoryFromMessage(ctx context.Context, sessionID 
 	memories = append(memories, mainMemory)
 
 	// Create additional specialized memories
-	additionalMemories := mm.createSpecializedMemories(sessionID, msg, category)
+	additionalMemories := mm.createSpecializedMemories(projectID, sessionID, msg, category)
 	memories = append(memories, additionalMemories...)
 
 	// Store all memories
@@ -237,10 +245,23 @@ func (mm *MemoryManager) AutomaticMemoryMaintenance(sessionID string) error {
 
 // MergeMemoriesToMessages retrieves relevant memories and formats them for inclusion in messages
 func (mm *MemoryManager) MergeMemoriesToMessages(ctx context.Context, sessionID string, recentMessages []*session.Message, maxMemories int) ([]*session.Message, error) {
-	// Analyze recent messages to determine what memories to recall
-	query := mm.buildMemoryQuery(sessionID, recentMessages, maxMemories)
+	// Get project ID for the current context
+	projectID, err := mm.getProjectID()
+	if err != nil {
+		// Fall back to session-based approach if project ID is not available
+		query := mm.buildMemoryQueryLegacy(sessionID, recentMessages, maxMemories)
+		recallResult := mm.Recall(query)
+		
+		if len(recallResult.Items) == 0 {
+			return recentMessages, nil
+		}
+		
+		contextMsg := mm.formatMemoriesAsMessage(recallResult.Items)
+		return mm.mergeContextMessage(recentMessages, contextMsg), nil
+	}
 
-	// Recall relevant memories
+	// Use project-based approach
+	query := mm.buildMemoryQuery(projectID, recentMessages, maxMemories)
 	recallResult := mm.Recall(query)
 
 	if len(recallResult.Items) == 0 {
@@ -250,25 +271,7 @@ func (mm *MemoryManager) MergeMemoriesToMessages(ctx context.Context, sessionID 
 	// Format memories as context message
 	contextMsg := mm.formatMemoriesAsMessage(recallResult.Items)
 
-	// Merge with recent messages
-	var mergedMessages []*session.Message
-
-	// Add context message at the beginning (after system messages)
-	systemMsgCount := 0
-	for _, msg := range recentMessages {
-		if msg.Role == "system" {
-			systemMsgCount++
-		} else {
-			break
-		}
-	}
-
-	// Insert context after system messages
-	mergedMessages = append(mergedMessages, recentMessages[:systemMsgCount]...)
-	mergedMessages = append(mergedMessages, contextMsg)
-	mergedMessages = append(mergedMessages, recentMessages[systemMsgCount:]...)
-
-	return mergedMessages, nil
+	return mm.mergeContextMessage(recentMessages, contextMsg), nil
 }
 
 // GetMemoryStats returns comprehensive memory statistics
@@ -324,7 +327,45 @@ func (mm *MemoryManager) PromoteToLongTerm(sessionID string, minImportance float
 
 // Private helper methods
 
-func (mm *MemoryManager) buildMemoryQuery(sessionID string, recentMessages []*session.Message, maxMemories int) *MemoryQuery {
+func (mm *MemoryManager) getProjectID() (string, error) {
+	return utils.GenerateProjectID()
+}
+
+func (mm *MemoryManager) buildMemoryQuery(projectID string, recentMessages []*session.Message, maxMemories int) *MemoryQuery {
+	// Extract keywords and topics from recent messages
+	var content []string
+	var tags []string
+
+	for _, msg := range recentMessages {
+		content = append(content, msg.Content)
+
+		// Extract potential tags from tool calls
+		for _, toolCall := range msg.ToolCalls {
+			tags = append(tags, toolCall.Name)
+		}
+	}
+
+	// Combine content for search
+	searchContent := strings.Join(content, " ")
+
+	// Build query focusing on relevant categories
+	return &MemoryQuery{
+		ProjectID: projectID,
+		Categories: []MemoryCategory{
+			CodeContext,
+			TaskHistory,
+			Knowledge,
+			Solutions,
+		},
+		Tags:          tags,
+		Content:       mm.extractKeywords(searchContent),
+		MinImportance: 0.5,
+		Limit:         maxMemories,
+		SortBy:        "importance",
+	}
+}
+
+func (mm *MemoryManager) buildMemoryQueryLegacy(sessionID string, recentMessages []*session.Message, maxMemories int) *MemoryQuery {
 	// Extract keywords and topics from recent messages
 	var content []string
 	var tags []string
@@ -356,6 +397,27 @@ func (mm *MemoryManager) buildMemoryQuery(sessionID string, recentMessages []*se
 		Limit:         maxMemories,
 		SortBy:        "importance",
 	}
+}
+
+func (mm *MemoryManager) mergeContextMessage(recentMessages []*session.Message, contextMsg *session.Message) []*session.Message {
+	var mergedMessages []*session.Message
+
+	// Add context message at the beginning (after system messages)
+	systemMsgCount := 0
+	for _, msg := range recentMessages {
+		if msg.Role == "system" {
+			systemMsgCount++
+		} else {
+			break
+		}
+	}
+
+	// Insert context after system messages
+	mergedMessages = append(mergedMessages, recentMessages[:systemMsgCount]...)
+	mergedMessages = append(mergedMessages, contextMsg)
+	mergedMessages = append(mergedMessages, recentMessages[systemMsgCount:]...)
+
+	return mergedMessages
 }
 
 func (mm *MemoryManager) extractKeywords(content string) string {
@@ -487,7 +549,111 @@ func (mm *MemoryManager) extractRelevantContent(msg *session.Message) string {
 	return content
 }
 
-func (mm *MemoryManager) createSpecializedMemories(sessionID string, msg *session.Message, category MemoryCategory) []*MemoryItem {
+func (mm *MemoryManager) createSpecializedMemories(projectID, sessionID string, msg *session.Message, category MemoryCategory) []*MemoryItem {
+	var memories []*MemoryItem
+
+	// Create tool-specific memories
+	for _, toolCall := range msg.ToolCalls {
+		memory := &MemoryItem{
+			ID:         fmt.Sprintf("tool_%s_%s_%d", toolCall.Name, projectID, time.Now().UnixNano()),
+			ProjectID:  projectID,
+			SessionID:  sessionID, // Keep for backwards compatibility
+			Category:   TaskHistory,
+			Content:    fmt.Sprintf("Used tool: %s with args: %s", toolCall.Name, mm.formatToolArgs(toolCall.Args)),
+			Importance: 0.6,
+			Tags:       []string{"tool", "execution", toolCall.Name},
+			CreatedAt:  msg.Timestamp,
+			UpdatedAt:  msg.Timestamp,
+			LastAccess: msg.Timestamp,
+			Metadata: map[string]interface{}{
+				"tool_name": toolCall.Name,
+				"tool_id":   toolCall.ID,
+			},
+		}
+		memories = append(memories, memory)
+	}
+
+	// Create code-specific memories for code blocks
+	if category == CodeContext {
+		codeBlocks := mm.contentAnalyzer.ExtractCodeBlocks(msg.Content)
+		if len(codeBlocks) > 0 {
+			memory := &MemoryItem{
+				ID:         fmt.Sprintf("code_%s_%d", projectID, time.Now().UnixNano()),
+				ProjectID:  projectID,
+				SessionID:  sessionID, // Keep for backwards compatibility
+				Category:   CodeContext,
+				Content:    strings.Join(codeBlocks, "\n---\n"),
+				Importance: 0.8,
+				Tags:       []string{"code", "implementation"},
+				CreatedAt:  msg.Timestamp,
+				UpdatedAt:  msg.Timestamp,
+				LastAccess: msg.Timestamp,
+				Metadata: map[string]interface{}{
+					"code_blocks_count": len(codeBlocks),
+				},
+			}
+			memories = append(memories, memory)
+		}
+	}
+
+	return memories
+}
+
+func (mm *MemoryManager) createMemoryFromMessageLegacy(ctx context.Context, sessionID string, msg *session.Message, sessionMessageCount int) ([]*MemoryItem, error) {
+	// Get recent memory count for rate limiting
+	recentMemoryCount := mm.getRecentMemoryCount(sessionID, time.Hour)
+
+	// Check if we should create memory from this message
+	if !mm.controller.ShouldCreateMemory(msg, sessionMessageCount, recentMemoryCount) {
+		return nil, nil
+	}
+
+	// Classify the memory
+	category, importance, tags := mm.controller.ClassifyMemory(msg)
+
+	// Skip if importance is too low
+	if importance < 0.3 {
+		return nil, nil
+	}
+
+	// Create memory items based on content analysis
+	var memories []*MemoryItem
+
+	// Main content memory
+	mainMemory := &MemoryItem{
+		ID:         fmt.Sprintf("%s_%s_%d", category, sessionID, time.Now().UnixNano()),
+		SessionID:  sessionID,
+		Category:   category,
+		Content:    mm.extractRelevantContent(msg),
+		Importance: importance,
+		Tags:       tags,
+		CreatedAt:  msg.Timestamp,
+		UpdatedAt:  msg.Timestamp,
+		LastAccess: msg.Timestamp,
+		Metadata: map[string]interface{}{
+			"original_role":    msg.Role,
+			"message_length":   len(msg.Content),
+			"tool_calls_count": len(msg.ToolCalls),
+		},
+	}
+
+	memories = append(memories, mainMemory)
+
+	// Create additional specialized memories
+	additionalMemories := mm.createSpecializedMemoriesLegacy(sessionID, msg, category)
+	memories = append(memories, additionalMemories...)
+
+	// Store all memories
+	for _, memory := range memories {
+		if err := mm.Store(memory); err != nil {
+			fmt.Printf("Warning: failed to store memory %s: %v\n", memory.ID, err)
+		}
+	}
+
+	return memories, nil
+}
+
+func (mm *MemoryManager) createSpecializedMemoriesLegacy(sessionID string, msg *session.Message, category MemoryCategory) []*MemoryItem {
 	var memories []*MemoryItem
 
 	// Create tool-specific memories
@@ -533,6 +699,21 @@ func (mm *MemoryManager) createSpecializedMemories(sessionID string, msg *sessio
 	}
 
 	return memories
+}
+
+func (mm *MemoryManager) getRecentMemoryCountForProject(projectID string, duration time.Duration) int {
+	cutoff := time.Now().Add(-duration)
+
+	memories := mm.shortTerm.GetProjectMemories(projectID)
+	count := 0
+
+	for _, memory := range memories {
+		if memory.CreatedAt.After(cutoff) {
+			count++
+		}
+	}
+
+	return count
 }
 
 func (mm *MemoryManager) formatToolArgs(args map[string]interface{}) string {
