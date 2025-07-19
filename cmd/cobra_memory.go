@@ -171,7 +171,7 @@ func (cli *CLI) clearProjectMemories() error {
 	fmt.Print("Are you sure? (yes/no): ")
 
 	var response string
-	fmt.Scanln(&response)
+	_, _ = fmt.Scanln(&response)
 
 	if strings.ToLower(response) != "yes" && strings.ToLower(response) != "y" {
 		fmt.Printf("%s Operation cancelled\n", yellow("❌"))
