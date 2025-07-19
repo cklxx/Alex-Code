@@ -303,6 +303,15 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 		// Update token counters
 		cli.currentTokensUsed = chunk.TokensUsed
 		cli.totalTokensUsed = chunk.TotalTokensUsed
+		
+		// Update detailed token counts if available
+		if chunk.PromptTokens > 0 {
+			cli.totalPromptTokens += chunk.PromptTokens
+		}
+		if chunk.CompletionTokens > 0 {
+			cli.totalCompletionTokens += chunk.CompletionTokens
+		}
+		
 		// Display token usage information in a subtle way
 		content = gray(fmt.Sprintf("💎 %s", chunk.Content)) + "\n"
 		// Update working indicator with current token usage
@@ -320,6 +329,12 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 		}
 	case "thinking_result":
 		// Render thinking result as markdown if it contains markdown
+		content = RenderMarkdown(chunk.Content)
+		content = "\n" + DeepCodingResult(content)
+		if !strings.HasSuffix(content, "\n") {
+			content += "\n"
+		}
+	case "final_answer":
 		content = RenderMarkdown(chunk.Content)
 		content = "\n" + DeepCodingResult(content)
 		if !strings.HasSuffix(content, "\n") {
@@ -370,13 +385,7 @@ func (cli *CLI) deepCodingStreamCallback(chunk agent.StreamChunk) {
 		if chunk.TotalTokensUsed > 0 {
 			cli.totalTokensUsed = chunk.TotalTokensUsed
 		}
-		// Update detailed token counts if available
-		if chunk.PromptTokens > 0 {
-			cli.totalPromptTokens = chunk.PromptTokens
-		}
-		if chunk.CompletionTokens > 0 {
-			cli.totalCompletionTokens = chunk.CompletionTokens
-		}
+		// Token counts are now handled in token_usage case above
 		// Process accumulated content for markdown rendering (fallback for non-streaming content)
 		if cli.contentBuffer.Len() > 0 {
 			bufferedContent := cli.contentBuffer.String()

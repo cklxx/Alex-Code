@@ -161,6 +161,7 @@ func (t *SSETransport) SendRequest(req *protocol.JSONRPCRequest) (*protocol.JSON
 	// If we have a session ID but connection seems dead, try to verify it's alive
 	if sessionID, exists := t.headers["MCP-Session-Id"]; exists && len(sessionID) > 0 {
 		// Connection should be alive if we have a session ID
+		_ = sessionID // Session ID is present, connection should be alive
 	}
 
 	// Serialize request

@@ -312,6 +312,13 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 			result := buildFinalResult(taskCtx, finalAnswer, 0.8, true)
 			result.TokensUsed = taskCtx.TokensUsed
+
+			if isStreaming {
+				streamCallback(StreamChunk{
+					Type:     "final_answer",
+					Content:  finalAnswer,
+					Metadata: map[string]any{"iteration": iteration, "phase": "final_answer"}})
+			}
 			return result, nil
 		}
 

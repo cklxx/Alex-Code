@@ -136,7 +136,7 @@ func (mp *MessageProcessor) ConvertLLMToSession(llmMessages []llm.Message) []*se
 func (mp *MessageProcessor) compressMessages(sessionMessages []*session.Message) []*session.Message {
 	const (
 		MaxMessages = 80     // 降低消息数量阈值
-		MaxTokens   = 600000 // 降低token阈值，预留空间
+		MaxTokens   = 8000   // 合理的token阈值，与ContextManager配置一致
 		RecentKeep  = 10     // 保留更多最近消息
 	)
 
