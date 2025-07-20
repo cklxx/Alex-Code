@@ -112,7 +112,10 @@ through streaming responses and advanced tool calling capabilities.
   alex                           # Interactive mode
   alex "analyze this project"    # Single prompt
   alex -r session_123            # Resume session
-  alex config show               # Show configuration
+  
+  alex config provider kimi      # Select AI provider  
+  alex config apikey sk-xxx     # Set API key
+  alex config show              # Show configuration
 
 %s
   • 🧠 ReAct Intelligence - Think, Act, Observe cycle
@@ -185,16 +188,151 @@ func newConfigCommand(cli *CLI) *cobra.Command {
 		Long:  "Manage Alex configuration settings",
 	}
 
+	// config show
 	cmd.AddCommand(&cobra.Command{
 		Use:   "show",
 		Short: "Show current configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Initialize config manager for config commands
 			if err := cli.initializeConfigOnly(); err != nil {
 				return err
 			}
 			cli.showConfig()
 			return nil
+		},
+	})
+
+	// config providers
+	cmd.AddCommand(&cobra.Command{
+		Use:   "providers",
+		Short: "List available providers",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cli.initializeConfigOnly(); err != nil {
+				return err
+			}
+			cli.showProviders()
+			return nil
+		},
+	})
+
+	// config provider - simplified provider selection
+	providerCmd := &cobra.Command{
+		Use:   "provider <provider> [model]",
+		Short: "Select AI provider",
+		Long: `Select AI provider (then use 'alex config apikey' to set API key)
+
+Examples:
+  alex config provider kimi                    # Use Kimi with default model (K2)
+  alex config provider kimi moonshot-v1-32k    # Use Kimi with specific model
+  alex config provider claude                  # Use Claude with default model
+  alex config provider openrouter              # Use OpenRouter with DeepSeek free
+
+Available providers: kimi, openrouter, claude, deepseek, doubao, gemini
+
+After selecting provider, set your API key:
+  alex config apikey sk-your-api-key-here`,
+		Args: cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cli.initializeConfigOnly(); err != nil {
+				return err
+			}
+
+			provider := args[0]
+			var model string
+			if len(args) > 1 {
+				model = args[1]
+			}
+
+			return cli.selectProvider(provider, model)
+		},
+	}
+	cmd.AddCommand(providerCmd)
+
+	// config apikey - simplified API key setting
+	cmd.AddCommand(&cobra.Command{
+		Use:   "apikey <api-key>",
+		Short: "Set API key for current provider",
+		Long: `Set API key for the currently selected provider
+
+Example:
+  alex config apikey sk-your-api-key-here
+
+This will automatically configure the API key for whichever provider 
+you selected with 'alex config provider'.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cli.initializeConfigOnly(); err != nil {
+				return err
+			}
+			apiKey := args[0]
+			return cli.setAPIKey(apiKey)
+		},
+	})
+
+	// config set-provider (legacy - keep for backward compatibility)
+	setProviderCmd := &cobra.Command{
+		Use:   "set-provider <provider> [model]",
+		Short: "Set provider configuration (legacy)",
+		Long: `Set provider configuration with API key in one step
+
+Examples:
+  alex config set-provider kimi --api-key sk-xxx                    
+  alex config set-provider kimi moonshot-v1-32k --api-key sk-xxx   
+  alex config set-provider claude --api-key sk-ant-xxx              
+
+Available providers: kimi, openrouter, claude, deepseek, doubao, gemini
+
+NEW SIMPLIFIED WORKFLOW:
+  alex config provider kimi      # Select provider first
+  alex config apikey sk-xxx     # Then set API key`,
+		Args: cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cli.initializeConfigOnly(); err != nil {
+				return err
+			}
+
+			provider := args[0]
+			var model string
+			if len(args) > 1 {
+				model = args[1]
+			}
+
+			apiKey, _ := cmd.Flags().GetString("api-key")
+			if apiKey == "" {
+				fmt.Printf("%s Please provide API key using --api-key flag\n", red("❌"))
+				return fmt.Errorf("api-key is required")
+			}
+
+			return cli.setProvider(provider, model, apiKey)
+		},
+	}
+	setProviderCmd.Flags().StringP("api-key", "k", "", "API key for the provider (required)")
+	cmd.AddCommand(setProviderCmd)
+
+	// config models
+	cmd.AddCommand(&cobra.Command{
+		Use:   "models <provider>",
+		Short: "List available models for a provider",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cli.initializeConfigOnly(); err != nil {
+				return err
+			}
+			provider := args[0]
+			return cli.showModels(provider)
+		},
+	})
+
+	// config set-search-key
+	cmd.AddCommand(&cobra.Command{
+		Use:   "set-search-key <api-key>",
+		Short: "Set Tavily search API key",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cli.initializeConfigOnly(); err != nil {
+				return err
+			}
+			apiKey := args[0]
+			return cli.setSearchKey(apiKey)
 		},
 	})
 
@@ -564,6 +702,210 @@ func (cli *CLI) showConfig() {
 	} else {
 		fmt.Print(config)
 	}
+}
+
+// showProviders displays all available providers with their information
+func (cli *CLI) showProviders() {
+	presets := config.GetProviderPresets()
+	
+	output := fmt.Sprintf("\n%s Available Providers:\n", bold("🏪"))
+	
+	for name, preset := range presets {
+		output += fmt.Sprintf("\n%s %s (%s):\n", bold("📦"), bold(preset.DisplayName), blue(name))
+		output += fmt.Sprintf("  %s: %s\n", "Base URL", blue(preset.BaseURL))
+		output += fmt.Sprintf("  %s: %d models available\n", "Models", len(preset.Models))
+		
+		// Show default model
+		for _, model := range preset.Models {
+			if model.IsDefault {
+				output += fmt.Sprintf("  %s: %s (%s)\n", "Default Model", blue(model.DisplayName), gray(model.Model))
+				break
+			}
+		}
+		
+		// Show special headers if any
+		if len(preset.Headers) > 0 {
+			output += fmt.Sprintf("  %s: %v\n", "Special Headers", preset.Headers)
+		}
+	}
+	
+	output += fmt.Sprintf("\n%s Quick Setup Examples:\n", bold("💡"))
+	output += fmt.Sprintf("  %s\n", gray("alex config set-provider kimi --api-key sk-your-kimi-key"))
+	output += fmt.Sprintf("  %s\n", gray("alex config set-provider claude --api-key sk-ant-your-claude-key"))
+	output += fmt.Sprintf("  %s\n", gray("alex config set-provider openrouter --api-key sk-or-your-openrouter-key"))
+	
+	fmt.Print(output)
+}
+
+// setProvider configures a provider with the given settings
+func (cli *CLI) setProvider(providerName, modelName, apiKey string) error {
+	err := cli.config.SetProviderConfig(providerName, modelName, apiKey)
+	if err != nil {
+		fmt.Printf("%s Failed to set provider configuration: %v\n", red("❌"), err)
+		return err
+	}
+	
+	// Get the actual configuration that was set
+	presets := config.GetProviderPresets()
+	preset := presets[providerName]
+	
+	var selectedModel *config.ModelPreset
+	if modelName == "" {
+		// Find default model
+		for _, model := range preset.Models {
+			if model.IsDefault {
+				selectedModel = &model
+				break
+			}
+		}
+	} else {
+		// Find specified model
+		for _, model := range preset.Models {
+			if model.Name == modelName {
+				selectedModel = &model
+				break
+			}
+		}
+	}
+	
+	fmt.Printf("%s Successfully configured %s provider\n", green("✅"), bold(preset.DisplayName))
+	if selectedModel != nil {
+		fmt.Printf("  %s: %s (%s)\n", "Model", blue(selectedModel.DisplayName), gray(selectedModel.Model))
+		fmt.Printf("  %s: %d tokens\n", "Max Tokens", selectedModel.MaxTokens)
+		fmt.Printf("  %s: %.1f\n", "Temperature", selectedModel.Temperature)
+	}
+	fmt.Printf("  %s: %s\n", "Base URL", blue(preset.BaseURL))
+	
+	// Recommend setting search key if not configured
+	cfg := cli.config.GetConfig()
+	if cfg.TavilyAPIKey == "" || strings.Contains(cfg.TavilyAPIKey, "replace-with") {
+		fmt.Printf("\n%s Don't forget to set your search API key:\n", yellow("💡"))
+		fmt.Printf("  %s\n", gray("alex config set-search-key tvly-your-tavily-key"))
+	}
+	
+	return nil
+}
+
+// showModels displays available models for a provider
+func (cli *CLI) showModels(providerName string) error {
+	models, err := cli.config.GetAvailableModels(providerName)
+	if err != nil {
+		fmt.Printf("%s %v\n", red("❌"), err)
+		return err
+	}
+	
+	presets := config.GetProviderPresets()
+	preset := presets[providerName]
+	
+	output := fmt.Sprintf("\n%s Available Models for %s:\n", bold("🤖"), bold(preset.DisplayName))
+	
+	for _, model := range models {
+		defaultMarker := ""
+		if model.IsDefault {
+			defaultMarker = green(" (default)")
+		}
+		
+		output += fmt.Sprintf("\n%s %s%s:\n", bold("📋"), bold(model.DisplayName), defaultMarker)
+		output += fmt.Sprintf("  %s: %s\n", "Model ID", blue(model.Model))
+		output += fmt.Sprintf("  %s: %d tokens\n", "Max Tokens", model.MaxTokens)
+		output += fmt.Sprintf("  %s: %.1f\n", "Temperature", model.Temperature)
+		
+		// Show usage example
+		output += fmt.Sprintf("  %s: %s\n", "Usage", gray(fmt.Sprintf("alex config set-provider %s %s --api-key your-key", providerName, model.Name)))
+	}
+	
+	fmt.Print(output)
+	return nil
+}
+
+// selectProvider selects an AI provider (without API key)
+func (cli *CLI) selectProvider(providerName, modelName string) error {
+	err := cli.config.SetCurrentProvider(providerName, modelName)
+	if err != nil {
+		fmt.Printf("%s Failed to select provider: %v\n", red("❌"), err)
+		return err
+	}
+	
+	// Get the actual configuration that was set
+	presets := config.GetProviderPresets()
+	preset := presets[providerName]
+	
+	var selectedModel *config.ModelPreset
+	if modelName == "" {
+		// Find default model
+		for _, model := range preset.Models {
+			if model.IsDefault {
+				selectedModel = &model
+				break
+			}
+		}
+	} else {
+		// Find specified model
+		for _, model := range preset.Models {
+			if model.Name == modelName {
+				selectedModel = &model
+				break
+			}
+		}
+	}
+	
+	fmt.Printf("%s Successfully selected %s provider\n", green("✅"), bold(preset.DisplayName))
+	if selectedModel != nil {
+		fmt.Printf("  %s: %s (%s)\n", "Model", blue(selectedModel.DisplayName), gray(selectedModel.Model))
+		fmt.Printf("  %s: %d tokens\n", "Max Tokens", selectedModel.MaxTokens)
+		fmt.Printf("  %s: %.1f\n", "Temperature", selectedModel.Temperature)
+	}
+	fmt.Printf("  %s: %s\n", "Base URL", blue(preset.BaseURL))
+	
+	fmt.Printf("\n%s Next step - set your API key:\n", yellow("💡"))
+	fmt.Printf("  %s\n", gray("alex config apikey sk-your-api-key-here"))
+	
+	return nil
+}
+
+// setAPIKey sets API key for the current provider
+func (cli *CLI) setAPIKey(apiKey string) error {
+	currentProvider := cli.config.GetCurrentProvider()
+	if currentProvider == "unknown" {
+		fmt.Printf("%s No provider selected. Please select a provider first:\n", red("❌"))
+		fmt.Printf("  %s\n", gray("alex config provider kimi"))
+		return fmt.Errorf("no provider selected")
+	}
+	
+	err := cli.config.SetAPIKeyForCurrentProvider(apiKey)
+	if err != nil {
+		fmt.Printf("%s Failed to set API key: %v\n", red("❌"), err)
+		return err
+	}
+	
+	presets := config.GetProviderPresets()
+	preset := presets[currentProvider]
+	
+	fmt.Printf("%s Successfully set API key for %s\n", green("✅"), bold(preset.DisplayName))
+	fmt.Printf("  %s: %s\n", "Status", blue("Configuration complete"))
+	
+	// Check search key status
+	cfg := cli.config.GetConfig()
+	if cfg.TavilyAPIKey == "" || strings.Contains(cfg.TavilyAPIKey, "replace-with") {
+		fmt.Printf("\n%s Optional - enable web search:\n", yellow("💡"))
+		fmt.Printf("  %s\n", gray("alex config set-search-key tvly-your-tavily-key"))
+	}
+	
+	return nil
+}
+
+// setSearchKey sets the Tavily search API key
+func (cli *CLI) setSearchKey(apiKey string) error {
+	err := cli.config.Set("tavilyApiKey", apiKey)
+	if err != nil {
+		fmt.Printf("%s Failed to set search API key: %v\n", red("❌"), err)
+		return err
+	}
+	
+	fmt.Printf("%s Successfully set Tavily search API key\n", green("✅"))
+	fmt.Printf("  %s: %s\n", "Status", blue("Web search functionality is now enabled"))
+	
+	return nil
 }
 
 // runCobraCLI initializes and runs the new Cobra-driven CLI

@@ -235,6 +235,10 @@ func (m *Manager) Set(key string, value interface{}) error {
 		if models, ok := value.(map[llm.ModelType]*llm.ModelConfig); ok {
 			m.config.Models = models
 		}
+	case "tavilyApiKey":
+		if str, ok := value.(string); ok {
+			m.config.TavilyAPIKey = str
+		}
 	case "mcp":
 		if mcp, ok := value.(*MCPConfig); ok {
 			m.config.MCP = mcp
@@ -558,37 +562,251 @@ func (m *Manager) Save() error {
 	return m.save()
 }
 
-// getDefaultConfig returns the default configuration with DeepSeek models
+// ProviderPreset represents a pre-configured provider with common settings
+type ProviderPreset struct {
+	Name        string            `json:"name"`
+	DisplayName string            `json:"display_name"`
+	BaseURL     string            `json:"base_url"`
+	Models      []ModelPreset     `json:"models"`
+	Headers     map[string]string `json:"headers,omitempty"`
+}
+
+// ModelPreset represents a model configuration preset
+type ModelPreset struct {
+	Name        string  `json:"name"`
+	DisplayName string  `json:"display_name"`
+	Model       string  `json:"model"`
+	MaxTokens   int     `json:"max_tokens"`
+	Temperature float64 `json:"temperature"`
+	IsDefault   bool    `json:"is_default"`
+}
+
+// GetProviderPresets returns all available provider presets
+func GetProviderPresets() map[string]*ProviderPreset {
+	return map[string]*ProviderPreset{
+		"kimi": {
+			Name:        "kimi",
+			DisplayName: "Kimi (Moonshot)",
+			BaseURL:     "https://api.moonshot.cn/v1",
+			Models: []ModelPreset{
+				{Name: "moonshot-v1-8k", DisplayName: "Kimi K2 (8K)", Model: "moonshot-v1-8k", MaxTokens: 8000, Temperature: 0.7, IsDefault: true},
+				{Name: "moonshot-v1-32k", DisplayName: "Kimi Pro (32K)", Model: "moonshot-v1-32k", MaxTokens: 32000, Temperature: 0.7},
+				{Name: "moonshot-v1-128k", DisplayName: "Kimi Max (128K)", Model: "moonshot-v1-128k", MaxTokens: 128000, Temperature: 0.7},
+			},
+		},
+		"openrouter": {
+			Name:        "openrouter",
+			DisplayName: "OpenRouter",
+			BaseURL:     "https://openrouter.ai/api/v1",
+			Models: []ModelPreset{
+				{Name: "deepseek-chat", DisplayName: "DeepSeek Chat (Free)", Model: "deepseek/deepseek-chat-v3-0324:free", MaxTokens: 4000, Temperature: 0.7, IsDefault: true},
+				{Name: "claude-3-haiku", DisplayName: "Claude 3 Haiku", Model: "anthropic/claude-3-haiku:beta", MaxTokens: 4000, Temperature: 0.7},
+				{Name: "gpt-4o-mini", DisplayName: "GPT-4o Mini", Model: "openai/gpt-4o-mini", MaxTokens: 4000, Temperature: 0.7},
+			},
+		},
+		"claude": {
+			Name:        "claude",
+			DisplayName: "Anthropic Claude",
+			BaseURL:     "https://api.anthropic.com/v1",
+			Models: []ModelPreset{
+				{Name: "claude-3-5-sonnet", DisplayName: "Claude 3.5 Sonnet", Model: "claude-3-5-sonnet-20241022", MaxTokens: 8192, Temperature: 0.7, IsDefault: true},
+				{Name: "claude-3-5-haiku", DisplayName: "Claude 3.5 Haiku", Model: "claude-3-5-haiku-20241022", MaxTokens: 8192, Temperature: 0.7},
+				{Name: "claude-3-opus", DisplayName: "Claude 3 Opus", Model: "claude-3-opus-20240229", MaxTokens: 4096, Temperature: 0.7},
+			},
+			Headers: map[string]string{
+				"anthropic-version": "2023-06-01",
+			},
+		},
+		"deepseek": {
+			Name:        "deepseek",
+			DisplayName: "DeepSeek",
+			BaseURL:     "https://api.deepseek.com/v1",
+			Models: []ModelPreset{
+				{Name: "deepseek-chat", DisplayName: "DeepSeek Chat", Model: "deepseek-chat", MaxTokens: 4096, Temperature: 0.7, IsDefault: true},
+				{Name: "deepseek-coder", DisplayName: "DeepSeek Coder", Model: "deepseek-coder", MaxTokens: 4096, Temperature: 0.3},
+			},
+		},
+		"doubao": {
+			Name:        "doubao",
+			DisplayName: "字节豆包 (Doubao)",
+			BaseURL:     "https://ark.cn-beijing.volces.com/api/v3",
+			Models: []ModelPreset{
+				{Name: "doubao-pro-4k", DisplayName: "豆包 Pro 4K", Model: "ep-20241022105817-8vxvs", MaxTokens: 4096, Temperature: 0.7, IsDefault: true},
+				{Name: "doubao-pro-32k", DisplayName: "豆包 Pro 32K", Model: "ep-20241022105835-qvwv9", MaxTokens: 32768, Temperature: 0.7},
+				{Name: "doubao-pro-128k", DisplayName: "豆包 Pro 128K", Model: "ep-20241022105851-bd5fj", MaxTokens: 128000, Temperature: 0.7},
+			},
+		},
+		"gemini": {
+			Name:        "gemini",
+			DisplayName: "Google Gemini",
+			BaseURL:     "https://generativelanguage.googleapis.com/v1beta",
+			Models: []ModelPreset{
+				{Name: "gemini-1.5-flash", DisplayName: "Gemini 1.5 Flash", Model: "gemini-1.5-flash", MaxTokens: 8192, Temperature: 0.7, IsDefault: true},
+				{Name: "gemini-1.5-pro", DisplayName: "Gemini 1.5 Pro", Model: "gemini-1.5-pro", MaxTokens: 8192, Temperature: 0.7},
+				{Name: "gemini-1.0-pro", DisplayName: "Gemini 1.0 Pro", Model: "gemini-1.0-pro", MaxTokens: 4096, Temperature: 0.7},
+			},
+		},
+	}
+}
+
+// SetCurrentProvider sets the current provider (without API key)
+func (m *Manager) SetCurrentProvider(providerName string, modelName string) error {
+	presets := GetProviderPresets()
+	preset, exists := presets[providerName]
+	if !exists {
+		return fmt.Errorf("unknown provider: %s", providerName)
+	}
+
+	// Find the model preset
+	var selectedModel *ModelPreset
+	if modelName == "" {
+		// Use default model if none specified
+		for _, model := range preset.Models {
+			if model.IsDefault {
+				selectedModel = &model
+				break
+			}
+		}
+		if selectedModel == nil && len(preset.Models) > 0 {
+			selectedModel = &preset.Models[0]
+		}
+	} else {
+		// Find specified model
+		for _, model := range preset.Models {
+			if model.Name == modelName {
+				selectedModel = &model
+				break
+			}
+		}
+	}
+
+	if selectedModel == nil {
+		return fmt.Errorf("model not found for provider %s", providerName)
+	}
+
+	// Store current provider info in config for later API key setting
+	if m.config.Models == nil {
+		m.config.Models = make(map[llm.ModelType]*llm.ModelConfig)
+	}
+	
+	// Store provider info as metadata (we'll use base URL to track current provider)
+	m.config.BaseURL = preset.BaseURL
+	m.config.Model = selectedModel.Model
+	m.config.MaxTokens = selectedModel.MaxTokens
+	m.config.Temperature = selectedModel.Temperature
+
+	return m.save()
+}
+
+// SetAPIKeyForCurrentProvider sets API key for the current provider
+func (m *Manager) SetAPIKeyForCurrentProvider(apiKey string) error {
+	// Update main API key
+	m.config.APIKey = apiKey
+
+	// Update multi-model configurations if they exist
+	if m.config.Models == nil {
+		m.config.Models = make(map[llm.ModelType]*llm.ModelConfig)
+	}
+
+	// Get current config values
+	baseURL := m.config.BaseURL
+	model := m.config.Model
+	maxTokens := m.config.MaxTokens
+	temperature := m.config.Temperature
+
+	// Configure basic model
+	m.config.Models[llm.BasicModel] = &llm.ModelConfig{
+		BaseURL:     baseURL,
+		Model:       model,
+		APIKey:      apiKey,
+		Temperature: temperature,
+		MaxTokens:   maxTokens,
+	}
+
+	// Configure reasoning model (slightly lower temperature for better reasoning)
+	reasoningTemp := temperature * 0.8
+	if reasoningTemp < 0.1 {
+		reasoningTemp = 0.1
+	}
+	m.config.Models[llm.ReasoningModel] = &llm.ModelConfig{
+		BaseURL:     baseURL,
+		Model:       model,
+		APIKey:      apiKey,
+		Temperature: reasoningTemp,
+		MaxTokens:   maxTokens,
+	}
+
+	return m.save()
+}
+
+// GetCurrentProvider returns the name of current provider based on BaseURL
+func (m *Manager) GetCurrentProvider() string {
+	presets := GetProviderPresets()
+	currentBaseURL := m.config.BaseURL
+	
+	for name, preset := range presets {
+		if preset.BaseURL == currentBaseURL {
+			return name
+		}
+	}
+	return "unknown"
+}
+
+// SetProviderConfig sets configuration based on provider preset (legacy method)
+func (m *Manager) SetProviderConfig(providerName string, modelName string, apiKey string) error {
+	// First set the provider
+	if err := m.SetCurrentProvider(providerName, modelName); err != nil {
+		return err
+	}
+	
+	// Then set the API key
+	return m.SetAPIKeyForCurrentProvider(apiKey)
+}
+
+// GetAvailableModels returns available models for a provider
+func (m *Manager) GetAvailableModels(providerName string) ([]ModelPreset, error) {
+	presets := GetProviderPresets()
+	preset, exists := presets[providerName]
+	if !exists {
+		return nil, fmt.Errorf("unknown provider: %s", providerName)
+	}
+	return preset.Models, nil
+}
+
+// getDefaultConfig returns the default configuration with Kimi K2
 func getDefaultConfig() *Config {
 	return &Config{
 		// Legacy single model config (for backward compatibility)
-		APIKey:      "sk-replace-with-your-actual-api-key-here-xxxxxxxxxxxxxxx",
-		BaseURL:     "https://openrouter.ai/api/v1",
-		Model:       "deepseek/deepseek-chat-v3-0324:free",
-		MaxTokens:   2048,
+		APIKey:      "sk-replace-with-your-kimi-api-key-here-xxxxxxxxxxxxxxx",
+		BaseURL:     "https://api.moonshot.cn/v1",
+		Model:       "moonshot-v1-8k",
+		MaxTokens:   8000,
 		Temperature: 0.7,
 
 		// ReAct agent configuration
 		MaxTurns: 25, // 统一设置为25次迭代限制
 
-		// Multi-model configurations - 统一使用相同的配置避免配置不一致
+		// Multi-model configurations - 默认使用 Kimi K2
 		DefaultModelType: llm.BasicModel,
 		Models: map[llm.ModelType]*llm.ModelConfig{
 			llm.BasicModel: {
-				BaseURL:     "https://openrouter.ai/api/v1",
-				Model:       "deepseek/deepseek-chat-v3-0324:free",
-				APIKey:      "sk-replace-with-your-actual-api-key-here-xxxxxxxxxxxxxxx",
+				BaseURL:     "https://api.moonshot.cn/v1",
+				Model:       "moonshot-v1-8k",
+				APIKey:      "sk-replace-with-your-kimi-api-key-here-xxxxxxxxxxxxxxx",
 				Temperature: 0.7,
-				MaxTokens:   4000, // 增加token限制以支持复杂任务
+				MaxTokens:   8000,
 			},
 			llm.ReasoningModel: {
-				BaseURL:     "https://openrouter.ai/api/v1",
-				Model:       "deepseek/deepseek-chat-v3-0324:free",
-				APIKey:      "sk-replace-with-your-actual-api-key-here-xxxxxxxxxxxxxxx",
-				Temperature: 0.3,
-				MaxTokens:   4000, // 统一token限制
+				BaseURL:     "https://api.moonshot.cn/v1",
+				Model:       "moonshot-v1-8k",
+				APIKey:      "sk-replace-with-your-kimi-api-key-here-xxxxxxxxxxxxxxx",
+				Temperature: 0.5, // 推理模型使用更低的温度
+				MaxTokens:   8000,
 			},
 		},
+
+		// Tool configuration - 保持为空，用户需要单独配置搜索API key
+		TavilyAPIKey: "tvly-replace-with-your-tavily-api-key-here-xxxxxxxxxxxxxxx",
 
 		// MCP configuration
 		MCP: getDefaultMCPConfig(),
