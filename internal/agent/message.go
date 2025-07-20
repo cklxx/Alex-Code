@@ -132,150 +132,148 @@ func (mp *MessageProcessor) ConvertLLMToSession(llmMessages []llm.Message) []*se
 
 // ========== 消息压缩 ==========
 
-// compressMessages 智能压缩消息
+// compressMessages 智能压缩消息 - 简化策略，按Kimi K2的128K token上限设置
 func (mp *MessageProcessor) compressMessages(sessionMessages []*session.Message) []*session.Message {
 	const (
-		MaxMessages = 80     // 降低消息数量阈值
-		MaxTokens   = 8000   // 合理的token阈值，与ContextManager配置一致
-		RecentKeep  = 10     // 保留更多最近消息
+		MaxMessages = 300    // 适配128K context的消息数量阈值
+		MaxTokens   = 100000 // 按Kimi K2的128K token上限设置，留20%余量
+		RecentKeep  = 20     // 保留更多最近消息以确保上下文完整
 	)
 
-	// 检查是否需要压缩 - 更早触发
+	// 只在真正需要时压缩 - 高阈值触发
 	estimatedTokens := mp.tokenEstimator.EstimateSessionMessages(sessionMessages)
-	if len(sessionMessages) <= 10 || estimatedTokens <= 3000 {
-		return sessionMessages // 消息很少时不压缩
+	messageCount := len(sessionMessages)
+	
+	// 只有当同时超过两个高阈值时才压缩
+	if messageCount > MaxMessages && estimatedTokens > MaxTokens {
+		log.Printf("[INFO] Comprehensive compression triggered: %d messages, estimated %d tokens",
+			messageCount, estimatedTokens)
+		return mp.comprehensiveCompress(sessionMessages, RecentKeep)
 	}
 
-	// 渐进式压缩：根据压力等级选择策略
-	if len(sessionMessages) > MaxMessages || estimatedTokens > MaxTokens {
-		log.Printf("[INFO] High pressure compression triggered: %d messages, estimated %d tokens",
-			len(sessionMessages), estimatedTokens)
-		return mp.aggressiveCompress(sessionMessages, RecentKeep)
-	}
-
+	// 大部分情况下不压缩
 	return sessionMessages
 }
 
-// aggressiveCompress 激进压缩：生成摘要
-func (mp *MessageProcessor) aggressiveCompress(messages []*session.Message, recentKeep int) []*session.Message {
+// comprehensiveCompress 全面压缩：生成摘要，简化策略
+func (mp *MessageProcessor) comprehensiveCompress(messages []*session.Message, recentKeep int) []*session.Message {
 	if len(messages) <= recentKeep {
 		return messages
 	}
 
-	// 保留最近的消息，考虑工具调用配对
-	recentMessages := mp.keepRecentMessagesWithToolPairing(messages, recentKeep)
-
-	// 对其余消息创建摘要
-	oldMessages := messages[:len(messages)-len(recentMessages)]
-	summaryMsg := mp.createMessageSummary(oldMessages)
-
-	var result []*session.Message
-	if summaryMsg != nil {
-		result = append(result, summaryMsg)
+	// 分离系统消息（总是保留）
+	var systemMessages []*session.Message
+	var nonSystemMessages []*session.Message
+	
+	for _, msg := range messages {
+		if msg.Role == "system" {
+			systemMessages = append(systemMessages, msg)
+		} else {
+			nonSystemMessages = append(nonSystemMessages, msg)
+		}
 	}
+	
+	// 如果非系统消息不够多，无需压缩
+	if len(nonSystemMessages) <= recentKeep {
+		return messages
+	}
+
+	// 保留最近的消息，严格考虑工具调用配对
+	recentMessages := mp.keepRecentMessagesWithToolPairing(nonSystemMessages, recentKeep)
+	recentStart := len(nonSystemMessages) - len(recentMessages)
+
+	// 对较旧的消息创建摘要
+	oldMessages := nonSystemMessages[:recentStart]
+	
+	// 构建结果：系统消息 + 摘要 + 最近消息
+	var result []*session.Message
+	result = append(result, systemMessages...)
+	
+	if len(oldMessages) > 0 {
+		summaryMsg := mp.createMessageSummary(oldMessages)
+		if summaryMsg != nil {
+			result = append(result, summaryMsg)
+		}
+	}
+	
 	result = append(result, recentMessages...)
 
-	log.Printf("[INFO] Aggressive compression: %d -> %d messages", len(messages), len(result))
+	log.Printf("[INFO] Comprehensive compression: %d -> %d messages", len(messages), len(result))
 	return result
 }
 
-// keepRecentMessagesWithToolPairing 保留最近的消息，保持工具调用配对完整
+// keepRecentMessagesWithToolPairing 保留最近的消息，保持工具调用配对完整 - 简化版本
 func (mp *MessageProcessor) keepRecentMessagesWithToolPairing(messages []*session.Message, recentKeep int) []*session.Message {
 	if len(messages) <= recentKeep {
 		return messages
 	}
 
-	// 从后往前扫描，确保工具调用和响应成对保留
-	keptCount := 0
-	splitPoint := len(messages)
-
-	for i := len(messages) - 1; i >= 0 && keptCount < recentKeep; i-- {
-		msg := messages[i]
-
-		// 如果是工具响应消息，需要确保对应的工具调用也被保留
-		if msg.Role == "tool" {
-			if toolCallId, ok := msg.Metadata["tool_call_id"].(string); ok && toolCallId != "" {
-				// 向前查找对应的工具调用
-				foundToolCall := false
-				for j := i - 1; j >= 0; j-- {
-					if messages[j].Role == "assistant" && len(messages[j].ToolCalls) > 0 {
-						// 检查是否包含匹配的工具调用ID
-						for _, tc := range messages[j].ToolCalls {
-							if tc.ID == toolCallId {
-								foundToolCall = true
-								break
-							}
-						}
-						if foundToolCall {
-							break
-						}
-					}
-				}
-				
-				// 如果找到了对应的工具调用，并且它在切分点之前，需要调整切分点
-				if foundToolCall {
-					// 继续向前查找，确保包含完整的工具调用序列
-					for j := i - 1; j >= 0; j-- {
-						if messages[j].Role == "assistant" && len(messages[j].ToolCalls) > 0 {
-							// 检查这个助手消息是否包含当前工具响应的调用
-							hasMatchingCall := false
-							for _, tc := range messages[j].ToolCalls {
-								if tc.ID == toolCallId {
-									hasMatchingCall = true
-									break
-								}
-							}
-							if hasMatchingCall {
-								splitPoint = j
-								keptCount = len(messages) - j
-								break
-							}
-						}
-					}
-				}
+	// 构建工具调用配对映射
+	toolCallPairs := make(map[string]int)
+	for i, msg := range messages {
+		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
+			for _, tc := range msg.ToolCalls {
+				toolCallPairs[tc.ID] = i
 			}
 		}
-
-		// 如果是助手消息且包含工具调用，需要确保所有对应的工具响应都被保留
-		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
-			allResponsesIncluded := true
-			maxResponseIndex := i
-
-			// 检查所有工具调用是否都有对应的响应在保留范围内
+	}
+	
+	// 跟踪必须包含的消息索引以维持配对
+	mustInclude := make(map[int]bool)
+	
+	// 从最后开始，添加最近的消息
+	for i := len(messages) - 1; i >= 0 && len(mustInclude) < recentKeep*2; i-- {
+		msg := messages[i]
+		
+		// 如果是工具响应，必须包含对应的助手消息
+		if msg.Role == "tool" {
+			if toolCallId, ok := msg.Metadata["tool_call_id"].(string); ok {
+				if assistantIndex, exists := toolCallPairs[toolCallId]; exists {
+					mustInclude[assistantIndex] = true
+					mustInclude[i] = true
+				}
+			}
+		} else if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
+			// 如果是有工具调用的助手消息，包含它和所有对应的工具响应
+			mustInclude[i] = true
 			for _, tc := range msg.ToolCalls {
-				responseFound := false
 				for j := i + 1; j < len(messages); j++ {
 					if messages[j].Role == "tool" {
 						if callId, ok := messages[j].Metadata["tool_call_id"].(string); ok && callId == tc.ID {
-							responseFound = true
-							if j > maxResponseIndex {
-								maxResponseIndex = j
-							}
-							break
+							mustInclude[j] = true
 						}
 					}
 				}
-				if !responseFound {
-					allResponsesIncluded = false
-					break
-				}
 			}
-
-			// 如果所有响应都在范围内，调整切分点以包含完整序列
-			if allResponsesIncluded {
-				splitPoint = i
-				keptCount = len(messages) - i
-			}
+		} else {
+			// 普通消息
+			mustInclude[i] = true
 		}
-
-		// 简单情况：如果还没有达到保留数量限制，继续向前
-		if keptCount < recentKeep {
-			splitPoint = i
-			keptCount++
+		
+		// 当包含的消息数量足够时停止（但允许配对完成）
+		if len(mustInclude) >= recentKeep {
+			break
 		}
 	}
-
-	return messages[splitPoint:]
+	
+	// 找到需要包含的最早索引
+	minIndex := len(messages)
+	for index := range mustInclude {
+		if index < minIndex {
+			minIndex = index
+		}
+	}
+	
+	// 返回从minIndex到结尾的消息
+	if minIndex < len(messages) {
+		return messages[minIndex:]
+	}
+	
+	// 后备方案：返回最后recentKeep条消息
+	if len(messages) > recentKeep {
+		return messages[len(messages)-recentKeep:]
+	}
+	return messages
 }
 
 // calculateMessageImportance 计算消息重要性

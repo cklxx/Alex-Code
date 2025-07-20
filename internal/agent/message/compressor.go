@@ -27,153 +27,155 @@ func NewMessageCompressor(llmClient llm.Client) *MessageCompressor {
 	}
 }
 
-// CompressMessages compresses a batch of messages
+// CompressMessages compresses a batch of messages - simplified strategy, aligned with Kimi K2's 128K token limit
 func (mc *MessageCompressor) CompressMessages(messages []*session.Message) []*session.Message {
-	if len(messages) <= 10 {
-		return messages
-	}
-
-	// Estimate total tokens
+	// Only compress when truly necessary (high thresholds)
 	totalTokens := mc.estimateTokens(messages)
+	messageCount := len(messages)
 	
-	// Choose compression strategy based on message count and token count
-	if totalTokens > 8000 {
-		return mc.aggressiveCompress(messages, 5)
-	} else if totalTokens > 6000 {
-		return mc.moderateCompress(messages, 8)
-	} else if len(messages) > 20 {
-		return mc.lightCompress(messages, 15)
+	// High thresholds aligned with Kimi K2's 128K token context window
+	const (
+		TokenThreshold = 100000 // 按Kimi K2的128K token上限设置，留20%余量
+		MessageThreshold = 300  // 适配128K context的消息数量阈值
+		RecentKeep = 20         // 保留更多最近消息以确保上下文完整
+	)
+	
+	// Only compress if we exceed BOTH thresholds significantly
+	if messageCount > MessageThreshold && totalTokens > TokenThreshold {
+		log.Printf("[INFO] Comprehensive compression triggered: %d messages, %d tokens", messageCount, totalTokens)
+		return mc.comprehensiveCompress(messages, RecentKeep)
 	}
 	
+	// No compression needed
 	return messages
 }
 
-// findToolAwareSplitPoint finds the split point that respects tool call pairs
-func (mc *MessageCompressor) findToolAwareSplitPoint(messages []*session.Message, recentKeep int) int {
+// findRecentMessagesWithToolPairing finds recent messages while maintaining tool call pairs
+func (mc *MessageCompressor) findRecentMessagesWithToolPairing(messages []*session.Message, recentKeep int) []*session.Message {
 	if len(messages) <= recentKeep {
-		return 0
+		return messages
 	}
 
-	// 从后往前扫描，确保工具调用和响应成对保留
-	keptCount := 0
-	splitPoint := len(messages)
-
-	for i := len(messages) - 1; i >= 0 && keptCount < recentKeep; i-- {
+	// Start from the most recent messages and work backwards
+	// But ensure we keep complete tool call sequences
+	
+	// First, identify all tool call pairs
+	toolCallPairs := mc.buildToolCallPairMap(messages)
+	
+	// Start from the end, keep adding messages while maintaining pairs
+	kept := make([]*session.Message, 0, recentKeep*2) // Allow for expansion due to tool pairs
+	messageIndices := make(map[*session.Message]int)
+	
+	// Build index map
+	for i, msg := range messages {
+		messageIndices[msg] = i
+	}
+	
+	// Track which messages we must include to maintain pairing
+	mustInclude := make(map[int]bool)
+	
+	// Add recent messages from the end
+	for i := len(messages) - 1; i >= 0 && len(kept) < recentKeep*2; i-- {
 		msg := messages[i]
-
-		// 如果是工具响应消息，需要确保对应的工具调用也被保留
+		
+		// If this message is part of a tool call pair, include the whole pair
 		if msg.Role == "tool" {
-			if toolCallId, ok := msg.Metadata["tool_call_id"].(string); ok && toolCallId != "" {
-				// 向前查找对应的工具调用
-				foundToolCall := false
-				for j := i - 1; j >= 0; j-- {
-					if messages[j].Role == "assistant" && len(messages[j].ToolCalls) > 0 {
-						// 检查是否包含匹配的工具调用ID
-						for _, tc := range messages[j].ToolCalls {
-							if tc.ID == toolCallId {
-								foundToolCall = true
-								break
-							}
-						}
-						if foundToolCall {
-							break
-						}
-					}
-				}
-				
-				// 如果找到了对应的工具调用，并且它在切分点之前，需要调整切分点
-				if foundToolCall {
-					// 继续向前查找，确保包含完整的工具调用序列
-					for j := i - 1; j >= 0; j-- {
-						if messages[j].Role == "assistant" && len(messages[j].ToolCalls) > 0 {
-							// 检查这个助手消息是否包含当前工具响应的调用
-							hasMatchingCall := false
-							for _, tc := range messages[j].ToolCalls {
-								if tc.ID == toolCallId {
-									hasMatchingCall = true
-									break
-								}
-							}
-							if hasMatchingCall {
-								splitPoint = j
-								keptCount = len(messages) - j
-								break
-							}
-						}
-					}
+			if toolCallId, ok := msg.Metadata["tool_call_id"].(string); ok {
+				if assistantIndex, exists := toolCallPairs[toolCallId]; exists {
+					mustInclude[assistantIndex] = true
+					mustInclude[i] = true
 				}
 			}
-		}
-
-		// 如果是助手消息且包含工具调用，需要确保所有对应的工具响应都被保留
-		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
-			allResponsesIncluded := true
-			maxResponseIndex := i
-
-			// 检查所有工具调用是否都有对应的响应在保留范围内
+		} else if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
+			mustInclude[i] = true
+			// Find all corresponding tool responses
 			for _, tc := range msg.ToolCalls {
-				responseFound := false
 				for j := i + 1; j < len(messages); j++ {
 					if messages[j].Role == "tool" {
 						if callId, ok := messages[j].Metadata["tool_call_id"].(string); ok && callId == tc.ID {
-							responseFound = true
-							if j > maxResponseIndex {
-								maxResponseIndex = j
-							}
-							break
+							mustInclude[j] = true
 						}
 					}
 				}
-				if !responseFound {
-					allResponsesIncluded = false
-					break
-				}
 			}
-
-			// 如果所有响应都在范围内，调整切分点以包含完整序列
-			if allResponsesIncluded {
-				splitPoint = i
-				keptCount = len(messages) - i
-			}
+		} else {
+			mustInclude[i] = true
 		}
-
-		// 简单情况：如果还没有达到保留数量限制，继续向前
-		if keptCount < recentKeep {
-			splitPoint = i
-			keptCount++
+		
+		// Stop if we have enough messages (but allow pairs to complete)
+		if len(mustInclude) >= recentKeep {
+			break
 		}
 	}
-
-	return splitPoint
+	
+	// Find the earliest index we need to include
+	minIndex := len(messages)
+	for index := range mustInclude {
+		if index < minIndex {
+			minIndex = index
+		}
+	}
+	
+	// Return messages from minIndex to end
+	if minIndex < len(messages) {
+		return messages[minIndex:]
+	}
+	
+	// Fallback: just return the last recentKeep messages
+	if len(messages) > recentKeep {
+		return messages[len(messages)-recentKeep:]
+	}
+	return messages
 }
 
-// aggressiveCompress applies aggressive compression
-func (mc *MessageCompressor) aggressiveCompress(messages []*session.Message, recentKeep int) []*session.Message {
+// buildToolCallPairMap builds a map of tool_call_id -> assistant message index
+func (mc *MessageCompressor) buildToolCallPairMap(messages []*session.Message) map[string]int {
+	pairs := make(map[string]int)
+	
+	for i, msg := range messages {
+		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
+			for _, tc := range msg.ToolCalls {
+				pairs[tc.ID] = i
+			}
+		}
+	}
+	
+	return pairs
+}
+
+// comprehensiveCompress applies comprehensive compression - simplified and robust
+func (mc *MessageCompressor) comprehensiveCompress(messages []*session.Message, recentKeep int) []*session.Message {
 	if len(messages) <= recentKeep {
 		return messages
 	}
 
-	// Keep recent messages and system messages
-	var result []*session.Message
-	var toCompress []*session.Message
+	// Separate system messages (always keep)
+	var systemMessages []*session.Message
+	var nonSystemMessages []*session.Message
 	
-	// Add system messages
 	for _, msg := range messages {
 		if msg.Role == "system" {
-			result = append(result, msg)
+			systemMessages = append(systemMessages, msg)
+		} else {
+			nonSystemMessages = append(nonSystemMessages, msg)
 		}
 	}
 	
-	// Find tool-aware split point
-	recentStart := mc.findToolAwareSplitPoint(messages, recentKeep)
-	
-	// Messages to compress
-	for i := 0; i < recentStart; i++ {
-		msg := messages[i]
-		if msg.Role != "system" {
-			toCompress = append(toCompress, msg)
-		}
+	// If not enough non-system messages, no compression needed
+	if len(nonSystemMessages) <= recentKeep {
+		return messages
 	}
+	
+	// Find proper split point while maintaining tool call pairs
+	recentMessages := mc.findRecentMessagesWithToolPairing(nonSystemMessages, recentKeep)
+	recentStart := len(nonSystemMessages) - len(recentMessages)
+	
+	// Messages to compress (older messages)
+	toCompress := nonSystemMessages[:recentStart]
+	
+	// Build result: system messages + summary + recent messages
+	var result []*session.Message
+	result = append(result, systemMessages...)
 	
 	// Create summary if there are messages to compress
 	if len(toCompress) > 0 {
@@ -183,112 +185,14 @@ func (mc *MessageCompressor) aggressiveCompress(messages []*session.Message, rec
 		}
 	}
 	
-	// Add recent messages
-	for i := recentStart; i < len(messages); i++ {
-		msg := messages[i]
-		if msg.Role != "system" {
-			result = append(result, msg)
-		}
-	}
+	// Add recent messages (with tool call pairs intact)
+	result = append(result, recentMessages...)
 	
+	log.Printf("[INFO] Comprehensive compression: %d -> %d messages", len(messages), len(result))
 	return result
 }
 
-// moderateCompress applies moderate compression
-func (mc *MessageCompressor) moderateCompress(messages []*session.Message, recentKeep int) []*session.Message {
-	if len(messages) <= recentKeep {
-		return messages
-	}
 
-	// Keep important messages and recent messages
-	var result []*session.Message
-	var toCompress []*session.Message
-	
-	// Add system messages
-	for _, msg := range messages {
-		if msg.Role == "system" {
-			result = append(result, msg)
-		}
-	}
-	
-	// Select important messages to keep
-	importantMessages := mc.selectImportantMessages(messages, recentKeep/2)
-	
-	// Find tool-aware split point
-	recentStart := mc.findToolAwareSplitPoint(messages, recentKeep)
-	
-	// Messages to compress (exclude important and recent)
-	importantSet := make(map[*session.Message]bool)
-	for _, msg := range importantMessages {
-		importantSet[msg] = true
-	}
-	
-	for i := 0; i < recentStart; i++ {
-		msg := messages[i]
-		if msg.Role != "system" && !importantSet[msg] {
-			toCompress = append(toCompress, msg)
-		}
-	}
-	
-	// Create summary if there are messages to compress
-	if len(toCompress) > 0 {
-		summary := mc.createLLMSummary(toCompress)
-		if summary != nil {
-			result = append(result, summary)
-		}
-	}
-	
-	// Add important messages
-	result = append(result, importantMessages...)
-	
-	// Add recent messages
-	for i := recentStart; i < len(messages); i++ {
-		msg := messages[i]
-		if msg.Role != "system" {
-			result = append(result, msg)
-		}
-	}
-	
-	return result
-}
-
-// lightCompress applies light compression
-func (mc *MessageCompressor) lightCompress(messages []*session.Message, recentKeep int) []*session.Message {
-	if len(messages) <= recentKeep {
-		return messages
-	}
-
-	// Remove low-value messages
-	var result []*session.Message
-	
-	// Keep all system messages
-	for _, msg := range messages {
-		if msg.Role == "system" {
-			result = append(result, msg)
-		}
-	}
-	
-	// Find tool-aware split point
-	recentStart := mc.findToolAwareSplitPoint(messages, recentKeep)
-	
-	// Filter out low-value messages from older messages
-	for i := 0; i < recentStart; i++ {
-		msg := messages[i]
-		if msg.Role != "system" && !mc.isLowValueMessage(msg) {
-			result = append(result, msg)
-		}
-	}
-	
-	// Add recent messages
-	for i := recentStart; i < len(messages); i++ {
-		msg := messages[i]
-		if msg.Role != "system" {
-			result = append(result, msg)
-		}
-	}
-	
-	return result
-}
 
 // selectImportantMessages selects the most important messages
 func (mc *MessageCompressor) selectImportantMessages(messages []*session.Message, maxCount int) []*session.Message {
