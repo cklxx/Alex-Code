@@ -9,7 +9,6 @@ import (
 
 	contextmgr "alex/internal/context"
 	"alex/internal/llm"
-	"alex/internal/memory"
 	"alex/internal/session"
 	"alex/pkg/types"
 )
@@ -437,85 +436,7 @@ func (rc *ReactCore) addToolMessagesToSession(ctx context.Context, toolMessages 
 		sess.AddMessage(sessionMsg)
 	}
 
-	// 异步创建工具使用相关的memory
-	if rc.agent.memoryManager != nil && len(toolResults) > 0 {
-		go rc.createToolUsageMemory(sess.ID, toolResults)
-	}
+	// Memory creation removed
 }
 
-// createToolUsageMemory - 创建工具使用相关的记忆
-func (rc *ReactCore) createToolUsageMemory(sessionID string, toolResults []*types.ReactToolResult) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("[ERROR] Tool usage memory creation panic: %v", r)
-		}
-	}()
-
-	if rc.agent.memoryManager == nil {
-		return
-	}
-
-	// 统计工具使用情况
-	var successfulTools, failedTools []string
-	totalTime := time.Duration(0)
-
-	for _, result := range toolResults {
-		if result == nil {
-			continue
-		}
-
-		if result.Success {
-			successfulTools = append(successfulTools, result.ToolName)
-		} else {
-			failedTools = append(failedTools, result.ToolName)
-		}
-		totalTime += result.Duration
-	}
-
-	// 创建工具使用模式记忆
-	if len(successfulTools) > 0 {
-		memory := &memory.MemoryItem{
-			ID:         fmt.Sprintf("tool_usage_%s_%d", sessionID, time.Now().UnixNano()),
-			SessionID:  sessionID,
-			Category:   memory.TaskHistory,
-			Content:    fmt.Sprintf("Successfully used tools: %s (total time: %v)", strings.Join(successfulTools, ", "), totalTime),
-			Importance: 0.7,
-			Tags:       append([]string{"tool_usage", "success"}, successfulTools...),
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-			LastAccess: time.Now(),
-			Metadata: map[string]interface{}{
-				"successful_tools": successfulTools,
-				"execution_time":   totalTime.Milliseconds(),
-				"tool_count":       len(successfulTools),
-			},
-		}
-
-		if err := rc.agent.memoryManager.Store(memory); err != nil {
-			log.Printf("[WARN] Failed to store tool usage memory: %v", err)
-		}
-	}
-
-	// 创建工具失败记忆
-	if len(failedTools) > 0 {
-		memory := &memory.MemoryItem{
-			ID:         fmt.Sprintf("tool_failure_%s_%d", sessionID, time.Now().UnixNano()),
-			SessionID:  sessionID,
-			Category:   memory.ErrorPatterns,
-			Content:    fmt.Sprintf("Failed tools: %s", strings.Join(failedTools, ", ")),
-			Importance: 0.8, // 失败记忆更重要，用于避免重复错误
-			Tags:       append([]string{"tool_failure", "error"}, failedTools...),
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-			LastAccess: time.Now(),
-			Metadata: map[string]interface{}{
-				"failed_tools":  failedTools,
-				"failure_count": len(failedTools),
-			},
-		}
-
-		if err := rc.agent.memoryManager.Store(memory); err != nil {
-			log.Printf("[WARN] Failed to store tool failure memory: %v", err)
-		}
-	}
-}
+// Memory-related tool usage functions removed

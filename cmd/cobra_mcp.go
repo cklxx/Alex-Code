@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"alex/internal/config"
-	"alex/internal/mcp"
+	"alex/internal/tools/mcp"
 )
 
 // newMCPCommand creates the MCP management command

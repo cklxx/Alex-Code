@@ -10,8 +10,7 @@ import (
 	"alex/internal/config"
 	contextmgr "alex/internal/context"
 	"alex/internal/llm"
-	"alex/internal/mcp"
-	"alex/internal/memory"
+	"alex/internal/tools/mcp"
 	"alex/internal/prompts"
 	"alex/internal/session"
 	"alex/internal/tools/builtin"
@@ -23,8 +22,14 @@ type ContextKey string
 
 const (
 	SessionIDKey ContextKey = "sessionID"
-	MemoriesKey  ContextKey = "memories"
 )
+
+// GeneratedMemories - 空记忆结构体 (Memory module removed)
+type GeneratedMemories struct {
+	SessionID string    `json:"session_id"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 
 // ReactCoreInterface - ReAct核心接口
 type ReactCoreInterface interface {
@@ -46,7 +51,6 @@ type ReactAgent struct {
 	
 	// 新的管理器
 	contextManager *ContextManager
-	memoryManager  *ActiveMemoryManager
 	
 	// 核心组件
 	reactCore    ReactCoreInterface
@@ -118,20 +122,8 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 		tools[tool.Name()] = tool
 	}
 
-	// 初始化Memory系统
-	var baseMemoryManager *memory.MemoryManager
-	if llmClient != nil {
-		if mm, err := memory.NewMemoryManager(llmClient); err == nil {
-			baseMemoryManager = mm
-			log.Printf("[INFO] ReactAgent: Memory system initialized successfully")
-		} else {
-			log.Printf("[WARN] ReactAgent: Failed to initialize memory system: %v", err)
-		}
-	}
-
-	// 创建新的管理器
-	contextManager := NewContextManager(llmClient, baseMemoryManager)
-	activeMemoryManager := NewActiveMemoryManager(llmClient, baseMemoryManager)
+	// 创建新的管理器 (Memory system removed)
+	contextManager := NewContextManager(llmClient, nil)
 
 	agent := &ReactAgent{
 		llm:            llmClient,
@@ -143,7 +135,6 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 		
 		// 新的管理器
 		contextManager: contextManager,
-		memoryManager:  activeMemoryManager,
 		
 		promptBuilder: NewLightPromptBuilder(),
 	}
@@ -152,9 +143,7 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	agent.reactCore = NewReactCore(agent)
 	agent.toolExecutor = NewToolExecutor(agent)
 
-	// 添加记忆生成工具
-	memoryTool := activeMemoryManager.GetMemoryTool()
-	tools["generate_memories"] = memoryTool
+	// Memory tools removed
 
 	return agent, nil
 }
@@ -214,23 +203,14 @@ func (r *ReactAgent) ProcessMessage(ctx context.Context, userMessage string, con
 	// 获取会话消息
 	messages := currentSession.GetMessages()
 	
-	// 使用ContextManager优化上下文
-	optimizedMessages, err := r.contextManager.OptimizeContext(ctx, currentSession.ID, messages)
+	// 使用ContextManager优化上下文 (结果暂不使用，因为内存模块已移除)
+	_, err := r.contextManager.OptimizeContext(ctx, currentSession.ID, messages)
 	if err != nil {
 		log.Printf("[WARN] Context optimization failed: %v", err)
-		optimizedMessages = messages // 使用原始消息
 	}
 
-	// 召回相关记忆
-	memories, err := r.memoryManager.RecallMemories(ctx, currentSession.ID, userMessage, 
-		[]memory.MemoryCategory{memory.CodeContext, memory.TaskHistory, memory.Solutions})
-	if err != nil {
-		log.Printf("[WARN] Memory recall failed: %v", err)
-	}
-
-	// 将记忆注入context
-	ctxWithMemory := context.WithValue(ctx, MemoriesKey, memories)
-	ctxWithSession := context.WithValue(ctxWithMemory, SessionIDKey, currentSession.ID)
+	// 将会话ID注入context
+	ctxWithSession := context.WithValue(ctx, SessionIDKey, currentSession.ID)
 
 	// 执行ReAct循环
 	result, err := r.reactCore.SolveTask(ctxWithSession, userMessage, nil)
@@ -251,17 +231,7 @@ func (r *ReactAgent) ProcessMessage(ctx context.Context, userMessage string, con
 	}
 	currentSession.AddMessage(assistantMsg)
 
-	// 检查是否需要生成记忆
-	if r.memoryManager.ShouldGenerateMemories(optimizedMessages) {
-		go func() {
-			generated, err := r.memoryManager.GenerateMemoriesFromConversation(ctx, currentSession.ID, optimizedMessages)
-			if err != nil {
-				log.Printf("[WARN] Memory generation failed: %v", err)
-			} else {
-				log.Printf("[INFO] Generated %d memories for session %s", len(generated.Memories), currentSession.ID)
-			}
-		}()
-	}
+	// Memory generation removed
 
 	// 转换结果
 	toolResults := make([]types.ReactToolResult, 0)
@@ -307,22 +277,13 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 
 	// 获取优化后的上下文
 	messages := currentSession.GetMessages()
-	optimizedMessages, err := r.contextManager.OptimizeContext(ctx, currentSession.ID, messages)
+	_, err := r.contextManager.OptimizeContext(ctx, currentSession.ID, messages)
 	if err != nil {
 		log.Printf("[WARN] Context optimization failed: %v", err)
-		optimizedMessages = messages
-	}
-
-	// 召回记忆
-	memories, err := r.memoryManager.RecallMemories(ctx, currentSession.ID, userMessage, 
-		[]memory.MemoryCategory{memory.CodeContext, memory.TaskHistory, memory.Solutions})
-	if err != nil {
-		log.Printf("[WARN] Memory recall failed: %v", err)
 	}
 
 	// 设置上下文
-	ctxWithMemory := context.WithValue(ctx, MemoriesKey, memories)
-	ctxWithSession := context.WithValue(ctxWithMemory, SessionIDKey, currentSession.ID)
+	ctxWithSession := context.WithValue(ctx, SessionIDKey, currentSession.ID)
 
 	// 执行流式ReAct循环
 	result, err := r.reactCore.SolveTask(ctxWithSession, userMessage, callback)
@@ -344,17 +305,7 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 	}
 	currentSession.AddMessage(assistantMsg)
 
-	// 异步生成记忆
-	if r.memoryManager.ShouldGenerateMemories(optimizedMessages) {
-		go func() {
-			generated, err := r.memoryManager.GenerateMemoriesFromConversation(ctx, currentSession.ID, optimizedMessages)
-			if err != nil {
-				log.Printf("[WARN] Memory generation failed: %v", err)
-			} else {
-				log.Printf("[INFO] Generated %d memories for session %s", len(generated.Memories), currentSession.ID)
-			}
-		}()
-	}
+	// Memory generation removed
 
 	// 发送完成信号
 	if callback != nil {
@@ -417,18 +368,9 @@ func (r *ReactAgent) GetContextQuality(sessionID string) (*ContextQuality, error
 	return r.contextManager.evaluateContextQuality(messages), nil
 }
 
-// GenerateMemories - 手动生成记忆
+// GenerateMemories - 手动生成记忆 (Memory module removed)
 func (r *ReactAgent) GenerateMemories(ctx context.Context, sessionID string) (*GeneratedMemories, error) {
-	r.mu.RLock()
-	currentSession := r.currentSession
-	r.mu.RUnlock()
-	
-	if currentSession == nil || currentSession.ID != sessionID {
-		return nil, fmt.Errorf("session not found")
-	}
-	
-	messages := currentSession.GetMessages()
-	return r.memoryManager.GenerateMemoriesFromConversation(ctx, sessionID, messages)
+	return &GeneratedMemories{}, nil
 }
 
 // ========== 代理方法 ==========
@@ -458,16 +400,11 @@ func NewLightPromptBuilder() *LightPromptBuilder {
 	}
 }
 
-// GetMemoryStats - 获取内存统计信息
+// GetMemoryStats - 获取内存统计信息 (Memory module removed)
 func (r *ReactAgent) GetMemoryStats() map[string]interface{} {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	
-	if r.memoryManager == nil {
-		return nil
+	return map[string]interface{}{
+		"memory_disabled": true,
 	}
-	
-	return r.memoryManager.GetMemoryStats()
 }
 
 // integrateWithMCPTools - 集成MCP工具

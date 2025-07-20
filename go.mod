@@ -10,8 +10,6 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/kaptinlin/jsonrepair v0.2.1
 	github.com/manifoldco/promptui v0.9.0
-	github.com/mattn/go-sqlite3 v1.14.28
-	github.com/philippgille/chromem-go v0.7.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	golang.org/x/term v0.31.0

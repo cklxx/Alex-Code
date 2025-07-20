@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"sync"
 
-	"alex/internal/mcp/protocol"
+	"alex/internal/tools/mcp/protocol"
 )
 
 // StdioTransport implements MCP transport over standard input/output

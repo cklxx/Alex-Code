@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/mcp/protocol"
+	"alex/internal/tools/mcp/protocol"
 	"alex/internal/tools/builtin"
 )
 

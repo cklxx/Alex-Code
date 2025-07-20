@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/mcp/protocol"
+	"alex/internal/tools/mcp/protocol"
 )
 
 // SSETransport implements MCP transport over Server-Sent Events

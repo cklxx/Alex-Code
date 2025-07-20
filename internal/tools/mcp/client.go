@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/mcp/protocol"
+	"alex/internal/tools/mcp/protocol"
 )
 
 // parseJSONResponse safely parses a JSON-RPC response result

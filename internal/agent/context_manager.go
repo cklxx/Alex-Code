@@ -9,14 +9,12 @@ import (
 	"time"
 
 	"alex/internal/llm"
-	"alex/internal/memory"
 	"alex/internal/session"
 )
 
 // ContextManager - 真正的上下文管理器
 type ContextManager struct {
 	llmClient      llm.Client
-	memoryManager  *memory.MemoryManager
 	tokenEstimator *TokenEstimator
 
 	// 上下文策略
@@ -48,11 +46,10 @@ type ContextQuality struct {
 	Timestamp          time.Time `json:"timestamp"`
 }
 
-// NewContextManager - 创建上下文管理器
-func NewContextManager(llmClient llm.Client, memoryManager *memory.MemoryManager) *ContextManager {
+// NewContextManager - 创建上下文管理器 (Memory manager removed)
+func NewContextManager(llmClient llm.Client, memoryManager interface{}) *ContextManager {
 	return &ContextManager{
 		llmClient:      llmClient,
-		memoryManager:  memoryManager,
 		tokenEstimator: NewTokenEstimator(),
 
 		// 默认策略

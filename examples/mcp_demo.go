@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"alex/internal/config"
-	"alex/internal/mcp"
-	"alex/internal/mcp/protocol"
+	"alex/internal/tools/mcp"
+	"alex/internal/tools/mcp/protocol"
 	"alex/internal/tools/builtin"
 )
 

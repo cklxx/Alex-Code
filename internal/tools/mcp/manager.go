@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/mcp/protocol"
-	"alex/internal/mcp/transport"
+	"alex/internal/tools/mcp/protocol"
+	"alex/internal/tools/mcp/transport"
 	"alex/internal/tools/builtin"
 )
 

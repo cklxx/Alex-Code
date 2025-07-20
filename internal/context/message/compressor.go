@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sort"
 	"strings"
 	"time"
 
@@ -194,106 +193,7 @@ func (mc *MessageCompressor) comprehensiveCompress(messages []*session.Message, 
 
 
 
-// selectImportantMessages selects the most important messages
-func (mc *MessageCompressor) selectImportantMessages(messages []*session.Message, maxCount int) []*session.Message {
-	// Calculate importance scores
-	type messageScore struct {
-		message *session.Message
-		score   float64
-	}
-	
-	var scores []messageScore
-	for _, msg := range messages {
-		if msg.Role != "system" {
-			score := mc.calculateMessageImportance(msg)
-			scores = append(scores, messageScore{message: msg, score: score})
-		}
-	}
-	
-	// Sort by importance (descending)
-	sort.Slice(scores, func(i, j int) bool {
-		return scores[i].score > scores[j].score
-	})
-	
-	// Return top messages
-	var result []*session.Message
-	for i := 0; i < len(scores) && i < maxCount; i++ {
-		result = append(result, scores[i].message)
-	}
-	
-	return result
-}
-
-// isLowValueMessage checks if a message has low value
-func (mc *MessageCompressor) isLowValueMessage(msg *session.Message) bool {
-	content := strings.ToLower(strings.TrimSpace(msg.Content))
-	
-	// Check for low-value patterns
-	lowValuePatterns := []string{
-		"ok", "yes", "no", "done", "thanks", "thank you",
-		"got it", "understood", "sure", "alright", "okay",
-	}
-	
-	for _, pattern := range lowValuePatterns {
-		if content == pattern {
-			return true
-		}
-	}
-	
-	// Check for very short messages
-	if len(content) < 10 {
-		return true
-	}
-	
-	return false
-}
-
-// calculateMessageImportance calculates the importance score of a message
-func (mc *MessageCompressor) calculateMessageImportance(msg *session.Message) float64 {
-	score := 0.0
-	content := strings.ToLower(msg.Content)
-	
-	// Length factor
-	score += float64(len(msg.Content)) * 0.01
-	
-	// Role factor
-	switch msg.Role {
-	case "user":
-		score += 10.0
-	case "assistant":
-		score += 8.0
-	case "tool":
-		score += 6.0
-	}
-	
-	// Content importance keywords
-	importantKeywords := []string{
-		"error", "problem", "issue", "bug", "fix", "solution",
-		"important", "critical", "urgent", "help", "need",
-		"implement", "create", "develop", "build", "design",
-	}
-	
-	for _, keyword := range importantKeywords {
-		if strings.Contains(content, keyword) {
-			score += 5.0
-		}
-	}
-	
-	// Tool calls add importance
-	if len(msg.ToolCalls) > 0 {
-		score += float64(len(msg.ToolCalls)) * 3.0
-	}
-	
-	// Recency factor (more recent = more important)
-	age := time.Since(msg.Timestamp).Hours()
-	if age < 1 {
-		score += 10.0
-	} else if age < 24 {
-		score += 5.0
-	}
-	
-	return score
-}
+// Unused memory-related functions removed
 
 // createLLMSummary creates a summary using LLM
 func (mc *MessageCompressor) createLLMSummary(messages []*session.Message) *session.Message {
