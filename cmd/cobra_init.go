@@ -100,74 +100,101 @@ func buildProjectAnalysisPrompt(projectName, workDir, outputFile string) string 
 
 	templateContent := template.Content
 
-	return fmt.Sprintf(`You are a professional project analyst. Please conduct an in-depth analysis of the project "%s" and generate comprehensive project documentation using the provided template.
+	return fmt.Sprintf(`You are a professional project analyst. Your task is to analyze the project "%s" and generate a comprehensive ALEX.md documentation file.
+
+# CRITICAL INSTRUCTIONS:
+1. **THIS IS NOT ABOUT CREATING CONVERSATION MEMORY** - You are creating project documentation
+2. **OUTPUT MUST BE A MARKDOWN FILE** - Generate actual ALEX.md file content
+3. **DO NOT CREATE SHORT-TERM MEMORY** - This is a documentation generation task
 
 # Task Workflow:
 
-## Step 1: Comprehensive Project Analysis
-Use the following tools to deeply analyze the project:
-- file_search, grep_search, codebase_search to analyze project structure
-- read_file to examine key files (README, config files, core code)
-- Understand project architecture, technology stack, and features
-- Analyze code quality, design patterns, and best practices
+## Step 1: Deep Project Analysis
+Use the following tools to comprehensively analyze the project:
+- file_list to explore project structure  
+- file_read to examine key files (README, main.go, config files, core modules)
+- grep to search for patterns, features, and technologies used
+- Understand the project's purpose, architecture, and key features
+- Identify build system, testing approach, and usage patterns
+- Analyze the codebase to understand design principles and architecture
 
-## Step 2: Use the Provided Template
-The following is the documentation template with placeholders in {{VariableName}} format.
-You need to fill in the analysis results into the corresponding variables:
+## Step 2: Generate ALEX.md Documentation
+Using the provided template, replace ALL {{variables}} with actual content:
 
 ---
 %s
 ---
 
-## Step 3: Generate Complete Documentation
-Write the filled content to file "%s", ensuring:
-- All {{variables}} are replaced with actual content based on your project analysis
-- Content is detailed, accurate, and professional
-- Format is beautiful and structure is clear
-- Include practical usage instructions and development guides
-- Replace {{ProjectName}} with "%s"
+### Variable Mapping Instructions:
+- {{ProjectName}} → "%s" 
+- {{ProjectDescription}} → Brief description of what this project does
+- {{BuildCommands}} → Actual build/test commands from Makefile or build scripts
+- {{UsageCommands}} → How to run and use the project
+- {{CoreComponents}} → List and describe major modules/packages
+- {{ToolsSection}} → Title for tools section (e.g., "Built-in Tools")
+- {{BuiltinTools}} → List of available tools/features
+- {{SecurityFeatures}} → Security measures and protections
+- {{PerformanceMetrics}} → Performance characteristics
+- {{DesignPhilosophy}} → Core design principles
+- {{NamingGuidelines}} → Code naming conventions
+- {{ArchitecturalPrinciples}} → Key architectural decisions
+- {{CurrentStatus}} → Current development status
+- {{TestingInstructions}} → How to run tests
 
-# Important Requirements:
-1. **Take Action Immediately** - Start analysis right away, don't ask any questions
-2. **Deep Analysis** - Fully understand the project's tech stack, architecture, and functionality
-3. **Use Provided Template** - Use the template above and fill all variables with real content
-4. **Generate File** - Write final documentation to the specified file
-5. **Rich Content** - Ensure each section has substantial content
+## Step 3: Write the ALEX.md File
+Use file_update or file_write to create the file "%s" with:
+- Complete markdown content with all variables replaced
+- Professional documentation quality
+- Clear structure and formatting
+- Practical usage examples
+- Comprehensive project insights
 
-Start executing immediately! Working directory: %s`, projectName, templateContent, outputFile, projectName, workDir)
+# CRITICAL REQUIREMENTS:
+1. **GENERATE ACTUAL FILE** - Must create "%s" file with documentation content
+2. **NO CONVERSATION MEMORY** - This is pure documentation generation
+3. **REPLACE ALL VARIABLES** - Every {{variable}} must be filled with real content
+4. **PROFESSIONAL QUALITY** - Documentation should be comprehensive and useful
+
+Start analysis and file generation immediately! Working directory: %s`, projectName, templateContent, projectName, outputFile, outputFile, workDir)
 }
 
 // buildFallbackPrompt provides a fallback prompt if template loading fails
 func buildFallbackPrompt(projectName, workDir, outputFile string) string {
-	return fmt.Sprintf(`You are a professional project analyst. Please conduct an in-depth analysis of the project "%s" and generate comprehensive project documentation.
+	return fmt.Sprintf(`You are a professional project analyst. Your task is to analyze the project "%s" and generate comprehensive ALEX.md documentation.
+
+# CRITICAL INSTRUCTIONS:
+1. **THIS IS NOT ABOUT CREATING CONVERSATION MEMORY** - You are creating project documentation
+2. **OUTPUT MUST BE A MARKDOWN FILE** - Generate actual ALEX.md file content
+3. **DO NOT CREATE SHORT-TERM MEMORY** - This is a documentation generation task
 
 # Task Workflow:
 
 ## Step 1: Comprehensive Project Analysis
 Use the following tools to deeply analyze the project:
-- file_search, grep_search, codebase_search to analyze project structure
-- read_file to examine key files (README, config files, core code)
+- file_list to explore project structure
+- file_read to examine key files (README, main.go, config files, core modules)
+- grep to search for patterns, features, and technologies used
 - Understand project architecture, technology stack, and features
 - Analyze code quality, design patterns, and best practices
 
-## Step 2: Generate Documentation
-Create a comprehensive project documentation file "%s" with the following sections:
-- Project Overview and Goals
-- Architecture Design and Core Components
-- Technology Stack and Dependencies
-- Installation and Usage Instructions
-- Development Guide and Best Practices
-- API Documentation (if applicable)
-- Performance Characteristics
-- Current Status and Future Plans
+## Step 2: Generate ALEX.md File
+Create a comprehensive documentation file "%s" with complete sections including:
+- Project Overview with description of %s
+- Essential Development Commands (build, test, usage)
+- Architecture Overview with core components
+- Built-in tools and features
+- Security features and protections
+- Performance characteristics
+- Code principles and design philosophy
+- Current status and testing instructions
 
-# Important Requirements:
-1. **Take Action Immediately** - Start analysis right away, don't ask any questions
-2. **Deep Analysis** - Fully understand the project's tech stack, architecture, and functionality
-3. **Generate File** - Write final documentation to the specified file
-4. **Rich Content** - Ensure each section has substantial content
+# CRITICAL REQUIREMENTS:
+1. **GENERATE ACTUAL FILE** - Must create "%s" file with documentation content
+2. **NO CONVERSATION MEMORY** - This is pure documentation generation
+3. **ANALYZE FIRST** - Thoroughly examine the codebase before writing
+4. **PROFESSIONAL QUALITY** - Documentation should be comprehensive and useful
 
-Start executing immediately! Working directory: %s`, projectName, outputFile, workDir)
+Start analysis and file generation immediately! Working directory: %s`, projectName, outputFile, projectName, outputFile, workDir)
 }
 
 // fileExists 检查文件是否存在
