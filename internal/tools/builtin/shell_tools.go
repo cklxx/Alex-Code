@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"alex/internal/tools"
+	"alex/internal/utils"
 )
 
 // BashTool implements shell command execution functionality
@@ -178,6 +179,14 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 	if captureOutput {
 		stdoutStr := stdout.String()
 		stderrStr := stderr.String()
+
+		// Apply diff formatting if this looks like diff output
+		if stdoutStr != "" && utils.IsDiffOutput(stdoutStr) {
+			stdoutStr = utils.FormatDiffOutput(stdoutStr)
+		}
+		if stderrStr != "" && utils.IsDiffOutput(stderrStr) {
+			stderrStr = utils.FormatDiffOutput(stderrStr)
+		}
 
 		if stdoutStr != "" && stderrStr != "" {
 			resultContent = fmt.Sprintf("STDOUT:\n%s\n\nSTDERR:\n%s", stdoutStr, stderrStr)

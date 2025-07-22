@@ -11,7 +11,6 @@ import (
 
 var (
 	red    = color.New(color.FgRed).SprintFunc()
-	green  = color.New(color.FgGreen).SprintFunc()
 	yellow = color.New(color.FgYellow).SprintFunc()
 	blue   = color.New(color.FgBlue).SprintFunc()
 	cyan   = color.New(color.FgCyan).SprintFunc()
@@ -38,7 +37,7 @@ func CheckDependencies() error {
 	}
 
 	var missingDeps []Dependency
-	
+
 	for _, dep := range dependencies {
 		if !isDependencyInstalled(dep.Command) {
 			missingDeps = append(missingDeps, dep)
@@ -60,12 +59,12 @@ func isDependencyInstalled(command string) bool {
 	if err == nil {
 		return true
 	}
-	
+
 	// For ripgrep, test actual functionality instead of version check
 	if command == "rg" {
 		return testRipgrepFunctionality()
 	}
-	
+
 	// For other commands, try version check
 	cmd := exec.Command("sh", "-c", fmt.Sprintf("%s --version >/dev/null 2>&1", command))
 	err = cmd.Run()
@@ -131,19 +130,19 @@ func isUbuntuOrDebian() bool {
 	if runtime.GOOS != "linux" {
 		return false
 	}
-	
+
 	// Check for common Debian/Ubuntu indicators
 	_, err := exec.LookPath("apt")
 	if err == nil {
 		return true
 	}
-	
+
 	// Check /etc/os-release for additional confirmation
 	if output, err := exec.Command("cat", "/etc/os-release").Output(); err == nil {
 		content := strings.ToLower(string(output))
 		return strings.Contains(content, "ubuntu") || strings.Contains(content, "debian")
 	}
-	
+
 	return false
 }
 
@@ -152,7 +151,7 @@ func isFedoraOrRHEL() bool {
 	if runtime.GOOS != "linux" {
 		return false
 	}
-	
+
 	// Check for dnf or yum
 	if _, err := exec.LookPath("dnf"); err == nil {
 		return true
@@ -160,13 +159,13 @@ func isFedoraOrRHEL() bool {
 	if _, err := exec.LookPath("yum"); err == nil {
 		return true
 	}
-	
+
 	// Check /etc/os-release for additional confirmation
 	if output, err := exec.Command("cat", "/etc/os-release").Output(); err == nil {
 		content := strings.ToLower(string(output))
 		return strings.Contains(content, "fedora") || strings.Contains(content, "rhel") || strings.Contains(content, "centos")
 	}
-	
+
 	return false
 }
 
@@ -175,18 +174,18 @@ func isArchLinux() bool {
 	if runtime.GOOS != "linux" {
 		return false
 	}
-	
+
 	// Check for pacman
 	if _, err := exec.LookPath("pacman"); err == nil {
 		return true
 	}
-	
+
 	// Check /etc/os-release for additional confirmation
 	if output, err := exec.Command("cat", "/etc/os-release").Output(); err == nil {
 		content := strings.ToLower(string(output))
 		return strings.Contains(content, "arch")
 	}
-	
+
 	return false
 }
 

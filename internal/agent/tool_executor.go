@@ -11,6 +11,7 @@ import (
 
 	"alex/internal/llm"
 	"alex/internal/tools/builtin"
+	"alex/internal/utils"
 	"alex/pkg/types"
 	"github.com/kaptinlin/jsonrepair"
 )
@@ -257,14 +258,28 @@ func (te *ToolExecutor) executeSerialToolsStream(ctx context.Context, toolCalls 
 				}
 			} else if result != nil {
 				log.Printf("[DEBUG] executeSerialToolsStream: Tool call %d succeeded", i+1)
-				// 发送工具结果信号
-				var contentStr string
+				// 发送工具结果信号 
+				var contentStr string = result.Content
+				
+				// Check for diff data and apply formatting for display
+				if result.Data != nil {
+					if diffStr, hasDiff := result.Data["diff"].(string); hasDiff && diffStr != "" {
+						contentStr = result.Content + "\n" + formatDiffForDisplay(diffStr)
+					}
+				}
+				
+				// For diff content, use higher limit to avoid cutting off useful diff info
+				var displayLimit int = 200
+				if result.Data != nil {
+					if _, hasDiff := result.Data["diff"].(string); hasDiff {
+						displayLimit = 800  // Higher limit for diff content
+					}
+				}
+				
 				// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
-				runes := []rune(result.Content)
-				if len(runes) > 200 {
-					contentStr = string(runes[:200]) + "..."
-				} else {
-					contentStr = result.Content
+				runes := []rune(contentStr)
+				if len(runes) > displayLimit {
+					contentStr = string(runes[:displayLimit]) + "..."
 				}
 				callback(StreamChunk{Type: "tool_result", Content: contentStr})
 
@@ -526,4 +541,18 @@ func simpleFallbackRepair(jsonStr string) string {
 	}
 	
 	return jsonStr
+}
+
+// formatDiffForDisplay applies color formatting to diff for CLI display
+func formatDiffForDisplay(diffStr string) string {
+	if diffStr == "" {
+		return ""
+	}
+	
+	// Check if this looks like a diff and format it
+	if utils.IsDiffOutput(diffStr) {
+		return utils.FormatDiffOutput(diffStr)
+	}
+	
+	return diffStr
 }
