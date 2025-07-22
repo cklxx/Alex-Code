@@ -204,3 +204,83 @@ func TestCreateClientFromProvider(t *testing.T) {
 		t.Error("expected error with nil provider")
 	}
 }
+
+func TestGetLLMInstance(t *testing.T) {
+	// Set up mock config provider
+	mockConfig := &Config{
+		BaseURL: "https://api.test.com",
+		APIKey:  "test-key",
+		Model:   "test-model",
+	}
+	SetConfigProvider(func() (*Config, error) {
+		return mockConfig, nil
+	})
+
+	// Clear cache before test
+	ClearInstanceCache()
+
+	// Test getting basic model instance
+	client, err := GetLLMInstance(BasicModel)
+	if err != nil {
+		t.Errorf("GetLLMInstance failed: %v", err)
+	}
+	if client == nil {
+		t.Error("expected client but got nil")
+	}
+
+	// Test that subsequent calls return cached instance
+	client2, err := GetLLMInstance(BasicModel)
+	if err != nil {
+		t.Errorf("GetLLMInstance failed on second call: %v", err)
+	}
+	if client != client2 {
+		t.Error("expected same cached client instance")
+	}
+
+	// Test reasoning model
+	reasoningClient, err := GetLLMInstance(ReasoningModel)
+	if err != nil {
+		t.Errorf("GetLLMInstance failed for reasoning model: %v", err)
+	}
+	if reasoningClient == nil {
+		t.Error("expected reasoning client but got nil")
+	}
+	if reasoningClient == client {
+		t.Error("expected different client instances for different model types")
+	}
+
+	// Test error when no config provider is set
+	SetConfigProvider(nil)
+	_, err = GetLLMInstance(BasicModel)
+	if err == nil {
+		t.Error("expected error when no config provider is set")
+	}
+}
+
+func TestGetLLMInstance_ReturnsHTTPClient(t *testing.T) {
+	// Set up mock config provider
+	mockConfig := &Config{
+		BaseURL: "https://api.test.com",
+		APIKey:  "test-key",
+		Model:   "test-model",
+	}
+	SetConfigProvider(func() (*Config, error) {
+		return mockConfig, nil
+	})
+
+	// Clear cache before test
+	ClearInstanceCache()
+
+	// Get instance and verify it's an HTTP client
+	client, err := GetLLMInstance(BasicModel)
+	if err != nil {
+		t.Errorf("GetLLMInstance failed: %v", err)
+	}
+
+	// Try to cast to HTTPLLMClient to verify it's the right type
+	if httpClient, ok := client.(*HTTPLLMClient); !ok {
+		t.Error("expected HTTPLLMClient instance")
+	} else if httpClient == nil {
+		t.Error("expected non-nil HTTPLLMClient")
+	}
+}

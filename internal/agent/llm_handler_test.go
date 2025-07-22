@@ -66,8 +66,22 @@ func (m *MockClient) ChatStream(ctx context.Context, request *llm.ChatRequest) (
 }
 
 func (m *MockClient) Chat(ctx context.Context, request *llm.ChatRequest) (*llm.ChatResponse, error) {
-	// 不需要实现，因为我们测试的是流式调用
-	return nil, errors.New("not implemented")
+	if m.callCount >= len(m.responses) {
+		return nil, errors.New("unexpected call")
+	}
+
+	resp := m.responses[m.callCount]
+	m.callCount++
+
+	if resp.delay > 0 {
+		time.Sleep(resp.delay)
+	}
+
+	if resp.err != nil {
+		return nil, resp.err
+	}
+
+	return resp.response, nil
 }
 
 func (m *MockClient) Close() error {
@@ -348,7 +362,7 @@ func TestLLMHandler_RetryLogic(t *testing.T) {
 			},
 			expectRetries: 3,
 			expectError:   true,
-			errorContains: "streaming LLM call failed after 3 attempts",
+			errorContains: "LLM call failed after 3 attempts",
 		},
 	}
 

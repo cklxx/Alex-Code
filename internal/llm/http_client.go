@@ -36,8 +36,13 @@ func NewHTTPClient() (*HTTPLLMClient, error) {
 func (c *HTTPLLMClient) getModelConfig(req *ChatRequest) (string, string, string) {
 	config := req.Config
 	if config == nil {
-		// Fallback to some defaults if config fails
-		return "https://openrouter.ai/api/v1", "sk-default", "deepseek/deepseek-chat-v3-0324:free"
+		// Fallback to global provider if no config in request
+		var err error
+		config, err = globalConfigProvider()
+		if err != nil {
+			// Fallback to some defaults if config fails
+			return "https://openrouter.ai/api/v1", "sk-default", "deepseek/deepseek-chat-v3-0324:free"
+		}
 	}
 
 	modelType := req.ModelType
@@ -51,10 +56,25 @@ func (c *HTTPLLMClient) getModelConfig(req *ChatRequest) (string, string, string
 	// Try to get specific model config first
 	if config.Models != nil {
 		if modelConfig, exists := config.Models[modelType]; exists {
+			apiKeyPreview := modelConfig.APIKey
+			// Use rune-based slicing to properly handle UTF-8 characters in API key
+			keyRunes := []rune(apiKeyPreview)
+			if len(keyRunes) > 15 {
+				apiKeyPreview = string(keyRunes[:15]) + "..."
+			}
+			log.Printf("DEBUG: Using model config - BaseURL: %s, APIKey: %s, Model: %s", modelConfig.BaseURL, apiKeyPreview, modelConfig.Model)
 			return modelConfig.BaseURL, modelConfig.APIKey, modelConfig.Model
 		}
 	}
+
 	// Fallback to single model config
+	apiKeyPreview := config.APIKey
+	// Use rune-based slicing to properly handle UTF-8 characters in API key
+	keyRunes := []rune(apiKeyPreview)
+	if len(keyRunes) > 15 {
+		apiKeyPreview = string(keyRunes[:15]) + "..."
+	}
+	log.Printf("DEBUG: Using fallback config - BaseURL: %s, APIKey: %s, Model: %s", config.BaseURL, apiKeyPreview, config.Model)
 	return config.BaseURL, config.APIKey, config.Model
 }
 
@@ -78,33 +98,26 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 	// Ensure streaming is disabled for HTTP mode
 	req.Stream = false
 
-	// Set default model if not specified
+	// Set defaults
+	c.setRequestDefaults(req)
+
+	// Override model if not set in request
 	if req.Model == "" {
 		req.Model = model
-	}
-
-	// Set default temperature if not specified
-	if req.Temperature == 0 {
-		req.Temperature = 0.7 // Default temperature
-	}
-
-	// Set default max tokens if not specified
-	if req.MaxTokens == 0 {
-		req.MaxTokens = 2048 // Default max tokens
 	}
 
 	jsonData, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
+	log.Printf("DEBUG: Request: %s", string(jsonData))
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+	c.setHeaders(httpReq, apiKey)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -242,4 +255,28 @@ func (c *HTTPLLMClient) ClearSessionCache(sessionID string) {
 func (c *HTTPLLMClient) Close() error {
 	// HTTP client doesn't need explicit cleanup
 	return nil
+}
+
+// setRequestDefaults sets default values for the request
+func (c *HTTPLLMClient) setRequestDefaults(req *ChatRequest) {
+	if req.Temperature == 0 {
+		req.Temperature = 0.7 // Default temperature
+	}
+
+	if req.MaxTokens == 0 {
+		req.MaxTokens = 2048 // Default max tokens
+	}
+}
+
+// setHeaders sets common headers for HTTP requests
+func (c *HTTPLLMClient) setHeaders(req *http.Request, apiKey string) {
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	apiKeyPreview := apiKey
+	// Use rune-based slicing to properly handle UTF-8 characters in API key
+	keyRunes := []rune(apiKeyPreview)
+	if len(keyRunes) > 15 {
+		apiKeyPreview = string(keyRunes[:15]) + "..."
+	}
+	log.Printf("DEBUG: Set Authorization header with key: %s", apiKeyPreview)
 }

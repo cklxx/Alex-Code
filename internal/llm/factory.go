@@ -57,10 +57,10 @@ func GetLLMInstance(modelType ModelType) (Client, error) {
 	if client, exists := globalCache.clients[cacheKey]; exists {
 		return client, nil
 	}
-	// Create streaming client for better user experience
-	client, err := NewStreamingClient()
+	// Create HTTP client for non-streaming interface
+	client, err := NewHTTPClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create streaming LLM client for %s: %w", modelType, err)
+		return nil, fmt.Errorf("failed to create HTTP LLM client for %s: %w", modelType, err)
 	}
 
 	// Cache the client
