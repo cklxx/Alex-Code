@@ -42,13 +42,13 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 				log.Printf("[ERROR] Failed to parse tool arguments: %v", err)
 				log.Printf("[ERROR] Raw JSON content: %q", tc.Function.Arguments)
 				log.Printf("[ERROR] JSON length: %d", len(tc.Function.Arguments))
-				
+
 				// 尝试使用jsonrepair库修复JSON
 				log.Printf("[INFO] Attempting to repair JSON using jsonrepair library")
 				fixedJSON, repairErr := jsonrepair.JSONRepair(tc.Function.Arguments)
 				if repairErr != nil {
 					log.Printf("[ERROR] JSON repair failed: %v", repairErr)
-					
+
 					// 如果jsonrepair失败，尝试简单的备用修复
 					log.Printf("[INFO] Attempting fallback repair method")
 					fallbackJSON := simpleFallbackRepair(tc.Function.Arguments)
@@ -66,13 +66,13 @@ func (te *ToolExecutor) parseToolCalls(message *llm.Message) []*types.ReactToolC
 				} else {
 					log.Printf("[INFO] JSON repaired successfully, new length: %d", len(fixedJSON))
 					log.Printf("[DEBUG] Repaired JSON: %q", fixedJSON)
-					
+
 					// 尝试解析修复后的JSON
 					if err := json.Unmarshal([]byte(fixedJSON), &args); err != nil {
 						log.Printf("[ERROR] Failed to parse even after JSON repair: %v", err)
 						continue
 					}
-					
+
 					log.Printf("[INFO] Successfully parsed repaired JSON")
 				}
 			}
@@ -258,24 +258,24 @@ func (te *ToolExecutor) executeSerialToolsStream(ctx context.Context, toolCalls 
 				}
 			} else if result != nil {
 				log.Printf("[DEBUG] executeSerialToolsStream: Tool call %d succeeded", i+1)
-				// 发送工具结果信号 
-				var contentStr string = result.Content
-				
+				// 发送工具结果信号
+				var contentStr = result.Content
+
 				// Check for diff data and apply formatting for display
 				if result.Data != nil {
 					if diffStr, hasDiff := result.Data["diff"].(string); hasDiff && diffStr != "" {
 						contentStr = result.Content + "\n" + formatDiffForDisplay(diffStr)
 					}
 				}
-				
+
 				// For diff content, use higher limit to avoid cutting off useful diff info
-				var displayLimit int = 200
+				var displayLimit = 200
 				if result.Data != nil {
 					if _, hasDiff := result.Data["diff"].(string); hasDiff {
-						displayLimit = 800  // Higher limit for diff content
+						displayLimit = 800 // Higher limit for diff content
 					}
 				}
-				
+
 				// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
 				runes := []rune(contentStr)
 				if len(runes) > displayLimit {
@@ -504,18 +504,18 @@ func (te *ToolExecutor) injectWorkingDirContext(ctx context.Context) context.Con
 // 当jsonrepair库失败时使用这个更保守的方法
 func simpleFallbackRepair(jsonStr string) string {
 	jsonStr = strings.TrimSpace(jsonStr)
-	
+
 	// 如果不是以{开始，无法修复
 	if !strings.HasPrefix(jsonStr, "{") {
 		return jsonStr
 	}
-	
+
 	// 基本的补全：确保有结束大括号
 	if !strings.HasSuffix(jsonStr, "}") {
 		// 如果在字符串中间截断，尝试找到最后一个完整的键值对
 		lastCommaIndex := strings.LastIndex(jsonStr, ",")
 		lastColonIndex := strings.LastIndex(jsonStr, ":")
-		
+
 		// 如果最后一个字符是逗号，说明可能是在键值对之间截断
 		if strings.HasSuffix(jsonStr, ",") {
 			jsonStr = jsonStr[:len(jsonStr)-1] // 移除最后的逗号
@@ -535,11 +535,11 @@ func simpleFallbackRepair(jsonStr string) string {
 				}
 			}
 		}
-		
+
 		// 添加结束大括号
 		jsonStr += "}"
 	}
-	
+
 	return jsonStr
 }
 
@@ -548,11 +548,11 @@ func formatDiffForDisplay(diffStr string) string {
 	if diffStr == "" {
 		return ""
 	}
-	
+
 	// Check if this looks like a diff and format it
 	if utils.IsDiffOutput(diffStr) {
 		return utils.FormatDiffOutput(diffStr)
 	}
-	
+
 	return diffStr
 }
