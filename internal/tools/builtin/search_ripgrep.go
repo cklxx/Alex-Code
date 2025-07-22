@@ -62,7 +62,7 @@ func (t *RipgrepTool) Validate(args map[string]interface{}) error {
 func (t *RipgrepTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	// Check if ripgrep is available
 	if !t.hasRipgrep() {
-		return nil, fmt.Errorf("ripgrep (rg) is not installed")
+		return nil, fmt.Errorf("ripgrep (rg) is not installed. Install with: brew install ripgrep (macOS) or visit https://github.com/BurntSushi/ripgrep#installation")
 	}
 	
 	// 参数已通过Validate验证，可以安全访问

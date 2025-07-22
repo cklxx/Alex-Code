@@ -16,6 +16,7 @@ import (
 
 	"alex/internal/agent"
 	"alex/internal/config"
+	"alex/internal/startup"
 	"alex/internal/version"
 )
 
@@ -341,6 +342,11 @@ NEW SIMPLIFIED WORKFLOW:
 
 // initializeConfigOnly sets up only the configuration manager
 func (cli *CLI) initializeConfigOnly() error {
+	// Check system dependencies first (but allow config commands to proceed even if missing)
+	if !startup.CheckDependenciesQuiet() {
+		fmt.Printf("%s Some tools may not work properly without ripgrep. Run 'alex' without arguments for installation instructions.\n", yellow("⚠️"))
+	}
+
 	// Create configuration manager if not already created
 	if cli.config == nil {
 		configManager, err := config.NewManager()
@@ -354,6 +360,14 @@ func (cli *CLI) initializeConfigOnly() error {
 
 // initialize sets up the CLI
 func (cli *CLI) initialize(cmd *cobra.Command) error {
+	// Check system dependencies first - warn but don't block
+	if err := startup.CheckDependencies(); err != nil {
+		if cli.debug {
+			fmt.Printf("%s %v\n", yellow("⚠️"), err)
+		}
+		// Don't return error - just show the detailed messages that CheckDependencies already showed
+	}
+
 	// Redirect logs to file to prevent interference with UI
 	if !cli.debug {
 		logFile, err := os.OpenFile("alex-debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
