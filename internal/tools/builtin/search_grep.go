@@ -65,55 +65,55 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 	if args == nil {
 		return nil, fmt.Errorf("arguments cannot be nil")
 	}
-	
+
 	patternValue, exists := args["pattern"]
 	if !exists {
 		return nil, fmt.Errorf("pattern parameter is required")
 	}
-	
+
 	pattern, ok := patternValue.(string)
 	if !ok {
 		return nil, fmt.Errorf("pattern must be a string")
 	}
-	
+
 	if pattern == "" {
 		return nil, fmt.Errorf("pattern cannot be empty")
 	}
-	
+
 	path := "."
 	if p, ok := args["path"]; ok {
 		path = p.(string)
 	}
-	
+
 	recursive := false
 	if r, ok := args["recursive"].(bool); ok {
 		recursive = r
 	}
-	
+
 	ignoreCase := false
 	if ic, ok := args["ignore_case"].(bool); ok {
 		ignoreCase = ic
 	}
-	
+
 	// Build grep command
 	cmdArgs := []string{}
-	
+
 	if ignoreCase {
 		cmdArgs = append(cmdArgs, "-i")
 	}
-	
+
 	cmdArgs = append(cmdArgs, "-n") // Always show line numbers
-	
+
 	if recursive {
 		cmdArgs = append(cmdArgs, "-r")
 	}
-	
+
 	cmdArgs = append(cmdArgs, pattern, path)
-	
+
 	// Execute grep command
 	cmd := exec.CommandContext(ctx, "grep", cmdArgs...)
 	output, err := cmd.Output()
-	
+
 	if err != nil {
 		// grep returns exit code 1 when no matches found
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
@@ -130,11 +130,18 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*T
 		}
 		return nil, fmt.Errorf("grep command failed: %w", err)
 	}
-	
+
 	// Process output
 	lines := strings.Split(string(output), "\n")
 	lines = lines[:len(lines)-1] // Remove last empty line
-	
+
+	// Limit each line to 200 characters
+	for i, line := range lines {
+		if len(line) > 200 {
+			lines[i] = line[:200] + "..."
+		}
+	}
+
 	return &ToolResult{
 		Content: fmt.Sprintf("Found %d matches:\n%s", len(lines), strings.Join(lines, "\n")),
 		Data: map[string]interface{}{
