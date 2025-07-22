@@ -68,7 +68,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	}
 
 	// 执行工具驱动的ReAct循环
-	maxIterations := 25 // 减少迭代次数，依赖智能工具调用
+	maxIterations := 100 // 减少迭代次数，依赖智能工具调用
 
 	for iteration := 1; iteration <= maxIterations; iteration++ {
 		step := types.ReactExecutionStep{
@@ -153,7 +153,6 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			return nil, fmt.Errorf("no response choices received at iteration %d - API response format issue", iteration)
 		}
 
-		log.Printf("DEBUG: Response: %+v", response)
 		choice := response.Choices[0]
 		step.Thought = strings.TrimSpace(choice.Message.Content)
 

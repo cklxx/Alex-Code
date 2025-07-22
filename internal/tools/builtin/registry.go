@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"alex/internal/config"
+	"alex/internal/startup"
 )
 
 // GetAllBuiltinTools returns a list of all builtin tools
@@ -22,13 +23,16 @@ func GetAllBuiltinToolsWithConfig(configManager *config.Manager) []Tool {
 		}
 	}
 
-	return []Tool{
+	tools := []Tool{
 		// Thinking and reasoning tools
 		NewThinkTool(),
 
-		// Task management tools 
+		// Task management tools
 		CreateTodoReadTool(),
 		CreateNewTodoUpdateTool(),
+
+		// Search tools
+		CreateGrepTool(),
 
 		// File tools
 		CreateFileReadTool(),
@@ -36,9 +40,7 @@ func GetAllBuiltinToolsWithConfig(configManager *config.Manager) []Tool {
 		CreateFileReplaceTool(),
 		CreateFileListTool(),
 
-		// Search tools
-		CreateGrepTool(),
-		CreateRipgrepTool(),
+		// Search tools (conditionally include grep tools if ripgrep is available)
 		CreateFindTool(),
 
 		// Web search tools
@@ -48,6 +50,13 @@ func GetAllBuiltinToolsWithConfig(configManager *config.Manager) []Tool {
 		CreateBashTool(),
 		CreateCodeExecutorTool(),
 	}
+
+	// Add grep and ripgrep tools only if ripgrep is available
+	if startup.CheckDependenciesQuiet() {
+		tools = append(tools, CreateRipgrepTool())
+	}
+
+	return tools
 }
 
 // GetToolByName creates a tool instance by name
@@ -76,7 +85,10 @@ func GetToolByNameWithConfig(name string, configManager *config.Manager) Tool {
 	case "grep":
 		return CreateGrepTool()
 	case "ripgrep":
-		return CreateRipgrepTool()
+		if startup.CheckDependenciesQuiet() {
+			return CreateRipgrepTool()
+		}
+		return nil
 	case "find":
 		return CreateFindTool()
 	case "web_search":
@@ -117,6 +129,11 @@ func GetToolsByCategoryWithConfig(configManager *config.Manager) map[string][]To
 		}
 	}
 
+	searchTools := []Tool{CreateFindTool(), CreateGrepTool()}
+	if startup.CheckDependenciesQuiet() {
+		searchTools = append(searchTools, CreateRipgrepTool())
+	}
+
 	return map[string][]Tool{
 		"reasoning": {
 			NewThinkTool(),
@@ -131,11 +148,7 @@ func GetToolsByCategoryWithConfig(configManager *config.Manager) map[string][]To
 			CreateFileReplaceTool(),
 			CreateFileListTool(),
 		},
-		"search": {
-			CreateGrepTool(),
-			CreateRipgrepTool(),
-			CreateFindTool(),
-		},
+		"search": searchTools,
 		"web": {
 			webSearchTool,
 		},

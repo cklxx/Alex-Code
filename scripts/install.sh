@@ -177,9 +177,58 @@ install_binary() {
     fi
 }
 
+# 安装系统依赖
+install_dependencies() {
+    log_info "Installing system dependencies..."
+    
+    # 检测并安装ripgrep
+    if ! command_exists rg; then
+        log_info "Installing ripgrep..."
+        case "$(uname -s)" in
+            Darwin*)
+                if command_exists brew; then
+                    brew install ripgrep
+                elif command_exists port; then
+                    port install ripgrep
+                else
+                    log_warning "Neither brew nor port found. Please install ripgrep manually."
+                fi
+                ;;
+            Linux*)
+                if command_exists apt; then
+                    sudo apt update && sudo apt install -y ripgrep
+                elif command_exists dnf; then
+                    sudo dnf install -y ripgrep
+                elif command_exists yum; then
+                    sudo yum install -y ripgrep
+                elif command_exists pacman; then
+                    sudo pacman -S ripgrep
+                else
+                    log_warning "Package manager not found. Please install ripgrep manually."
+                fi
+                ;;
+            *)
+                log_warning "Unsupported OS for automatic dependency installation. Please install ripgrep manually."
+                ;;
+        esac
+        
+        # 验证安装
+        if command_exists rg; then
+            log_success "ripgrep installed successfully"
+        else
+            log_warning "ripgrep installation may have failed"
+        fi
+    else
+        log_info "ripgrep is already installed"
+    fi
+}
+
 # 主安装流程
 main() {
     log_info "Starting Alex CLI installation..."
+    
+    # 安装依赖
+    install_dependencies
     
     # 检测平台
     platform=$(detect_platform)

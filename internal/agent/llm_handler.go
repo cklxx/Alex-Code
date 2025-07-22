@@ -137,7 +137,6 @@ func (h *LLMHandler) callLLMWithRetry(ctx context.Context, client llm.Client, re
 	return nil, fmt.Errorf("LLM call failed after %d attempts: %w", maxRetries, lastErr)
 }
 
-
 // validateLLMRequest - 验证LLM请求参数
 func (h *LLMHandler) validateLLMRequest(request *llm.ChatRequest) error {
 	if request == nil {

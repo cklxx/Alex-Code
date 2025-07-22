@@ -35,27 +35,20 @@ func (t *TodoReadTool) Validate(args map[string]interface{}) error {
 }
 
 func (t *TodoReadTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	// Try to get session ID from context for session-based storage
+	// Get sessions directory and ensure it exists
+	sessionsDir, err := getSessionsDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sessions directory: %w", err)
+	}
+
+	// Get session ID or use default
 	var todoFile string
 	if id, ok := ctx.Value(SessionIDKey).(string); ok && id != "" {
-		// Session-based storage
-		sessionsDir, err := getSessionsDir()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get sessions directory: %w", err)
-		}
+		// Use session-specific todo file
 		todoFile = filepath.Join(sessionsDir, id+"_todo.md")
 	} else {
-		// Fallback to working directory
-		resolver := GetPathResolverFromContext(ctx)
-		workingDir := resolver.workingDir
-		if workingDir == "" {
-			var err error
-			workingDir, err = os.Getwd()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get current working directory: %w", err)
-			}
-		}
-		todoFile = filepath.Join(workingDir, "todo.md")
+		// Use default session todo file
+		todoFile = filepath.Join(sessionsDir, "default_todo.md")
 	}
 
 	// Check if todo file exists

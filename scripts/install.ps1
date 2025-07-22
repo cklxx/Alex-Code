@@ -228,9 +228,68 @@ function Install-Binary {
     }
 }
 
+# 安装系统依赖
+function Install-Dependencies {
+    Write-Info "Installing system dependencies..."
+    
+    # 检测并安装ripgrep
+    if (-not (Get-Command "rg" -ErrorAction SilentlyContinue)) {
+        Write-Info "Installing ripgrep..."
+        
+        # 尝试使用Chocolatey
+        if (Get-Command "choco" -ErrorAction SilentlyContinue) {
+            try {
+                & choco install ripgrep -y
+                Write-Success "ripgrep installed successfully via Chocolatey"
+            }
+            catch {
+                Write-Warning "Failed to install ripgrep via Chocolatey: $($_.Exception.Message)"
+            }
+        }
+        # 尝试使用Scoop
+        elseif (Get-Command "scoop" -ErrorAction SilentlyContinue) {
+            try {
+                & scoop install ripgrep
+                Write-Success "ripgrep installed successfully via Scoop"
+            }
+            catch {
+                Write-Warning "Failed to install ripgrep via Scoop: $($_.Exception.Message)"
+            }
+        }
+        # 尝试使用winget
+        elseif (Get-Command "winget" -ErrorAction SilentlyContinue) {
+            try {
+                & winget install BurntSushi.ripgrep.GNU
+                Write-Success "ripgrep installed successfully via winget"
+            }
+            catch {
+                Write-Warning "Failed to install ripgrep via winget: $($_.Exception.Message)"
+            }
+        }
+        else {
+            Write-Warning "No package manager found. Please install ripgrep manually from:"
+            Write-Info "https://github.com/BurntSushi/ripgrep/releases"
+        }
+        
+        # 验证安装
+        if (Get-Command "rg" -ErrorAction SilentlyContinue) {
+            Write-Success "ripgrep is now available"
+        }
+        else {
+            Write-Warning "ripgrep installation may have failed or is not in PATH"
+        }
+    }
+    else {
+        Write-Info "ripgrep is already installed"
+    }
+}
+
 # 主安装流程
 function Install-Alex {
     Write-Info "Starting Alex CLI installation on Windows..."
+    
+    # 安装依赖
+    Install-Dependencies
     
     # 检测系统架构
     $arch = Get-SystemArchitecture

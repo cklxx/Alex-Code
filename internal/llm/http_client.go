@@ -140,6 +140,7 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
+	log.Printf("DEBUG: Response: %+v", string(body))
 
 	var chatResp ChatResponse
 	if err := json.Unmarshal(body, &chatResp); err != nil {

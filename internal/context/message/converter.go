@@ -39,10 +39,11 @@ func (mc *MessageConverter) ConvertSessionToLLM(sessionMessages []*session.Messa
 				}
 
 				llmMsg.ToolCalls = append(llmMsg.ToolCalls, llm.ToolCall{
-					ID: tc.ID,
+					ID:   tc.ID,
+					Type: "function",
 					Function: llm.Function{
-						Name:       tc.Name,
-						Parameters: args,
+						Name:      tc.Name,
+						Arguments: args,
 					},
 				})
 			}

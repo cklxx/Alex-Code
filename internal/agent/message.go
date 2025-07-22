@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -71,11 +72,20 @@ func (mp *MessageProcessor) ConvertSessionToLLM(sessionMessages []*session.Messa
 		if len(msg.ToolCalls) > 0 {
 			llmMsg.ToolCalls = make([]llm.ToolCall, 0, len(msg.ToolCalls))
 			for _, tc := range msg.ToolCalls {
+				// 将参数转换为JSON字符串
+				var arguments string
+				if tc.Args != nil {
+					if argsBytes, err := json.Marshal(tc.Args); err == nil {
+						arguments = string(argsBytes)
+					}
+				}
+				
 				llmMsg.ToolCalls = append(llmMsg.ToolCalls, llm.ToolCall{
 					ID:   tc.ID,
 					Type: "function",
 					Function: llm.Function{
-						Name: tc.Name,
+						Name:      tc.Name,
+						Arguments: arguments,
 					},
 				})
 			}
