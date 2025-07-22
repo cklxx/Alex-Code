@@ -11,6 +11,7 @@ import (
 	"alex/internal/llm"
 	"alex/internal/session"
 	"alex/pkg/types"
+	"alex/pkg/types/message"
 )
 
 // ReactCore - 使用工具调用流程的ReactCore核心实现
@@ -88,12 +89,16 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			sess := rc.messageProcessor.GetCurrentSession(ctx, rc.agent)
 			// 使用新的上下文管理器优化消息
 			sessionMessages := sess.GetMessages()
-			llmMessages := rc.messageProcessor.ConvertSessionToLLM(sessionMessages)
+			
+			// 使用统一消息系统进行转换
+			unifiedMessages := rc.messageProcessor.ConvertSessionToUnified(sessionMessages)
+			llmMessages := rc.messageProcessor.ConvertUnifiedToLLM(unifiedMessages)
 			messages = append(messages, llmMessages...)
 		} else {
-			sessionMessages := rc.messageProcessor.ConvertLLMToSession(messages)
-			sessionMessages = rc.messageProcessor.compressMessages(sessionMessages)
-			messages = rc.messageProcessor.ConvertSessionToLLM(sessionMessages)
+			// 使用统一消息系统进行压缩
+			unifiedMessages := rc.messageProcessor.ConvertLLMToUnified(messages)
+			compressedUnified := rc.compressUnifiedMessages(unifiedMessages)
+			messages = rc.messageProcessor.ConvertUnifiedToLLM(compressedUnified)
 		}
 		// 构建可用工具列表 - 每轮都包含工具定义以确保模型能调用工具
 		tools := rc.toolHandler.buildToolDefinitions()
@@ -433,4 +438,47 @@ func (rc *ReactCore) addToolMessagesToSession(ctx context.Context, toolMessages 
 	// Memory creation removed
 }
 
-// Memory-related tool usage functions removed
+// ========== 统一消息系统支持 ==========
+
+// compressUnifiedMessages 使用统一消息系统进行消息压缩
+func (rc *ReactCore) compressUnifiedMessages(messages []*message.Message) []*message.Message {
+	// 简化的压缩逻辑，基于消息数量
+	if len(messages) <= 10 {
+		return messages
+	}
+	
+	// 保留系统消息和最近的用户/助手对话
+	var compressed []*message.Message
+	var systemMessages []*message.Message
+	var recentMessages []*message.Message
+	
+	// 分离系统消息和其他消息
+	for _, msg := range messages {
+		if msg.GetRole() == "system" {
+			systemMessages = append(systemMessages, msg)
+		}
+	}
+	
+	// 获取最近的8条非系统消息
+	nonSystemMessages := make([]*message.Message, 0)
+	for _, msg := range messages {
+		if msg.GetRole() != "system" {
+			nonSystemMessages = append(nonSystemMessages, msg)
+		}
+	}
+	
+	if len(nonSystemMessages) > 8 {
+		recentMessages = nonSystemMessages[len(nonSystemMessages)-8:]
+	} else {
+		recentMessages = nonSystemMessages
+	}
+	
+	// 组合压缩后的消息
+	compressed = append(compressed, systemMessages...)
+	compressed = append(compressed, recentMessages...)
+	
+	log.Printf("[DEBUG] Compressed messages from %d to %d", len(messages), len(compressed))
+	return compressed
+}
+
+

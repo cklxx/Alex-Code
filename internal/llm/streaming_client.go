@@ -21,7 +21,7 @@ type StreamingLLMClient struct {
 
 // NewStreamingClient creates a new streaming-capable LLM client
 func NewStreamingClient() (*StreamingLLMClient, error) {
-	timeout := 180 * time.Second // Timeout for streaming
+	timeout := 20 * time.Second // Timeout for streaming
 
 	httpClient := &http.Client{
 		Timeout: timeout,

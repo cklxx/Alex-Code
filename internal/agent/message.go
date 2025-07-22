@@ -2,37 +2,22 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
-	"strings"
-	"sync"
 	"time"
 
 	contextmgr "alex/internal/context"
 	"alex/internal/llm"
 	"alex/internal/session"
+	"alex/pkg/types/message"
 )
-
-// CachedCompressionResult - LLM压缩结果缓存
-type CachedCompressionResult struct {
-	Summary      *session.Message
-	Timestamp    time.Time
-	InputHash    string
-	MessageCount int
-}
-
 // MessageProcessor 统一的消息处理器，整合所有消息相关功能
 type MessageProcessor struct {
 	contextMgr     *contextmgr.ContextManager
 	sessionManager *session.Manager
 	tokenEstimator *TokenEstimator
-
-	// LLM压缩缓存优化
-	compressionCache map[string]*CachedCompressionResult
-	compressionMutex sync.RWMutex
-	cacheExpiry      time.Duration
+	adapter        *message.Adapter // 统一消息适配器
 }
 
 // NewMessageProcessor 创建统一的消息处理器
@@ -49,630 +34,118 @@ func NewMessageProcessor(llmClient llm.Client, sessionManager *session.Manager) 
 		contextMgr:     contextmgr.NewContextManager(llmClient, contextConfig),
 		sessionManager: sessionManager,
 		tokenEstimator: NewTokenEstimator(),
-
-		// 初始化LLM压缩缓存
-		compressionCache: make(map[string]*CachedCompressionResult),
-		cacheExpiry:      30 * time.Minute, // 30分钟缓存过期
+		adapter:        message.NewAdapter(), // 统一消息适配器
 	}
 }
 
 // ========== 消息转换 ==========
 
-// ConvertSessionToLLM 将 session 消息转换为 LLM 格式
-func (mp *MessageProcessor) ConvertSessionToLLM(sessionMessages []*session.Message) []llm.Message {
-	messages := make([]llm.Message, 0, len(sessionMessages))
-
-	for _, msg := range sessionMessages {
-		llmMsg := llm.Message{
-			Role:    msg.Role,
-			Content: msg.Content,
+// ConvertUnifiedToLLM 使用统一消息适配器将消息转换为LLM格式
+func (mp *MessageProcessor) ConvertUnifiedToLLM(unifiedMessages []*message.Message) []llm.Message {
+	unifiedLLMMessages := mp.adapter.ConvertToLLMMessages(unifiedMessages)
+	llmMessages := make([]llm.Message, len(unifiedLLMMessages))
+	for i, msg := range unifiedLLMMessages {
+		llmMessages[i] = llm.Message{
+			Role:             msg.Role,
+			Content:          msg.Content,
+			ToolCallId:       msg.ToolCallID,
+			Name:             msg.Name,
+			Reasoning:        msg.Reasoning,
+			ReasoningSummary: msg.ReasoningSummary,
+			Think:            msg.Think,
 		}
-
-		// 处理工具调用
-		if len(msg.ToolCalls) > 0 {
-			llmMsg.ToolCalls = make([]llm.ToolCall, 0, len(msg.ToolCalls))
-			for _, tc := range msg.ToolCalls {
-				// 将参数转换为JSON字符串
-				var arguments string
-				if tc.Args != nil {
-					if argsBytes, err := json.Marshal(tc.Args); err == nil {
-						arguments = string(argsBytes)
-					}
-				}
-				
-				llmMsg.ToolCalls = append(llmMsg.ToolCalls, llm.ToolCall{
-					ID:   tc.ID,
-					Type: "function",
-					Function: llm.Function{
-						Name:      tc.Name,
-						Arguments: arguments,
-					},
-				})
-			}
+		// 转换工具调用
+		for _, tc := range msg.ToolCalls {
+			llmMessages[i].ToolCalls = append(llmMessages[i].ToolCalls, llm.ToolCall{
+				ID:   tc.ID,
+				Type: tc.Type,
+				Function: llm.Function{
+					Name:        tc.Function.Name,
+					Description: tc.Function.Description,
+					Parameters:  tc.Function.Parameters,
+					Arguments:   tc.Function.Arguments,
+				},
+			})
 		}
-
-		// 处理工具调用 ID
-		if msg.Role == "tool" {
-			if callID, ok := msg.Metadata["tool_call_id"].(string); ok {
-				llmMsg.ToolCallId = callID
-			}
-		}
-
-		messages = append(messages, llmMsg)
 	}
-
-	return messages
+	return llmMessages
 }
 
-// ConvertLLMToSession 将 LLM 消息转换为 session 格式
-func (mp *MessageProcessor) ConvertLLMToSession(llmMessages []llm.Message) []*session.Message {
-	messages := make([]*session.Message, 0, len(llmMessages))
+// ConvertLLMToUnified 使用统一消息适配器将LLM消息转换为统一格式
+func (mp *MessageProcessor) ConvertLLMToUnified(llmMessages []llm.Message) []*message.Message {
+	unifiedLLMMessages := make([]message.LLMMessage, len(llmMessages))
+	for i, msg := range llmMessages {
+		unifiedLLMMessages[i] = message.LLMMessage{
+			Role:             msg.Role,
+			Content:          msg.Content,
+			ToolCallID:       msg.ToolCallId,
+			Name:             msg.Name,
+			Reasoning:        msg.Reasoning,
+			ReasoningSummary: msg.ReasoningSummary,
+			Think:            msg.Think,
+		}
+		// 转换工具调用
+		for _, tc := range msg.ToolCalls {
+			unifiedLLMMessages[i].ToolCalls = append(unifiedLLMMessages[i].ToolCalls, message.LLMToolCall{
+				ID:   tc.ID,
+				Type: tc.Type,
+				Function: message.LLMFunction{
+					Name:        tc.Function.Name,
+					Description: tc.Function.Description,
+					Parameters:  tc.Function.Parameters,
+					Arguments:   tc.Function.Arguments,
+				},
+			})
+		}
+	}
+	return mp.adapter.ConvertLLMMessages(unifiedLLMMessages)
+}
 
-	for _, msg := range llmMessages {
-		sessionMsg := &session.Message{
+// ConvertSessionToUnified 将session消息转换为统一消息格式
+func (mp *MessageProcessor) ConvertSessionToUnified(sessionMessages []*session.Message) []*message.Message {
+	sessionMsgs := make([]message.SessionMessage, len(sessionMessages))
+	for i, msg := range sessionMessages {
+		sessionMsgs[i] = message.SessionMessage{
 			Role:      msg.Role,
 			Content:   msg.Content,
-			Metadata:  make(map[string]interface{}),
-			Timestamp: time.Now(),
+			ToolID:    msg.ToolID,
+			Metadata:  msg.Metadata,
+			Timestamp: msg.Timestamp,
 		}
-
-		// 处理工具调用
-		if len(msg.ToolCalls) > 0 {
-			sessionMsg.ToolCalls = make([]session.ToolCall, 0, len(msg.ToolCalls))
-			for _, tc := range msg.ToolCalls {
-				sessionMsg.ToolCalls = append(sessionMsg.ToolCalls, session.ToolCall{
-					ID:   tc.ID,
-					Name: tc.Function.Name,
-				})
-			}
+		// 转换工具调用
+		for _, tc := range msg.ToolCalls {
+			sessionMsgs[i].ToolCalls = append(sessionMsgs[i].ToolCalls, message.SessionToolCall{
+				ID:   tc.ID,
+				Name: tc.Name,
+				Args: tc.Args,
+			})
 		}
-
-		// 处理工具调用 ID
-		if msg.Role == "tool" && msg.ToolCallId != "" {
-			sessionMsg.Metadata["tool_call_id"] = msg.ToolCallId
-		}
-
-		messages = append(messages, sessionMsg)
 	}
-
-	return messages
+	return mp.adapter.ConvertSessionMessages(sessionMsgs)
 }
 
-// formatMemoryContent 格式化内存内容
-
-// ========== 消息压缩 ==========
-
-// compressMessages 智能压缩消息 - 简化策略，按Kimi K2的128K token上限设置
-func (mp *MessageProcessor) compressMessages(sessionMessages []*session.Message) []*session.Message {
-	const (
-		MaxMessages = 300    // 适配128K context的消息数量阈值
-		MaxTokens   = 100000 // 按Kimi K2的128K token上限设置，留20%余量
-		RecentKeep  = 20     // 保留更多最近消息以确保上下文完整
-	)
-
-	// 只在真正需要时压缩 - 高阈值触发
-	estimatedTokens := mp.tokenEstimator.EstimateSessionMessages(sessionMessages)
-	messageCount := len(sessionMessages)
-	
-	// 只有当同时超过两个高阈值时才压缩
-	if messageCount > MaxMessages && estimatedTokens > MaxTokens {
-		log.Printf("[INFO] Comprehensive compression triggered: %d messages, estimated %d tokens",
-			messageCount, estimatedTokens)
-		return mp.comprehensiveCompress(sessionMessages, RecentKeep)
-	}
-
-	// 大部分情况下不压缩
-	return sessionMessages
-}
-
-// comprehensiveCompress 全面压缩：生成摘要，简化策略
-func (mp *MessageProcessor) comprehensiveCompress(messages []*session.Message, recentKeep int) []*session.Message {
-	if len(messages) <= recentKeep {
-		return messages
-	}
-
-	// 分离系统消息（总是保留）
-	var systemMessages []*session.Message
-	var nonSystemMessages []*session.Message
-	
-	for _, msg := range messages {
-		if msg.Role == "system" {
-			systemMessages = append(systemMessages, msg)
-		} else {
-			nonSystemMessages = append(nonSystemMessages, msg)
+// ConvertUnifiedToSession 将统一消息转换为session格式
+func (mp *MessageProcessor) ConvertUnifiedToSession(unifiedMessages []*message.Message) []*session.Message {
+	sessionMsgs := mp.adapter.ConvertToSessionMessages(unifiedMessages)
+	messages := make([]*session.Message, len(sessionMsgs))
+	for i, msg := range sessionMsgs {
+		messages[i] = &session.Message{
+			Role:      msg.Role,
+			Content:   msg.Content,
+			ToolID:    msg.ToolID,
+			Metadata:  msg.Metadata,
+			Timestamp: msg.Timestamp,
 		}
-	}
-	
-	// 如果非系统消息不够多，无需压缩
-	if len(nonSystemMessages) <= recentKeep {
-		return messages
-	}
-
-	// 保留最近的消息，严格考虑工具调用配对
-	recentMessages := mp.keepRecentMessagesWithToolPairing(nonSystemMessages, recentKeep)
-	recentStart := len(nonSystemMessages) - len(recentMessages)
-
-	// 对较旧的消息创建摘要
-	oldMessages := nonSystemMessages[:recentStart]
-	
-	// 构建结果：系统消息 + 摘要 + 最近消息
-	var result []*session.Message
-	result = append(result, systemMessages...)
-	
-	if len(oldMessages) > 0 {
-		summaryMsg := mp.createMessageSummary(oldMessages)
-		if summaryMsg != nil {
-			result = append(result, summaryMsg)
+		// 转换工具调用
+		for _, tc := range msg.ToolCalls {
+			messages[i].ToolCalls = append(messages[i].ToolCalls, session.ToolCall{
+				ID:   tc.ID,
+				Name: tc.Name,
+				Args: tc.Args,
+			})
 		}
-	}
-	
-	result = append(result, recentMessages...)
-
-	log.Printf("[INFO] Comprehensive compression: %d -> %d messages", len(messages), len(result))
-	return result
-}
-
-// keepRecentMessagesWithToolPairing 保留最近的消息，保持工具调用配对完整 - 简化版本
-func (mp *MessageProcessor) keepRecentMessagesWithToolPairing(messages []*session.Message, recentKeep int) []*session.Message {
-	if len(messages) <= recentKeep {
-		return messages
-	}
-
-	// 构建工具调用配对映射
-	toolCallPairs := make(map[string]int)
-	for i, msg := range messages {
-		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
-			for _, tc := range msg.ToolCalls {
-				toolCallPairs[tc.ID] = i
-			}
-		}
-	}
-	
-	// 跟踪必须包含的消息索引以维持配对
-	mustInclude := make(map[int]bool)
-	
-	// 从最后开始，添加最近的消息
-	for i := len(messages) - 1; i >= 0 && len(mustInclude) < recentKeep*2; i-- {
-		msg := messages[i]
-		
-		// 如果是工具响应，必须包含对应的助手消息
-		if msg.Role == "tool" {
-			if toolCallId, ok := msg.Metadata["tool_call_id"].(string); ok {
-				if assistantIndex, exists := toolCallPairs[toolCallId]; exists {
-					mustInclude[assistantIndex] = true
-					mustInclude[i] = true
-				}
-			}
-		} else if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
-			// 如果是有工具调用的助手消息，包含它和所有对应的工具响应
-			mustInclude[i] = true
-			for _, tc := range msg.ToolCalls {
-				for j := i + 1; j < len(messages); j++ {
-					if messages[j].Role == "tool" {
-						if callId, ok := messages[j].Metadata["tool_call_id"].(string); ok && callId == tc.ID {
-							mustInclude[j] = true
-						}
-					}
-				}
-			}
-		} else {
-			// 普通消息
-			mustInclude[i] = true
-		}
-		
-		// 当包含的消息数量足够时停止（但允许配对完成）
-		if len(mustInclude) >= recentKeep {
-			break
-		}
-	}
-	
-	// 找到需要包含的最早索引
-	minIndex := len(messages)
-	for index := range mustInclude {
-		if index < minIndex {
-			minIndex = index
-		}
-	}
-	
-	// 返回从minIndex到结尾的消息
-	if minIndex < len(messages) {
-		return messages[minIndex:]
-	}
-	
-	// 后备方案：返回最后recentKeep条消息
-	if len(messages) > recentKeep {
-		return messages[len(messages)-recentKeep:]
 	}
 	return messages
-}
-
-// calculateMessageImportance 计算消息重要性
-func (mp *MessageProcessor) calculateMessageImportance(msg *session.Message) float64 {
-	score := 0.0
-	content := msg.Content
-
-	// 长度因子
-	score += float64(len(content)) * 0.01
-
-	// 代码块加分
-	if strings.Contains(content, "```") {
-		score += 10.0
-	}
-
-	// 工具调用加分
-	if len(msg.ToolCalls) > 0 {
-		score += float64(len(msg.ToolCalls)) * 5.0
-	}
-
-	// 错误信息加分
-	if strings.Contains(strings.ToLower(content), "error") ||
-		strings.Contains(strings.ToLower(content), "错误") {
-		score += 5.0
-	}
-
-	// 问题和解决方案加分
-	if strings.Contains(content, "?") || strings.Contains(content, "？") {
-		score += 5.0
-	}
-
-	// 关键词加分
-	keywords := []string{"implement", "how", "why", "what", "where", "when", "function", "method", "error", "issue", "problem"}
-	contentLower := strings.ToLower(content)
-	for _, keyword := range keywords {
-		if strings.Contains(contentLower, keyword) {
-			score += 2.0
-		}
-	}
-
-	return score
-}
-
-// createMessageSummary 创建消息摘要
-func (mp *MessageProcessor) createMessageSummary(messages []*session.Message) *session.Message {
-	if len(messages) == 0 {
-		return nil
-	}
-
-	// 尝试 LLM 摘要
-	if summary := mp.createLLMSummary(messages); summary != nil {
-		return summary
-	}
-
-	// 回退到统计摘要
-	return mp.createStatisticalSummary(messages)
-}
-
-// createLLMSummary 使用 LLM 创建摘要 - 优化版本带缓存
-func (mp *MessageProcessor) createLLMSummary(messages []*session.Message) *session.Message {
-	// 首先检查缓存
-	if cachedSummary := mp.getCachedCompressionResult(messages); cachedSummary != nil {
-		return cachedSummary
-	}
-
-	// 智能决策：是否使用LLM压缩
-	if !mp.shouldUseLLMCompression(messages) {
-		log.Printf("[INFO] Using statistical summary instead of LLM for %d messages", len(messages))
-		return mp.createStatisticalSummary(messages)
-	}
-
-	llmClient, err := llm.GetLLMInstance(llm.BasicModel)
-	if err != nil {
-		log.Printf("[WARN] Failed to get LLM instance for summary: %v", err)
-		return mp.createStatisticalSummary(messages) // 降级到统计摘要
-	}
-
-	// 构建压缩输入
-	conversationText := mp.buildSummaryInput(messages)
-	if len(conversationText) == 0 {
-		return nil
-	}
-
-	// 构建优化的摘要请求
-	request := &llm.ChatRequest{
-		Messages: []llm.Message{
-			{
-				Role:    "system",
-				Content: mp.buildOptimizedSystemPrompt(),
-			},
-			{
-				Role:    "user",
-				Content: mp.buildOptimizedSummaryPrompt(conversationText, len(messages)),
-			},
-		},
-		ModelType: llm.BasicModel,
-		Config: &llm.Config{
-			Temperature: 0.3,  // 降低温度提高一致性
-			MaxTokens:   1000, // 减少最大token数
-		},
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second) // 减少超时时间
-	defer cancel()
-
-	response, err := llmClient.Chat(ctx, request)
-	if err != nil || len(response.Choices) == 0 {
-		log.Printf("[WARN] LLM summary failed: %v, falling back to statistical summary", err)
-		return mp.createStatisticalSummary(messages) // 降级到统计摘要
-	}
-
-	summaryContent := strings.TrimSpace(response.Choices[0].Message.Content)
-	if len(summaryContent) == 0 {
-		return mp.createStatisticalSummary(messages) // 降级到统计摘要
-	}
-
-	summary := &session.Message{
-		Role:    "system",
-		Content: summaryContent,
-		Metadata: map[string]interface{}{
-			"type":               "llm_summary",
-			"original_count":     len(messages),
-			"summary_timestamp":  time.Now().Unix(),
-			"compression_method": "llm",
-		},
-		Timestamp: time.Now(),
-	}
-
-	// 缓存压缩结果
-	mp.setCachedCompressionResult(messages, summary)
-
-	log.Printf("[INFO] LLM summary created for %d messages, cached for future use", len(messages))
-	return summary
-}
-
-// ========== LLM压缩优化方法 ==========
-
-// getCachedCompressionResult 获取缓存的压缩结果
-func (mp *MessageProcessor) getCachedCompressionResult(messages []*session.Message) *session.Message {
-	if len(messages) == 0 {
-		return nil
-	}
-
-	// 构建缓存键
-	inputHash := mp.buildMessageHash(messages)
-
-	mp.compressionMutex.RLock()
-	defer mp.compressionMutex.RUnlock()
-
-	if cached, exists := mp.compressionCache[inputHash]; exists {
-		// 检查缓存是否过期
-		if time.Since(cached.Timestamp) < mp.cacheExpiry {
-			log.Printf("[DEBUG] Cache hit for compression of %d messages", len(messages))
-			return cached.Summary
-		}
-		// 缓存过期，删除
-		delete(mp.compressionCache, inputHash)
-	}
-
-	return nil
-}
-
-// setCachedCompressionResult 设置缓存的压缩结果
-func (mp *MessageProcessor) setCachedCompressionResult(messages []*session.Message, summary *session.Message) {
-	if len(messages) == 0 || summary == nil {
-		return
-	}
-
-	inputHash := mp.buildMessageHash(messages)
-
-	mp.compressionMutex.Lock()
-	defer mp.compressionMutex.Unlock()
-
-	mp.compressionCache[inputHash] = &CachedCompressionResult{
-		Summary:      summary,
-		Timestamp:    time.Now(),
-		InputHash:    inputHash,
-		MessageCount: len(messages),
-	}
-}
-
-// buildMessageHash 为消息列表构建哈希
-func (mp *MessageProcessor) buildMessageHash(messages []*session.Message) string {
-	var hashInput strings.Builder
-	for i, msg := range messages {
-		if i > 0 {
-			hashInput.WriteString("|")
-		}
-		hashInput.WriteString(msg.Role)
-		hashInput.WriteString(":")
-		// 只使用内容的前100个字符来构建哈希，避免过长
-		content := msg.Content
-		if len(content) > 100 {
-			content = content[:100]
-		}
-		hashInput.WriteString(content)
-	}
-	return fmt.Sprintf("%x", hashInput.String())
-}
-
-// shouldUseLLMCompression 智能决策是否使用LLM压缩
-func (mp *MessageProcessor) shouldUseLLMCompression(messages []*session.Message) bool {
-	// 消息数量太少不值得LLM压缩
-	if len(messages) < 10 {
-		return false
-	}
-
-	// 估算token数量
-	estimatedTokens := mp.tokenEstimator.EstimateSessionMessages(messages)
-
-	// 内容太少不值得LLM压缩
-	if estimatedTokens < 2000 {
-		return false
-	}
-
-	// 检查内容复杂度
-	complexity := mp.calculateContentComplexity(messages)
-
-	// 高复杂度内容使用LLM压缩
-	if complexity > 0.7 {
-		return true
-	}
-
-	// 中等复杂度且消息数量多时使用LLM压缩
-	if complexity > 0.5 && len(messages) > 20 {
-		return true
-	}
-
-	// 其他情况使用统计摘要
-	return false
-}
-
-// calculateContentComplexity 计算内容复杂度
-func (mp *MessageProcessor) calculateContentComplexity(messages []*session.Message) float64 {
-	var totalScore float64
-	var totalLength int
-
-	for _, msg := range messages {
-		content := msg.Content
-		totalLength += len(content)
-
-		// 代码内容复杂度更高
-		if strings.Contains(content, "```") || strings.Contains(content, "function") || strings.Contains(content, "class") {
-			totalScore += 1.0
-		}
-
-		// 错误消息复杂度高
-		if strings.Contains(strings.ToLower(content), "error") || strings.Contains(strings.ToLower(content), "exception") {
-			totalScore += 0.8
-		}
-
-		// 工具调用复杂度高
-		if len(msg.ToolCalls) > 0 {
-			totalScore += 0.6
-		}
-
-		// 长内容复杂度高
-		if len(content) > 500 {
-			totalScore += 0.4
-		}
-	}
-
-	if len(messages) == 0 {
-		return 0
-	}
-
-	return totalScore / float64(len(messages))
-}
-
-// buildOptimizedSystemPrompt 构建优化的系统提示
-func (mp *MessageProcessor) buildOptimizedSystemPrompt() string {
-	return `Create a concise summary that preserves key information while significantly reducing length.
-Focus on:
-1. Important decisions and outcomes
-2. Key technical details and solutions
-3. Error patterns and fixes
-4. Critical context for future reference
-
-Output format: Brief paragraph format, no bullet points.
-Target: 70-80% length reduction while maintaining essential information.`
-}
-
-// buildOptimizedSummaryPrompt 构建优化的摘要提示
-func (mp *MessageProcessor) buildOptimizedSummaryPrompt(conversationText string, messageCount int) string {
-	return fmt.Sprintf(`Summarize this conversation thread of %d messages:
-
-%s
-
-Create a concise summary that captures the essential information while reducing length by 70-80%%. Focus on key decisions, technical solutions, and important context.`, messageCount, conversationText)
-}
-
-// buildSummaryInput 构建摘要输入
-func (mp *MessageProcessor) buildSummaryInput(messages []*session.Message) string {
-	var parts []string
-
-	for i, msg := range messages {
-		if msg.Role == "system" {
-			if msgType, ok := msg.Metadata["type"].(string); ok {
-				if strings.Contains(msgType, "summary") {
-					continue
-				}
-			}
-		}
-
-		content := msg.Content
-		if len(content) > 500 {
-			content = content[:500] + "...[truncated]"
-		}
-
-		roleName := strings.ToUpper(msg.Role[:1]) + msg.Role[1:]
-		if len(msg.ToolCalls) > 0 {
-			var tools []string
-			for _, tc := range msg.ToolCalls {
-				tools = append(tools, tc.Name)
-			}
-			content += fmt.Sprintf(" [Tools: %s]", strings.Join(tools, ", "))
-		}
-
-		parts = append(parts, fmt.Sprintf("[%d] %s: %s", i+1, roleName, content))
-	}
-
-	return strings.Join(parts, "\n")
-}
-
-// createStatisticalSummary 创建统计摘要
-func (mp *MessageProcessor) createStatisticalSummary(messages []*session.Message) *session.Message {
-	var userActions, toolUsages, keyTopics []string
-
-	for _, msg := range messages {
-		switch msg.Role {
-		case "user":
-			content := msg.Content
-			if len(content) > 50 {
-				content = content[:50] + "..."
-			}
-			userActions = append(userActions, content)
-		case "assistant":
-			for _, tc := range msg.ToolCalls {
-				toolUsages = append(toolUsages, tc.Name)
-			}
-		case "tool":
-			if toolName, ok := msg.Metadata["tool_name"].(string); ok {
-				success := "✓"
-				if toolSuccess, ok := msg.Metadata["tool_success"].(bool); ok && !toolSuccess {
-					success = "✗"
-				}
-				keyTopics = append(keyTopics, fmt.Sprintf("%s%s", success, toolName))
-			}
-		}
-	}
-
-	var parts []string
-	parts = append(parts, fmt.Sprintf("## Conversation Summary (%d messages)", len(messages)))
-
-	if len(userActions) > 0 {
-		parts = append(parts, fmt.Sprintf("**User Requests**: %s", strings.Join(userActions, "; ")))
-	}
-
-	if len(toolUsages) > 0 {
-		toolCount := make(map[string]int)
-		for _, tool := range toolUsages {
-			toolCount[tool]++
-		}
-		var toolSummary []string
-		for tool, count := range toolCount {
-			if count > 1 {
-				toolSummary = append(toolSummary, fmt.Sprintf("%s(%d)", tool, count))
-			} else {
-				toolSummary = append(toolSummary, tool)
-			}
-		}
-		parts = append(parts, fmt.Sprintf("**Tools Used**: %s", strings.Join(toolSummary, ", ")))
-	}
-
-	if len(keyTopics) > 0 {
-		parts = append(parts, fmt.Sprintf("**Key Activities**: %s", strings.Join(keyTopics, ", ")))
-	}
-
-	return &session.Message{
-		Role:    "system",
-		Content: strings.Join(parts, "\n"),
-		Metadata: map[string]interface{}{
-			"type":               "statistical_summary",
-			"original_count":     len(messages),
-			"summary_timestamp":  time.Now().Unix(),
-			"compression_method": "statistical",
-		},
-		Timestamp: time.Now(),
-	}
 }
 
 // ========== 会话管理 ==========

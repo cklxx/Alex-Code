@@ -53,7 +53,7 @@ func (h *LLMHandler) isNetworkError(err error) bool {
 	networkErrorPatterns := []string{
 		"connection refused",
 		"connection reset",
-		"connection timeout",
+		"connection timeout", 
 		"dial timeout",
 		"read timeout",
 		"write timeout",
@@ -76,6 +76,51 @@ func (h *LLMHandler) isNetworkError(err error) bool {
 	return false
 }
 
+// isRetriableError checks if an error should be retried (opposite of network error)
+func (h *LLMHandler) isRetriableError(err error) bool {
+	errStr := err.Error()
+	
+	// Timeout errors from HTTP client should be retried
+	if strings.Contains(errStr, "timeout") || strings.Contains(errStr, "deadline exceeded") {
+		return true
+	}
+	
+	// Extract HTTP status code if present
+	if strings.Contains(errStr, "HTTP error ") {
+		parts := strings.Split(errStr, "HTTP error ")
+		if len(parts) > 1 {
+			statusPart := strings.Split(parts[1], ":")
+			if len(statusPart) > 0 {
+				if statusCode, parseErr := strconv.Atoi(statusPart[0]); parseErr == nil {
+					// Temporary server issues that should be retried
+					switch statusCode {
+					case 502, 503, 504, 429: // Bad Gateway, Service Unavailable, Gateway Timeout, Rate Limited
+						return true
+					}
+				}
+			}
+		}
+	}
+	
+	// Temporary network issues that should be retried
+	retriablePatterns := []string{
+		"temporary failure",
+		"server temporarily unavailable", 
+		"connection reset by peer",
+		"broken pipe",
+		"EOF",
+	}
+	
+	lowerErr := strings.ToLower(errStr)
+	for _, pattern := range retriablePatterns {
+		if strings.Contains(lowerErr, pattern) {
+			return true
+		}
+	}
+	
+	return false
+}
+
 // callLLMWithRetry - 带重试机制的非流式LLM调用
 func (h *LLMHandler) callLLMWithRetry(ctx context.Context, client llm.Client, request *llm.ChatRequest, maxRetries int) (*llm.ChatResponse, error) {
 	var lastErr error
@@ -87,15 +132,17 @@ func (h *LLMHandler) callLLMWithRetry(ctx context.Context, client llm.Client, re
 			lastErr = err
 			log.Printf("[WARN] LLMHandler: Chat call failed (attempt %d): %v", attempt, err)
 
-			// 检查是否是网络类错误，如果是，不要重试
-			if h.isNetworkError(err) {
-				log.Printf("[ERROR] LLMHandler: Network error detected, not retrying: %v", err)
-				return nil, fmt.Errorf("network error - not retrying: %w", err)
+			// 检查是否是永久性网络错误（如认证错误），如果是，不要重试
+			if h.isNetworkError(err) && !h.isRetriableError(err) {
+				log.Printf("[ERROR] LLMHandler: Permanent network error detected, not retrying: %v", err)
+				return nil, fmt.Errorf("permanent network error - not retrying: %w", err)
 			}
 
-			if attempt < maxRetries {
+			// 如果是可重试的错误（如超时、临时服务器错误），则重试
+			if attempt < maxRetries && (h.isRetriableError(err) || !h.isNetworkError(err)) {
 				backoffDuration := time.Duration(attempt*2) * time.Second
-				log.Printf("[WARN] LLMHandler: Retrying in %v", backoffDuration)
+				log.Printf("[WARN] LLMHandler: Retrying in %v (retriable: %v, network: %v)", 
+					backoffDuration, h.isRetriableError(err), h.isNetworkError(err))
 				select {
 				case <-ctx.Done():
 					return nil, ctx.Err()
