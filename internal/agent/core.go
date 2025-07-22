@@ -88,12 +88,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			sess := rc.messageProcessor.GetCurrentSession(ctx, rc.agent)
 			// 使用新的上下文管理器优化消息
 			sessionMessages := sess.GetMessages()
-			optimizedMessages, err := rc.agent.contextManager.OptimizeContext(ctx, sess.ID, sessionMessages)
-			if err != nil {
-				log.Printf("[WARN] Context optimization failed: %v", err)
-				optimizedMessages = sessionMessages
-			}
-			llmMessages := rc.messageProcessor.ConvertSessionToLLM(optimizedMessages)
+			llmMessages := rc.messageProcessor.ConvertSessionToLLM(sessionMessages)
 			messages = append(messages, llmMessages...)
 		} else {
 			sessionMessages := rc.messageProcessor.ConvertLLMToSession(messages)

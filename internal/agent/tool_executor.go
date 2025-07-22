@@ -341,13 +341,35 @@ func (te *ToolExecutor) formatToolCallForDisplay(toolName string, args map[strin
 		var valueStr string
 		switch v := value.(type) {
 		case string:
-			// Truncate long strings and add quotes
-			// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
-			runes := []rune(v)
-			if len(runes) > 50 {
-				valueStr = fmt.Sprintf(`"%s..."`, string(runes[:47]))
+			// Special handling for todo_update content parameter - show only first line
+			if toolName == "todo_update" && key == "content" {
+				lines := strings.Split(v, "\n")
+				if len(lines) > 0 {
+					firstLine := strings.TrimSpace(lines[0])
+					if firstLine != "" {
+						// Remove markdown header prefix if present
+						firstLine = strings.TrimPrefix(firstLine, "# ")
+						runes := []rune(firstLine)
+						if len(runes) > 30 {
+							valueStr = fmt.Sprintf(`"%s..."`, string(runes[:27]))
+						} else {
+							valueStr = fmt.Sprintf(`"%s"`, firstLine)
+						}
+					} else {
+						valueStr = `"[multi-line content]"`
+					}
+				} else {
+					valueStr = `""`
+				}
 			} else {
-				valueStr = fmt.Sprintf(`"%s"`, v)
+				// Default string handling
+				// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
+				runes := []rune(v)
+				if len(runes) > 50 {
+					valueStr = fmt.Sprintf(`"%s..."`, string(runes[:47]))
+				} else {
+					valueStr = fmt.Sprintf(`"%s"`, v)
+				}
 			}
 		case int, int64, float64, bool:
 			valueStr = fmt.Sprintf("%v", v)
@@ -383,6 +405,17 @@ func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args m
 	if !exists {
 		log.Printf("[ERROR] executeTool: Tool %s not found", toolName)
 		return nil, fmt.Errorf("tool %s not found", toolName)
+	}
+
+	// 确保args不为nil，避免工具panic
+	if args == nil {
+		args = make(map[string]interface{})
+	}
+
+	// 验证参数，防止panic
+	if err := tool.Validate(args); err != nil {
+		log.Printf("[ERROR] executeTool: Tool %s validation failed: %v", toolName, err)
+		return nil, fmt.Errorf("tool validation failed: %w", err)
 	}
 
 	// 注入工作目录上下文给文件相关工具

@@ -83,7 +83,24 @@ func (t *BashTool) Validate(args map[string]interface{}) error {
 }
 
 func (t *BashTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	command := args["command"].(string)
+	// 防御性检查：确保参数存在且有效（通常已通过Validate验证）
+	if args == nil {
+		return nil, fmt.Errorf("arguments cannot be nil")
+	}
+	
+	commandValue, exists := args["command"]
+	if !exists {
+		return nil, fmt.Errorf("command parameter is required")
+	}
+	
+	command, ok := commandValue.(string)
+	if !ok {
+		return nil, fmt.Errorf("command must be a string")
+	}
+	
+	if command == "" {
+		return nil, fmt.Errorf("command cannot be empty")
+	}
 
 	// Get optional parameters
 	workingDir := ""
@@ -341,8 +358,30 @@ func (t *CodeExecutorTool) Validate(args map[string]interface{}) error {
 }
 
 func (t *CodeExecutorTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	language := args["language"].(string)
-	code := args["code"].(string)
+	// 防御性检查：确保参数存在且有效（通常已通过Validate验证）
+	if args == nil {
+		return nil, fmt.Errorf("arguments cannot be nil")
+	}
+	
+	languageValue, exists := args["language"]
+	if !exists {
+		return nil, fmt.Errorf("language parameter is required")
+	}
+	
+	language, ok := languageValue.(string)
+	if !ok {
+		return nil, fmt.Errorf("language must be a string")
+	}
+	
+	codeValue, exists := args["code"]
+	if !exists {
+		return nil, fmt.Errorf("code parameter is required")
+	}
+	
+	code, ok := codeValue.(string)
+	if !ok {
+		return nil, fmt.Errorf("code must be a string")
+	}
 
 	// Set timeout if provided
 	if timeoutArg, ok := args["timeout"]; ok {

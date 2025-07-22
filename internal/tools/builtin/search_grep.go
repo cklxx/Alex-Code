@@ -61,7 +61,24 @@ func (t *GrepTool) Validate(args map[string]interface{}) error {
 }
 
 func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	pattern := args["pattern"].(string)
+	// 防御性检查：确保参数存在且有效（通常已通过Validate验证）
+	if args == nil {
+		return nil, fmt.Errorf("arguments cannot be nil")
+	}
+	
+	patternValue, exists := args["pattern"]
+	if !exists {
+		return nil, fmt.Errorf("pattern parameter is required")
+	}
+	
+	pattern, ok := patternValue.(string)
+	if !ok {
+		return nil, fmt.Errorf("pattern must be a string")
+	}
+	
+	if pattern == "" {
+		return nil, fmt.Errorf("pattern cannot be empty")
+	}
 	
 	path := "."
 	if p, ok := args["path"]; ok {

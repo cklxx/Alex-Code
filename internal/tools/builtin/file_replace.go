@@ -49,6 +49,7 @@ func (t *FileReplaceTool) Validate(args map[string]interface{}) error {
 }
 
 func (t *FileReplaceTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	// 参数已通过Validate验证，可以安全访问
 	filePath := args["file_path"].(string)
 	content := args["content"].(string)
 

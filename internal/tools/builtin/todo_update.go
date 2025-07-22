@@ -8,158 +8,98 @@ import (
 	"strings"
 )
 
-// TodoUpdateTool implements todo update functionality
-type TodoUpdateTool struct{}
+// NewTodoUpdateTool implements todo update functionality (full replacement)
+type NewTodoUpdateTool struct{}
 
-func CreateTodoUpdateTool() *TodoUpdateTool {
-	return &TodoUpdateTool{}
+func CreateNewTodoUpdateTool() *NewTodoUpdateTool {
+	return &NewTodoUpdateTool{}
 }
 
-func (t *TodoUpdateTool) Name() string {
+func (t *NewTodoUpdateTool) Name() string {
 	return "todo_update"
 }
 
-func (t *TodoUpdateTool) Description() string {
-	return "Update the status or details of an existing todo item."
+func (t *NewTodoUpdateTool) Description() string {
+	return "Update the entire session todo with free-form content. Content can include goals, tasks, notes in any markdown format."
 }
 
-func (t *TodoUpdateTool) Parameters() map[string]interface{} {
+func (t *NewTodoUpdateTool) Parameters() map[string]interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"id": map[string]interface{}{
+			"content": map[string]interface{}{
 				"type":        "string",
-				"description": "The ID of the todo item to update",
-			},
-			"status": map[string]interface{}{
-				"type":        "string",
-				"description": "New status for the todo item",
-				"enum":        []string{"pending", "in_progress", "completed", "cancelled"},
-			},
-			"priority": map[string]interface{}{
-				"type":        "string",
-				"description": "New priority level",
-				"enum":        []string{"low", "medium", "high"},
-			},
-			"add_note": map[string]interface{}{
-				"type":        "string",
-				"description": "Add a note to the todo item",
+				"description": "The complete todo content in markdown format. Can include goals, tasks, notes, etc.",
 			},
 		},
-		"required": []string{"id"},
+		"required": []string{"content"},
 	}
 }
 
-func (t *TodoUpdateTool) Validate(args map[string]interface{}) error {
+func (t *NewTodoUpdateTool) Validate(args map[string]interface{}) error {
 	validator := NewValidationFramework().
-		AddStringField("id", "Todo ID").
-		AddOptionalStringField("status", "New status").
-		AddOptionalStringField("priority", "New priority").
-		AddOptionalStringField("add_note", "Note to add")
+		AddStringField("content", "Todo content")
 
 	return validator.Validate(args)
 }
 
-func (t *TodoUpdateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	todoID := args["id"].(string)
+func (t *NewTodoUpdateTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	// Extract content parameter
+	content := args["content"].(string)
 
-	// Get session directory from context
-	sessionDir := getSessionDirectoryFromContext()
-	if sessionDir == "" {
-		return nil, fmt.Errorf("session directory not found in context")
-	}
-
-	todoFile := filepath.Join(sessionDir, "todos.md")
-
-	// Read current todo file
-	content, err := os.ReadFile(todoFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read todo file: %w", err)
-	}
-
-	todoContent := string(content)
-
-	// Find the todo item by ID
-	todoIndex := strings.Index(todoContent, fmt.Sprintf("**ID:** %s", todoID))
-	if todoIndex == -1 {
-		return nil, fmt.Errorf("todo item with ID %s not found", todoID)
-	}
-
-	// Find the section boundaries
-	sectionStart := strings.LastIndex(todoContent[:todoIndex], "## ")
-	if sectionStart == -1 {
-		return nil, fmt.Errorf("malformed todo file")
-	}
-
-	sectionEnd := strings.Index(todoContent[todoIndex:], "---")
-	if sectionEnd == -1 {
-		sectionEnd = len(todoContent) - todoIndex
+	// Try to get session ID from context for session-based storage
+	var todoFile string
+	if id, ok := ctx.Value(SessionIDKey).(string); ok && id != "" {
+		// Session-based storage
+		sessionsDir, err := getSessionsDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get sessions directory: %w", err)
+		}
+		todoFile = filepath.Join(sessionsDir, id+"_todo.md")
 	} else {
-		sectionEnd = todoIndex + sectionEnd + 3 // Include the "---"
+		// Fallback to working directory
+		resolver := GetPathResolverFromContext(ctx)
+		workingDir := resolver.workingDir
+		if workingDir == "" {
+			var err error
+			workingDir, err = os.Getwd()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get current working directory: %w", err)
+			}
+		}
+		todoFile = filepath.Join(workingDir, "todo.md")
 	}
 
-	todoSection := todoContent[sectionStart:sectionEnd]
-	updatedSection := todoSection
-
-	// Update status if provided
-	if status, ok := args["status"]; ok {
-		statusStr := status.(string)
-		updatedSection = updateTodoField(updatedSection, "Status", statusStr)
+	// Write content directly to todo.md file
+	err := os.WriteFile(todoFile, []byte(content), 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write todo file: %w", err)
 	}
 
-	// Update priority if provided
-	if priority, ok := args["priority"]; ok {
-		priorityStr := priority.(string)
-		updatedSection = updateTodoField(updatedSection, "Priority", priorityStr)
-	}
+	// Count lines for basic statistics
+	lines := strings.Split(content, "\n")
+	lineCount := len(lines)
 
-	// Add note if provided
-	if note, ok := args["add_note"]; ok {
-		noteStr := note.(string)
-		noteSection := fmt.Sprintf("\n**Note (%s):** %s\n", getCurrentTimestampString(), noteStr)
-		// Insert before the final "---"
-		if strings.HasSuffix(updatedSection, "---\n\n") {
-			updatedSection = strings.TrimSuffix(updatedSection, "---\n\n") + noteSection + "---\n\n"
-		} else {
-			updatedSection += noteSection
+	// Count checkboxes if present
+	completedCount := 0
+	pendingCount := 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "☒") {
+			completedCount++
+		} else if strings.HasPrefix(line, "☐") {
+			pendingCount++
 		}
 	}
 
-	// Replace the section in the file
-	newContent := todoContent[:sectionStart] + updatedSection + todoContent[sectionEnd:]
-
-	// Write back to file
-	err = os.WriteFile(todoFile, []byte(newContent), 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to write updated todo file: %w", err)
-	}
-
 	return &ToolResult{
-		Content: fmt.Sprintf("Updated todo item: %s", todoID),
+		Content: content,
 		Data: map[string]interface{}{
-			"id":      todoID,
-			"updated": getCurrentTimestamp(),
+			"content":         content,
+			"line_count":      lineCount,
+			"pending_count":   pendingCount,
+			"completed_count": completedCount,
+			"file_path":       todoFile,
 		},
 	}, nil
-}
-
-func updateTodoField(section, fieldName, newValue string) string {
-	pattern := fmt.Sprintf("**%s:** ", fieldName)
-	startIdx := strings.Index(section, pattern)
-	if startIdx == -1 {
-		// Field doesn't exist, add it
-		return section + fmt.Sprintf("**%s:** %s\n", fieldName, newValue)
-	}
-
-	startIdx += len(pattern)
-	endIdx := strings.Index(section[startIdx:], "\n")
-	if endIdx == -1 {
-		endIdx = len(section) - startIdx
-	}
-
-	return section[:startIdx] + newValue + section[startIdx+endIdx:]
-}
-
-func getCurrentTimestampString() string {
-	return "2024-01-01 12:00:00" // Placeholder
 }

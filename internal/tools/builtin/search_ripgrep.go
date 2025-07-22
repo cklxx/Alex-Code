@@ -65,6 +65,7 @@ func (t *RipgrepTool) Execute(ctx context.Context, args map[string]interface{}) 
 		return nil, fmt.Errorf("ripgrep (rg) is not installed")
 	}
 	
+	// 参数已通过Validate验证，可以安全访问
 	pattern := args["pattern"].(string)
 	
 	path := "."

@@ -10,10 +10,10 @@ import (
 	"alex/internal/config"
 	contextmgr "alex/internal/context"
 	"alex/internal/llm"
-	"alex/internal/tools/mcp"
 	"alex/internal/prompts"
 	"alex/internal/session"
 	"alex/internal/tools/builtin"
+	"alex/internal/tools/mcp"
 	"alex/pkg/types"
 )
 
@@ -29,7 +29,6 @@ type GeneratedMemories struct {
 	SessionID string    `json:"session_id"`
 	Timestamp time.Time `json:"timestamp"`
 }
-
 
 // ReactCoreInterface - ReAct核心接口
 type ReactCoreInterface interface {
@@ -48,15 +47,12 @@ type ReactAgent struct {
 	config         *types.ReactConfig
 	llmConfig      *llm.Config
 	currentSession *session.Session
-	
-	// 新的管理器
-	contextManager *ContextManager
-	
+
 	// 核心组件
-	reactCore    ReactCoreInterface
-	toolExecutor *ToolExecutor
+	reactCore     ReactCoreInterface
+	toolExecutor  *ToolExecutor
 	promptBuilder *LightPromptBuilder
-	
+
 	// 简单的同步控制
 	mu sync.RWMutex
 }
@@ -71,14 +67,14 @@ type Response struct {
 
 // StreamChunk - 流式响应
 type StreamChunk struct {
-	Type     string                 `json:"type"`
-	Content  string                 `json:"content"`
-	Complete bool                   `json:"complete,omitempty"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
-	TokensUsed       int `json:"tokens_used,omitempty"`
-	TotalTokensUsed  int `json:"total_tokens_used,omitempty"`
-	PromptTokens     int `json:"prompt_tokens,omitempty"`
-	CompletionTokens int `json:"completion_tokens,omitempty"`
+	Type             string                 `json:"type"`
+	Content          string                 `json:"content"`
+	Complete         bool                   `json:"complete,omitempty"`
+	Metadata         map[string]interface{} `json:"metadata,omitempty"`
+	TokensUsed       int                    `json:"tokens_used,omitempty"`
+	TotalTokensUsed  int                    `json:"total_tokens_used,omitempty"`
+	PromptTokens     int                    `json:"prompt_tokens,omitempty"`
+	CompletionTokens int                    `json:"completion_tokens,omitempty"`
 }
 
 // StreamCallback - 流式回调函数
@@ -114,16 +110,13 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 	// 初始化工具
 	tools := make(map[string]builtin.Tool)
 	builtinTools := builtin.GetAllBuiltinToolsWithConfig(configManager)
-	
+
 	// 集成MCP工具
 	allTools := integrateWithMCPTools(configManager, builtinTools)
-	
+
 	for _, tool := range allTools {
 		tools[tool.Name()] = tool
 	}
-
-	// 创建新的管理器 (Memory system removed)
-	contextManager := NewContextManager(llmClient, nil)
 
 	agent := &ReactAgent{
 		llm:            llmClient,
@@ -132,10 +125,7 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 		tools:          tools,
 		config:         types.NewReactConfig(),
 		llmConfig:      llmConfig,
-		
-		// 新的管理器
-		contextManager: contextManager,
-		
+
 		promptBuilder: NewLightPromptBuilder(),
 	}
 
@@ -160,7 +150,7 @@ func (r *ReactAgent) StartSession(sessionID string) (*session.Session, error) {
 	r.mu.Lock()
 	r.currentSession = session
 	r.mu.Unlock()
-	
+
 	return session, nil
 }
 
@@ -171,11 +161,11 @@ func (r *ReactAgent) RestoreSession(sessionID string) (*session.Session, error) 
 		log.Printf("[ERROR] ReactAgent: Failed to restore session %s: %v", sessionID, err)
 		return nil, err
 	}
-	
+
 	r.mu.Lock()
 	r.currentSession = session
 	r.mu.Unlock()
-	
+
 	return session, nil
 }
 
@@ -199,15 +189,6 @@ func (r *ReactAgent) ProcessMessage(ctx context.Context, userMessage string, con
 		Timestamp: time.Now(),
 	}
 	currentSession.AddMessage(userMsg)
-
-	// 获取会话消息
-	messages := currentSession.GetMessages()
-	
-	// 使用ContextManager优化上下文 (结果暂不使用，因为内存模块已移除)
-	_, err := r.contextManager.OptimizeContext(ctx, currentSession.ID, messages)
-	if err != nil {
-		log.Printf("[WARN] Context optimization failed: %v", err)
-	}
 
 	// 将会话ID注入context
 	ctxWithSession := context.WithValue(ctx, SessionIDKey, currentSession.ID)
@@ -274,13 +255,6 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 		Timestamp: time.Now(),
 	}
 	currentSession.AddMessage(userMsg)
-
-	// 获取优化后的上下文
-	messages := currentSession.GetMessages()
-	_, err := r.contextManager.OptimizeContext(ctx, currentSession.ID, messages)
-	if err != nil {
-		log.Printf("[WARN] Context optimization failed: %v", err)
-	}
 
 	// 设置上下文
 	ctxWithSession := context.WithValue(ctx, SessionIDKey, currentSession.ID)
@@ -354,20 +328,6 @@ func (r *ReactAgent) GetSessionManager() *session.Manager {
 	return r.sessionManager
 }
 
-// GetContextQuality - 获取上下文质量（使用新的ContextManager）
-func (r *ReactAgent) GetContextQuality(sessionID string) (*ContextQuality, error) {
-	r.mu.RLock()
-	currentSession := r.currentSession
-	r.mu.RUnlock()
-	
-	if currentSession == nil || currentSession.ID != sessionID {
-		return nil, fmt.Errorf("session not found")
-	}
-	
-	messages := currentSession.GetMessages()
-	return r.contextManager.evaluateContextQuality(messages), nil
-}
-
 // GenerateMemories - 手动生成记忆 (Memory module removed)
 func (r *ReactAgent) GenerateMemories(ctx context.Context, sessionID string) (*GeneratedMemories, error) {
 	return &GeneratedMemories{}, nil
@@ -418,21 +378,21 @@ func integrateWithMCPTools(configManager *config.Manager, builtinTools []builtin
 
 	// 转换配置格式
 	mcpConfig := convertConfigToMCP(configMCP)
-	
+
 	// 创建MCP管理器
 	mcpManager := mcp.NewManager(mcpConfig)
-	
+
 	// 启动MCP管理器
 	ctx := context.Background()
 	if err := mcpManager.Start(ctx); err != nil {
 		log.Printf("[WARN] Failed to start MCP manager: %v", err)
 		return builtinTools
 	}
-	
+
 	// 集成工具
 	allTools := mcpManager.IntegrateWithBuiltinTools(builtinTools)
 	log.Printf("[INFO] Integrated %d MCP tools with %d builtin tools", len(allTools)-len(builtinTools), len(builtinTools))
-	
+
 	return allTools
 }
 
@@ -445,7 +405,7 @@ func convertConfigToMCP(configMCP *config.MCPConfig) *mcp.MCPConfig {
 		AutoRefresh:     configMCP.AutoRefresh,
 		RefreshInterval: configMCP.RefreshInterval,
 	}
-	
+
 	// 转换服务器配置
 	for id, configServer := range configMCP.Servers {
 		mcpServer := &mcp.ServerConfig{
@@ -463,23 +423,23 @@ func convertConfigToMCP(configMCP *config.MCPConfig) *mcp.MCPConfig {
 		}
 		mcpConfig.Servers[id] = mcpServer
 	}
-	
+
 	// 转换安全配置
 	if configMCP.Security != nil {
 		mcpConfig.Security = &mcp.SecurityConfig{
-			AllowedCommands:      configMCP.Security.AllowedCommands,
-			BlockedCommands:      configMCP.Security.BlockedCommands,
-			AllowedPackages:      configMCP.Security.AllowedPackages,
-			BlockedPackages:      configMCP.Security.BlockedPackages,
-			RequireConfirmation:  configMCP.Security.RequireConfirmation,
-			SandboxMode:          configMCP.Security.SandboxMode,
-			MaxProcesses:         configMCP.Security.MaxProcesses,
-			MaxMemoryMB:          configMCP.Security.MaxMemoryMB,
-			AllowedEnvironment:   configMCP.Security.AllowedEnvironment,
-			RestrictedPaths:      configMCP.Security.RestrictedPaths,
+			AllowedCommands:     configMCP.Security.AllowedCommands,
+			BlockedCommands:     configMCP.Security.BlockedCommands,
+			AllowedPackages:     configMCP.Security.AllowedPackages,
+			BlockedPackages:     configMCP.Security.BlockedPackages,
+			RequireConfirmation: configMCP.Security.RequireConfirmation,
+			SandboxMode:         configMCP.Security.SandboxMode,
+			MaxProcesses:        configMCP.Security.MaxProcesses,
+			MaxMemoryMB:         configMCP.Security.MaxMemoryMB,
+			AllowedEnvironment:  configMCP.Security.AllowedEnvironment,
+			RestrictedPaths:     configMCP.Security.RestrictedPaths,
 		}
 	}
-	
+
 	// 转换日志配置
 	if configMCP.Logging != nil {
 		mcpConfig.Logging = &mcp.LoggingConfig{
@@ -489,6 +449,6 @@ func convertConfigToMCP(configMCP *config.MCPConfig) *mcp.MCPConfig {
 			LogFile:      configMCP.Logging.LogFile,
 		}
 	}
-	
+
 	return mcpConfig
 }

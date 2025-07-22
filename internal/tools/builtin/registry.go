@@ -27,9 +27,8 @@ func GetAllBuiltinToolsWithConfig(configManager *config.Manager) []Tool {
 		NewThinkTool(),
 
 		// Task management tools 
-		CreateTodoCreateTool(),
-		CreateTodoUpdateTool(),
-		CreateTodoListTool(),
+		CreateTodoReadTool(),
+		CreateNewTodoUpdateTool(),
 
 		// File tools
 		CreateFileReadTool(),
@@ -62,12 +61,10 @@ func GetToolByNameWithConfig(name string, configManager *config.Manager) Tool {
 	switch name {
 	case "think":
 		return NewThinkTool()
-	case "todo_create":
-		return CreateTodoCreateTool()
+	case "todo_read":
+		return CreateTodoReadTool()
 	case "todo_update":
-		return CreateTodoUpdateTool()
-	case "todo_list":
-		return CreateTodoListTool()
+		return CreateNewTodoUpdateTool()
 	case "file_read":
 		return CreateFileReadTool()
 	case "file_update":
@@ -125,9 +122,8 @@ func GetToolsByCategoryWithConfig(configManager *config.Manager) map[string][]To
 			NewThinkTool(),
 		},
 		"task_management": {
-			CreateTodoCreateTool(),
-			CreateTodoUpdateTool(),
-			CreateTodoListTool(),
+			CreateTodoReadTool(),
+			CreateNewTodoUpdateTool(),
 		},
 		"file": {
 			CreateFileReadTool(),

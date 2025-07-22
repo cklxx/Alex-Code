@@ -66,6 +66,13 @@ func NewManager() (*Manager, error) {
 	}, nil
 }
 
+// GetSessionsDir returns the sessions directory path
+func (m *Manager) GetSessionsDir() string {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	return m.sessionsDir
+}
+
 // StartSession creates a new session
 func (m *Manager) StartSession(sessionID string) (*Session, error) {
 	m.mutex.Lock()
