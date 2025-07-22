@@ -7,16 +7,16 @@ import (
 )
 
 var (
-	// Diff color scheme using lipgloss
-	addedLineColor   = lipgloss.Color("#22c55e")   // Light green for added lines
-	removedLineColor = lipgloss.Color("#ef4444")   // Light red for deleted lines
-	contextLineColor = lipgloss.Color("#6b7280")   // Gray for context lines
-	headerLineColor  = lipgloss.Color("#8b5cf6")   // Purple for diff headers
+	// Diff background color scheme using lipgloss  
+	addedLineBgColor   = lipgloss.Color("#2d5016")   // Dark green background for added lines
+	removedLineBgColor = lipgloss.Color("#5d1a1d")   // Dark red background for deleted lines
+	contextLineBgColor = lipgloss.Color("#1a1a1a")   // Dark background for context lines
+	headerLineColor    = lipgloss.Color("#8b5cf6")   // Purple for diff headers
 	
-	// Styles for different diff line types
-	addedLineStyle   = lipgloss.NewStyle().Foreground(addedLineColor)
-	removedLineStyle = lipgloss.NewStyle().Foreground(removedLineColor)
-	contextLineStyle = lipgloss.NewStyle().Foreground(contextLineColor)
+	// Styles for different diff line types - using background colors
+	addedLineStyle   = lipgloss.NewStyle().Background(addedLineBgColor)
+	removedLineStyle = lipgloss.NewStyle().Background(removedLineBgColor)
+	contextLineStyle = lipgloss.NewStyle().Background(contextLineBgColor)
 	headerLineStyle  = lipgloss.NewStyle().Foreground(headerLineColor).Bold(true)
 )
 
@@ -31,6 +31,25 @@ func FormatDiffOutput(diffOutput string) string {
 			continue
 		}
 
+		// Check for our new line number format: "  123 +      content" or "  123 -      content"
+		if len(line) > 7 && line[0] >= '0' && line[0] <= '9' {
+			// Look for the +/- indicator after the line number
+			if strings.Contains(line, " +      ") {
+				// Added lines (light green)
+				formattedLines = append(formattedLines, addedLineStyle.Render(line))
+				continue
+			} else if strings.Contains(line, " -      ") {
+				// Removed lines (light red)
+				formattedLines = append(formattedLines, removedLineStyle.Render(line))
+				continue
+			} else if len(line) > 8 && line[4:12] == "        " {
+				// Context lines with line numbers (slight gray tint)
+				formattedLines = append(formattedLines, contextLineStyle.Render(line))
+				continue
+			}
+		}
+		
+		// Fall back to original logic for traditional diff format
 		switch line[0] {
 		case '+':
 			// Added lines (light green)

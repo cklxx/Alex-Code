@@ -46,7 +46,7 @@ func GenerateUnifiedDiff(oldContent, newContent, filename string, options DiffOp
 	return diff
 }
 
-// generateSimpleDiff creates a basic unified diff format
+// generateSimpleDiff creates a basic unified diff format with line numbers
 func generateSimpleDiff(oldLines, newLines []string, filename string, options DiffOptions) string {
 	var result strings.Builder
 	
@@ -70,31 +70,40 @@ func generateSimpleDiff(oldLines, newLines []string, filename string, options Di
 	oldEndIdx := oldLen - commonSuffix
 	newEndIdx := newLen - commonSuffix
 	
-	// Show context before changes
+	// Track line numbers for both old and new files
+	oldLineNum := 1
+	newLineNum := 1
+	
+	// Show context before changes with line numbers
 	contextStart := max(0, commonPrefix-options.ContextLines)
 	for i := contextStart; i < commonPrefix; i++ {
 		if i < len(oldLines) {
-			result.WriteString(" " + oldLines[i] + "\n")
+			result.WriteString(fmt.Sprintf("%4d        %s\n", oldLineNum+i, oldLines[i]))
 		}
 	}
 	
-	// Show removed lines
+	// Update line numbers to current position
+	oldLineNum += commonPrefix
+	newLineNum += commonPrefix
+	
+	// Show removed lines with line numbers
 	for i := commonPrefix; i < oldEndIdx; i++ {
 		if i < len(oldLines) {
-			result.WriteString("-" + oldLines[i] + "\n")
+			result.WriteString(fmt.Sprintf("%4d -      %s\n", oldLineNum, oldLines[i]))
+			oldLineNum++
 		}
 	}
 	
-	// Show added lines
+	// Show added lines with line numbers
 	for i := commonPrefix; i < newEndIdx; i++ {
 		if i < len(newLines) {
-			result.WriteString("+" + newLines[i] + "\n")
+			result.WriteString(fmt.Sprintf("%4d +      %s\n", newLineNum, newLines[i]))
+			newLineNum++
 		}
 	}
 	
-	// Show context after changes  
-	suffixStart := max(oldEndIdx, newEndIdx)
-	_ = min(max(oldLen, newLen), suffixStart+options.ContextLines) // contextEnd unused for now
+	// Show context after changes with line numbers
+	currentLineNum := max(oldLineNum, newLineNum)
 	
 	// Show common suffix context
 	for i := 0; i < commonSuffix && i < options.ContextLines; i++ {
@@ -107,7 +116,7 @@ func generateSimpleDiff(oldLines, newLines []string, filename string, options Di
 				line = newLines[idx-oldLen+newLen]
 			}
 			if line != "" {
-				result.WriteString(" " + line + "\n")
+				result.WriteString(fmt.Sprintf("%4d        %s\n", currentLineNum+i, line))
 			}
 		}
 	}
