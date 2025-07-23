@@ -199,7 +199,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			log.Printf("[DEBUG] ReactCore: Adding assistant message - Content length: %d, ToolCalls: %d", len(choice.Message.Content), len(choice.Message.ToolCalls))
 			messages = append(messages, choice.Message)
 			// 同时添加到session以供memory系统学习
-			rc.addMessageToSession(ctx, &choice.Message)
+			rc.addMessageToSession(&choice.Message)
 		}
 
 		// 解析并执行工具调用
