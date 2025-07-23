@@ -364,6 +364,9 @@ main() {
     if [ -n "$VERSION" ]; then
         version="$VERSION"
         log_info "Using specified version: $version"
+    elif [ "$TEST_MODE" = "1" ]; then
+        version="v1.0.0"
+        log_info "Test mode - using version: $version"
     else
         version=$(get_latest_version)
         log_info "Latest version: $version"
@@ -429,6 +432,10 @@ while [ $# -gt 0 ]; do
             INSTALL_DIR="$2"
             shift 2
             ;;
+        --test)
+            TEST_MODE=1
+            shift
+            ;;
         --help)
             echo "Alex CLI Installation Script"
             echo ""
@@ -438,12 +445,14 @@ while [ $# -gt 0 ]; do
             echo "  --version VERSION     Install specific version (default: latest)"
             echo "  --repo REPO          GitHub repository (default: $GITHUB_REPO)"
             echo "  --install-dir DIR    Installation directory (default: $INSTALL_DIR)"
+            echo "  --test               Test mode - use v1.0.0 as version"
             echo "  --help               Show this help message"
             echo ""
             echo "Examples:"
             echo "  $0                           # Install latest version"
             echo "  $0 --version v1.0.0         # Install specific version"
             echo "  $0 --install-dir /usr/local/bin  # Install to custom directory"
+            echo "  $0 --test                   # Test installation with v1.0.0"
             exit 0
             ;;
         *)
