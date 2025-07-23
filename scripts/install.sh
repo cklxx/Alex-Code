@@ -6,6 +6,18 @@
 
 set -e
 
+# Check if we're running under bash, if not, try to re-exec with bash
+if [ -z "$BASH_VERSION" ]; then
+    # Try to find bash and re-execute
+    if command -v bash >/dev/null 2>&1; then
+        exec bash "$0" "$@"
+    else
+        # If bash is not available, continue with sh but warn
+        echo "Warning: This script is designed for bash but running under $0"
+        echo "Some features may not work correctly. Please install bash if possible."
+    fi
+fi
+
 # 配置变量
 BINARY_NAME="alex"
 GITHUB_REPO="cklxx/Alex-Code"
@@ -107,7 +119,7 @@ get_latest_version() {
     fi
     
     # 更robust的JSON解析
-    latest_version=$(echo "$response" | grep '"tag_name"' | head -n1 | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+    latest_version=$(echo "$response" | grep '"tag_name"' | head -n1 | sed 's/.*"tag_name".*:.*"\([^"]*\)".*/\1/')
     
     if [ -z "$latest_version" ]; then
         log_error "Failed to parse latest version from GitHub API response"
@@ -348,7 +360,7 @@ main() {
 }
 
 # 处理脚本参数
-while [[ $# -gt 0 ]]; do
+while [ $# -gt 0 ]; do
     case $1 in
         --version)
             VERSION="$2"
