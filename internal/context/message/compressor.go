@@ -26,7 +26,7 @@ func NewMessageCompressor(llmClient llm.Client) *MessageCompressor {
 	}
 }
 
-// CompressMessages compresses a batch of messages - simplified strategy, aligned with Kimi K2's 128K token limit
+// CompressMessages compresses a batch of messages using AI summarization instead of truncation
 func (mc *MessageCompressor) CompressMessages(messages []*session.Message) []*session.Message {
 	// Only compress when truly necessary (high thresholds)
 	totalTokens := mc.estimateTokens(messages)
@@ -35,14 +35,14 @@ func (mc *MessageCompressor) CompressMessages(messages []*session.Message) []*se
 	// High thresholds aligned with Kimi K2's 128K token context window
 	const (
 		TokenThreshold = 100000 // 按Kimi K2的128K token上限设置，留20%余量
-		MessageThreshold = 300  // 适配128K context的消息数量阈值
-		RecentKeep = 20         // 保留更多最近消息以确保上下文完整
+		MessageThreshold = 50   // Lower threshold to trigger compression earlier
+		RecentKeep = 10         // Keep fewer recent messages to preserve more history via summaries
 	)
 	
 	// Only compress if we exceed BOTH thresholds significantly
 	if messageCount > MessageThreshold && totalTokens > TokenThreshold {
-		log.Printf("[INFO] Comprehensive compression triggered: %d messages, %d tokens", messageCount, totalTokens)
-		return mc.comprehensiveCompress(messages, RecentKeep)
+		log.Printf("[INFO] AI-based compression triggered: %d messages, %d tokens", messageCount, totalTokens)
+		return mc.aiBasedCompress(messages, RecentKeep)
 	}
 	
 	// No compression needed
@@ -142,6 +142,55 @@ func (mc *MessageCompressor) buildToolCallPairMap(messages []*session.Message) m
 	return pairs
 }
 
+// aiBasedCompress applies AI-based compression using intelligent summarization instead of truncation
+func (mc *MessageCompressor) aiBasedCompress(messages []*session.Message, recentKeep int) []*session.Message {
+	if len(messages) <= recentKeep {
+		return messages
+	}
+
+	// Separate system messages (always keep)
+	var systemMessages []*session.Message
+	var nonSystemMessages []*session.Message
+	
+	for _, msg := range messages {
+		if msg.Role == "system" {
+			systemMessages = append(systemMessages, msg)
+		} else {
+			nonSystemMessages = append(nonSystemMessages, msg)
+		}
+	}
+	
+	// If not enough non-system messages, no compression needed
+	if len(nonSystemMessages) <= recentKeep {
+		return messages
+	}
+	
+	// Find proper split point while maintaining tool call pairs
+	recentMessages := mc.findRecentMessagesWithToolPairing(nonSystemMessages, recentKeep)
+	recentStart := len(nonSystemMessages) - len(recentMessages)
+	
+	// Messages to compress (older messages)
+	toCompress := nonSystemMessages[:recentStart]
+	
+	// Build result: system messages + comprehensive summary + recent messages
+	var result []*session.Message
+	result = append(result, systemMessages...)
+	
+	// Create comprehensive AI summary of all older messages
+	if len(toCompress) > 0 {
+		summary := mc.createComprehensiveAISummary(toCompress)
+		if summary != nil {
+			result = append(result, summary)
+		}
+	}
+	
+	// Add recent messages (with tool call pairs intact)
+	result = append(result, recentMessages...)
+	
+	log.Printf("[INFO] AI-based compression: %d -> %d messages", len(messages), len(result))
+	return result
+}
+
 // comprehensiveCompress applies comprehensive compression - simplified and robust
 func (mc *MessageCompressor) comprehensiveCompress(messages []*session.Message, recentKeep int) []*session.Message {
 	if len(messages) <= recentKeep {
@@ -195,6 +244,59 @@ func (mc *MessageCompressor) comprehensiveCompress(messages []*session.Message, 
 
 // Unused memory-related functions removed
 
+// createComprehensiveAISummary creates a comprehensive AI summary preserving important context
+func (mc *MessageCompressor) createComprehensiveAISummary(messages []*session.Message) *session.Message {
+	if mc.llmClient == nil || len(messages) == 0 {
+		return mc.createStatisticalSummary(messages)
+	}
+	
+	conversationText := mc.buildComprehensiveSummaryInput(messages)
+	prompt := mc.buildComprehensiveSummaryPrompt(conversationText, len(messages))
+	
+	request := &llm.ChatRequest{
+		Messages: []llm.Message{
+			{
+				Role:    "system",
+				Content: mc.buildComprehensiveSystemPrompt(),
+			},
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		ModelType: llm.BasicModel,
+		Config: &llm.Config{
+			Temperature: 0.2, // Lower temperature for more consistent summaries
+			MaxTokens:   1000, // More tokens for comprehensive summaries
+		},
+	}
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	
+	response, err := mc.llmClient.Chat(ctx, request)
+	if err != nil {
+		log.Printf("[WARN] MessageCompressor: Comprehensive AI summary failed: %v", err)
+		return mc.createStatisticalSummary(messages)
+	}
+	
+	if len(response.Choices) == 0 {
+		return mc.createStatisticalSummary(messages)
+	}
+	
+	return &session.Message{
+		Role:    "system",
+		Content: fmt.Sprintf("Comprehensive conversation summary (%d messages): %s", len(messages), response.Choices[0].Message.Content),
+		Metadata: map[string]interface{}{
+			"type":           "comprehensive_ai_summary",
+			"original_count": len(messages),
+			"created_at":     time.Now().Unix(),
+			"summary_method": "ai_comprehensive",
+		},
+		Timestamp: time.Now(),
+	}
+}
+
 // createLLMSummary creates a summary using LLM
 func (mc *MessageCompressor) createLLMSummary(messages []*session.Message) *session.Message {
 	if mc.llmClient == nil || len(messages) == 0 {
@@ -247,6 +349,31 @@ func (mc *MessageCompressor) createLLMSummary(messages []*session.Message) *sess
 	}
 }
 
+// buildComprehensiveSystemPrompt builds the system prompt for comprehensive AI summarization
+func (mc *MessageCompressor) buildComprehensiveSystemPrompt() string {
+	return `You are an expert at creating comprehensive conversation summaries that preserve all important context and information. Your goal is to create detailed summaries that allow future interactions to continue seamlessly as if no compression occurred.
+
+CRITICAL REQUIREMENTS:
+- Preserve ALL important technical details, decisions, and context
+- Maintain the narrative flow and logical connections between topics
+- Include specific examples, code snippets, file names, and technical specifications mentioned
+- Preserve user goals, preferences, and stated requirements
+- Document any ongoing tasks, problems being solved, or work in progress
+- Maintain the contextual relationships between different discussion topics
+- Include any established patterns, conventions, or agreed-upon approaches
+
+COMPREHENSIVE COVERAGE:
+- Technical implementations and architectures discussed
+- Problem-solving approaches and reasoning
+- User feedback and iterative improvements
+- File structures, code changes, and system modifications
+- Testing approaches and validation methods
+- Error handling and debugging processes
+- Performance considerations and optimizations
+
+The summary should be detailed enough that someone reading it can understand the full context and continue the conversation naturally.`
+}
+
 // buildOptimizedSystemPrompt builds the system prompt for summarization
 func (mc *MessageCompressor) buildOptimizedSystemPrompt() string {
 	return `You are an expert at summarizing conversations. Create concise, informative summaries that preserve key information, decisions, and context while being much shorter than the original.
@@ -265,6 +392,25 @@ Avoid:
 - Unnecessary details`
 }
 
+// buildComprehensiveSummaryPrompt builds the prompt for comprehensive AI summarization
+func (mc *MessageCompressor) buildComprehensiveSummaryPrompt(conversationText string, messageCount int) string {
+	return fmt.Sprintf(`Create a comprehensive summary of the following conversation (%d messages). This summary will replace the original messages in the conversation history, so it must preserve all important context and information needed for future interactions.
+
+CONVERSATION TO SUMMARIZE:
+%s
+
+Create a detailed summary that covers:
+1. Main topics and themes discussed
+2. Technical details, implementations, and decisions made
+3. User goals, requirements, and preferences
+4. Problem-solving approaches and solutions implemented
+5. Any ongoing work, tasks, or issues that need continuation
+6. Code examples, file references, and system specifications mentioned
+7. Key insights, learnings, and established patterns
+
+COMPREHENSIVE SUMMARY:`, messageCount, conversationText)
+}
+
 // buildOptimizedSummaryPrompt builds the prompt for summarization
 func (mc *MessageCompressor) buildOptimizedSummaryPrompt(conversationText string, messageCount int) string {
 	return fmt.Sprintf(`Summarize the following conversation (%d messages) in 2-3 sentences. Focus on key decisions, technical details, and important context:
@@ -272,6 +418,45 @@ func (mc *MessageCompressor) buildOptimizedSummaryPrompt(conversationText string
 %s
 
 Summary:`, messageCount, conversationText)
+}
+
+// buildComprehensiveSummaryInput builds comprehensive input text for AI summarization
+func (mc *MessageCompressor) buildComprehensiveSummaryInput(messages []*session.Message) string {
+	var parts []string
+	
+	for i, msg := range messages {
+		if msg.Role != "system" && len(strings.TrimSpace(msg.Content)) > 0 {
+			// Include message index for context
+			content := msg.Content
+			
+			// Include tool call information if present
+			if len(msg.ToolCalls) > 0 {
+				var toolInfo []string
+				for _, tc := range msg.ToolCalls {
+					toolInfo = append(toolInfo, fmt.Sprintf("Tool: %s", tc.Name))
+				}
+				content += fmt.Sprintf(" [Tool calls: %s]", strings.Join(toolInfo, ", "))
+			}
+			
+			// Include tool response metadata if present
+			if msg.Role == "tool" {
+				if toolName, ok := msg.Metadata["tool_name"].(string); ok {
+					content = fmt.Sprintf("[%s result]: %s", toolName, content)
+				}
+			}
+			
+			parts = append(parts, fmt.Sprintf("[Message %d - %s]: %s", i+1, msg.Role, content))
+		}
+	}
+	
+	text := strings.Join(parts, "\n\n")
+	
+	// Allow longer text for comprehensive summaries, but still limit to prevent token overflow
+	if len(text) > 8000 {
+		text = text[:8000] + "\n\n[... conversation continues with additional technical details ...]"
+	}
+	
+	return text
 }
 
 // buildSummaryInput builds the input text for summarization
