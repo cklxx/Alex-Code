@@ -22,12 +22,12 @@ type Message struct {
 
 // ChatRequest represents a request to the LLM
 type ChatRequest struct {
-	Messages    []Message `json:"messages"`
-	Model       string    `json:"model,omitempty"`
-	Temperature float64   `json:"temperature,omitempty"`
-	MaxTokens   int       `json:"max_tokens,omitempty"`
-	Stream      bool      `json:"stream,omitempty"`
-
+	Messages    []Message              `json:"messages"`
+	Model       string                 `json:"model,omitempty"`
+	Temperature float64                `json:"temperature,omitempty"`
+	MaxTokens   int                    `json:"max_tokens,omitempty"`
+	Stream      bool                   `json:"stream,omitempty"`
+	Provider    map[string]interface{} `json:"provider,omitempty"`
 	// Tool calling support
 	Tools      []Tool `json:"tools,omitempty"`
 	ToolChoice string `json:"tool_choice,omitempty"`

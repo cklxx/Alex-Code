@@ -106,6 +106,12 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 		req.Model = model
 	}
 
+	if req.Model == "qwen/qwen3-coder" {
+		req.Provider = map[string]interface{}{
+			"only": []string{"alibaba"},
+		}
+	}
+
 	jsonData, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
