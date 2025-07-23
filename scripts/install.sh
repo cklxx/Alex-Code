@@ -36,19 +36,19 @@ NC='\033[0m' # No Color
 
 # 日志函数
 log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    printf "${BLUE}[INFO]${NC} %s\n" "$1"
 }
 
 log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
+    printf "${GREEN}[SUCCESS]${NC} %s\n" "$1"
 }
 
 log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    printf "${YELLOW}[WARNING]${NC} %s\n" "$1"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    printf "${RED}[ERROR]${NC} %s\n" "$1"
 }
 
 # 检查命令是否存在
@@ -103,17 +103,41 @@ get_latest_version() {
     local response
     
     if command_exists curl; then
-        response=$(curl -s --fail --connect-timeout 10 --max-time 30 "$api_url" 2>/dev/null)
-        if [ $? -ne 0 ]; then
-            log_error "Failed to connect to GitHub API. Please check your internet connection."
-            log_info "You can also specify a version manually with --version flag"
+        response=$(curl -s --connect-timeout 10 --max-time 30 "$api_url" 2>/dev/null)
+        curl_exit_code=$?
+        if [ $curl_exit_code -ne 0 ]; then
+            log_error "Failed to connect to GitHub API (curl exit code: $curl_exit_code)"
+            log_info "You can specify a version manually with --version flag"
+            exit 1
+        fi
+        # Check if response indicates no releases found
+        if echo "$response" | grep -q '"message".*"Not Found"'; then
+            log_error "No releases found for repository ${GITHUB_REPO}"
+            log_info "This repository doesn't have pre-built releases available."
+            log_info "To install Alex, please build from source:"
+            log_info "1. git clone https://github.com/${GITHUB_REPO}.git"
+            log_info "2. cd Alex-Code"
+            log_info "3. make build"
+            log_info "4. sudo cp alex /usr/local/bin/"
             exit 1
         fi
     elif command_exists wget; then
         response=$(wget -qO- --timeout=30 --tries=2 "$api_url" 2>/dev/null)
-        if [ $? -ne 0 ]; then
-            log_error "Failed to connect to GitHub API. Please check your internet connection."
-            log_info "You can also specify a version manually with --version flag"
+        wget_exit_code=$?
+        if [ $wget_exit_code -ne 0 ]; then
+            log_error "Failed to connect to GitHub API (wget exit code: $wget_exit_code)"
+            log_info "You can specify a version manually with --version flag"
+            exit 1
+        fi
+        # Check if response indicates no releases found
+        if echo "$response" | grep -q '"message".*"Not Found"'; then
+            log_error "No releases found for repository ${GITHUB_REPO}"
+            log_info "This repository doesn't have pre-built releases available."
+            log_info "To install Alex, please build from source:"
+            log_info "1. git clone https://github.com/${GITHUB_REPO}.git"
+            log_info "2. cd Alex-Code"
+            log_info "3. make build"
+            log_info "4. sudo cp alex /usr/local/bin/"
             exit 1
         fi
     else
@@ -179,9 +203,9 @@ verify_binary() {
         return 1
     fi
     
-    # 尝试运行 --version 检查
-    if ! "$binary_path" --version >/dev/null 2>&1; then
-        log_warning "Binary may not be working correctly (--version failed)"
+    # 尝试运行 version 检查
+    if ! "$binary_path" version >/dev/null 2>&1; then
+        log_warning "Binary may not be working correctly (version command failed)"
         return 1
     fi
     
@@ -217,7 +241,7 @@ install_binary() {
     # 验证安装
     if command_exists "$BINARY_NAME"; then
         log_success "Installation successful! You can now use '$BINARY_NAME'"
-        "$BINARY_NAME" --version
+        "$BINARY_NAME" version
     else
         log_warning "Installation completed, but '$BINARY_NAME' is not found in PATH"
         log_info "You may need to restart your shell or update your PATH"
@@ -313,9 +337,14 @@ main() {
     platform=$(detect_platform)
     log_info "Detected platform: $platform"
     
-    # 获取最新版本
-    version=$(get_latest_version)
-    log_info "Latest version: $version"
+    # 获取版本
+    if [ -n "$VERSION" ]; then
+        version="$VERSION"
+        log_info "Using specified version: $version"
+    else
+        version=$(get_latest_version)
+        log_info "Latest version: $version"
+    fi
     
     # 构建下载URL
     binary_suffix=""
