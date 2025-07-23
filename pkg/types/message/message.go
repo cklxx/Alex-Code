@@ -206,6 +206,13 @@ func FromSessionMessage(sessionMsg SessionMessage) *Message {
 			if s, ok := v.(string); ok {
 				msg.Think = s
 			}
+		case "tool_call_id":
+			// Restore tool_call_id from metadata to ToolCallID field if ToolID is empty
+			if s, ok := v.(string); ok && msg.ToolCallID == "" {
+				msg.ToolCallID = s
+			}
+			// Still keep it in metadata for compatibility
+			msg.Metadata[k] = v
 		default:
 			msg.Metadata[k] = v
 		}
