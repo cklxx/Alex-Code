@@ -8,13 +8,16 @@ set -e
 
 # Check if we're running under bash, if not, try to re-exec with bash
 if [ -z "$BASH_VERSION" ]; then
-    # Try to find bash and re-execute
-    if command -v bash >/dev/null 2>&1; then
+    # Check if this is a piped execution (common case: curl | sh)
+    if [ ! -t 0 ]; then
+        # Script is being piped, we can't re-exec, so continue with POSIX-compatible mode
+        echo "Info: Running in POSIX-compatible mode (piped execution detected)"
+    elif [ -f "$0" ] && command -v bash >/dev/null 2>&1; then
+        # Script is a file and bash is available, re-execute with bash
         exec bash "$0" "$@"
     else
-        # If bash is not available, continue with sh but warn
-        echo "Warning: This script is designed for bash but running under $0"
-        echo "Some features may not work correctly. Please install bash if possible."
+        # Continue with current shell
+        echo "Info: Continuing with POSIX-compatible shell"
     fi
 fi
 
