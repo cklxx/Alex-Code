@@ -31,23 +31,23 @@ func (mc *MessageCompressor) CompressMessages(messages []*session.Message) []*se
 	// Only compress when truly necessary (high thresholds)
 	totalTokens := mc.estimateTokens(messages)
 	messageCount := len(messages)
-	
+
 	// Debug: Log token estimation details
 	log.Printf("[DEBUG] Token estimation: %d messages, %d estimated tokens", messageCount, totalTokens)
-	
+
 	// High thresholds aligned with Kimi K2's 128K token context window
 	const (
-		TokenThreshold = 115000 // 按Kimi K2的128K token上限设置90%触发压缩 (128K * 0.9 = 115K)
-		MessageThreshold = 50   // Lower threshold to trigger compression earlier
-		RecentKeep = 10         // Keep fewer recent messages to preserve more history via summaries
+		TokenThreshold   = 115000 // 按Kimi K2的128K token上限设置90%触发压缩 (128K * 0.9 = 115K)
+		MessageThreshold = 50     // Lower threshold to trigger compression earlier
+		RecentKeep       = 3      // Keep fewer recent messages to preserve more history via summaries
 	)
-	
+
 	// Only compress if we exceed BOTH thresholds significantly
 	if messageCount > MessageThreshold && totalTokens > TokenThreshold {
 		log.Printf("[INFO] AI-based compression triggered: %d messages, %d tokens (threshold: %d)", messageCount, totalTokens, TokenThreshold)
 		return mc.aiBasedCompress(messages, RecentKeep)
 	}
-	
+
 	// Log why compression was skipped
 	if messageCount <= MessageThreshold {
 		log.Printf("[DEBUG] Compression skipped: message count %d <= threshold %d", messageCount, MessageThreshold)
@@ -55,7 +55,7 @@ func (mc *MessageCompressor) CompressMessages(messages []*session.Message) []*se
 	if totalTokens <= TokenThreshold {
 		log.Printf("[DEBUG] Compression skipped: token count %d <= threshold %d", totalTokens, TokenThreshold)
 	}
-	
+
 	// No compression needed
 	return messages
 }
@@ -68,26 +68,26 @@ func (mc *MessageCompressor) findRecentMessagesWithToolPairing(messages []*sessi
 
 	// Start from the most recent messages and work backwards
 	// But ensure we keep complete tool call sequences
-	
+
 	// First, identify all tool call pairs
 	toolCallPairs := mc.buildToolCallPairMap(messages)
-	
+
 	// Start from the end, keep adding messages while maintaining pairs
 	kept := make([]*session.Message, 0, recentKeep*2) // Allow for expansion due to tool pairs
 	messageIndices := make(map[*session.Message]int)
-	
+
 	// Build index map
 	for i, msg := range messages {
 		messageIndices[msg] = i
 	}
-	
+
 	// Track which messages we must include to maintain pairing
 	mustInclude := make(map[int]bool)
-	
+
 	// Add recent messages from the end
 	for i := len(messages) - 1; i >= 0 && len(kept) < recentKeep*2; i-- {
 		msg := messages[i]
-		
+
 		// If this message is part of a tool call pair, include the whole pair
 		if msg.Role == "tool" {
 			if toolCallId, ok := msg.Metadata["tool_call_id"].(string); ok {
@@ -111,13 +111,13 @@ func (mc *MessageCompressor) findRecentMessagesWithToolPairing(messages []*sessi
 		} else {
 			mustInclude[i] = true
 		}
-		
+
 		// Stop if we have enough messages (but allow pairs to complete)
 		if len(mustInclude) >= recentKeep {
 			break
 		}
 	}
-	
+
 	// Find the earliest index we need to include
 	minIndex := len(messages)
 	for index := range mustInclude {
@@ -125,12 +125,12 @@ func (mc *MessageCompressor) findRecentMessagesWithToolPairing(messages []*sessi
 			minIndex = index
 		}
 	}
-	
+
 	// Return messages from minIndex to end
 	if minIndex < len(messages) {
 		return messages[minIndex:]
 	}
-	
+
 	// Fallback: just return the last recentKeep messages
 	if len(messages) > recentKeep {
 		return messages[len(messages)-recentKeep:]
@@ -141,7 +141,7 @@ func (mc *MessageCompressor) findRecentMessagesWithToolPairing(messages []*sessi
 // buildToolCallPairMap builds a map of tool_call_id -> assistant message index
 func (mc *MessageCompressor) buildToolCallPairMap(messages []*session.Message) map[string]int {
 	pairs := make(map[string]int)
-	
+
 	for i, msg := range messages {
 		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
 			for _, tc := range msg.ToolCalls {
@@ -149,7 +149,7 @@ func (mc *MessageCompressor) buildToolCallPairMap(messages []*session.Message) m
 			}
 		}
 	}
-	
+
 	return pairs
 }
 
@@ -162,7 +162,7 @@ func (mc *MessageCompressor) aiBasedCompress(messages []*session.Message, recent
 	// Separate system messages (always keep)
 	var systemMessages []*session.Message
 	var nonSystemMessages []*session.Message
-	
+
 	for _, msg := range messages {
 		if msg.Role == "system" {
 			systemMessages = append(systemMessages, msg)
@@ -170,23 +170,23 @@ func (mc *MessageCompressor) aiBasedCompress(messages []*session.Message, recent
 			nonSystemMessages = append(nonSystemMessages, msg)
 		}
 	}
-	
+
 	// If not enough non-system messages, no compression needed
 	if len(nonSystemMessages) <= recentKeep {
 		return messages
 	}
-	
+
 	// Find proper split point while maintaining tool call pairs
 	recentMessages := mc.findRecentMessagesWithToolPairing(nonSystemMessages, recentKeep)
 	recentStart := len(nonSystemMessages) - len(recentMessages)
-	
+
 	// Messages to compress (older messages)
 	toCompress := nonSystemMessages[:recentStart]
-	
+
 	// Build result: system messages + comprehensive summary + recent messages
 	var result []*session.Message
 	result = append(result, systemMessages...)
-	
+
 	// Create comprehensive AI summary of all older messages
 	if len(toCompress) > 0 {
 		summary := mc.createComprehensiveAISummary(toCompress)
@@ -194,10 +194,10 @@ func (mc *MessageCompressor) aiBasedCompress(messages []*session.Message, recent
 			result = append(result, summary)
 		}
 	}
-	
+
 	// Add recent messages (with tool call pairs intact)
 	result = append(result, recentMessages...)
-	
+
 	log.Printf("[INFO] AI-based compression: %d -> %d messages", len(messages), len(result))
 	return result
 }
@@ -209,10 +209,10 @@ func (mc *MessageCompressor) createComprehensiveAISummary(messages []*session.Me
 	if mc.llmClient == nil || len(messages) == 0 {
 		return mc.createStatisticalSummary(messages)
 	}
-	
+
 	conversationText := mc.buildComprehensiveSummaryInput(messages)
 	prompt := mc.buildComprehensiveSummaryPrompt(conversationText, len(messages))
-	
+
 	request := &llm.ChatRequest{
 		Messages: []llm.Message{
 			{
@@ -226,24 +226,24 @@ func (mc *MessageCompressor) createComprehensiveAISummary(messages []*session.Me
 		},
 		ModelType: llm.BasicModel,
 		Config: &llm.Config{
-			Temperature: 0.2, // Lower temperature for more consistent summaries
+			Temperature: 0.2,  // Lower temperature for more consistent summaries
 			MaxTokens:   1000, // More tokens for comprehensive summaries
 		},
 	}
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	
+
 	response, err := mc.llmClient.Chat(ctx, request)
 	if err != nil {
 		log.Printf("[WARN] MessageCompressor: Comprehensive AI summary failed: %v", err)
 		return mc.createStatisticalSummary(messages)
 	}
-	
+
 	if len(response.Choices) == 0 {
 		return mc.createStatisticalSummary(messages)
 	}
-	
+
 	return &session.Message{
 		Role:    "system",
 		Content: fmt.Sprintf("Comprehensive conversation summary (%d messages): %s", len(messages), response.Choices[0].Message.Content),
@@ -256,7 +256,6 @@ func (mc *MessageCompressor) createComprehensiveAISummary(messages []*session.Me
 		Timestamp: time.Now(),
 	}
 }
-
 
 // buildComprehensiveSystemPrompt builds the system prompt for comprehensive AI summarization
 func (mc *MessageCompressor) buildComprehensiveSystemPrompt() string {
@@ -283,7 +282,6 @@ COMPREHENSIVE COVERAGE:
 The summary should be detailed enough that someone reading it can understand the full context and continue the conversation naturally.`
 }
 
-
 // buildComprehensiveSummaryPrompt builds the prompt for comprehensive AI summarization
 func (mc *MessageCompressor) buildComprehensiveSummaryPrompt(conversationText string, messageCount int) string {
 	return fmt.Sprintf(`Create a comprehensive summary of the following conversation (%d messages). This summary will replace the original messages in the conversation history, so it must preserve all important context and information needed for future interactions.
@@ -303,16 +301,15 @@ Create a detailed summary that covers:
 COMPREHENSIVE SUMMARY:`, messageCount, conversationText)
 }
 
-
 // buildComprehensiveSummaryInput builds comprehensive input text for AI summarization
 func (mc *MessageCompressor) buildComprehensiveSummaryInput(messages []*session.Message) string {
 	var parts []string
-	
+
 	for i, msg := range messages {
 		if msg.Role != "system" && len(strings.TrimSpace(msg.Content)) > 0 {
 			// Include message index for context
 			content := msg.Content
-			
+
 			// Include tool call information if present
 			if len(msg.ToolCalls) > 0 {
 				var toolInfo []string
@@ -321,35 +318,34 @@ func (mc *MessageCompressor) buildComprehensiveSummaryInput(messages []*session.
 				}
 				content += fmt.Sprintf(" [Tool calls: %s]", strings.Join(toolInfo, ", "))
 			}
-			
+
 			// Include tool response metadata if present
 			if msg.Role == "tool" {
 				if toolName, ok := msg.Metadata["tool_name"].(string); ok {
 					content = fmt.Sprintf("[%s result]: %s", toolName, content)
 				}
 			}
-			
+
 			parts = append(parts, fmt.Sprintf("[Message %d - %s]: %s", i+1, msg.Role, content))
 		}
 	}
-	
+
 	text := strings.Join(parts, "\n\n")
-	
+
 	// Allow longer text for comprehensive summaries, but still limit to prevent token overflow
 	if len(text) > 8000 {
 		text = text[:8000] + "\n\n[... conversation continues with additional technical details ...]"
 	}
-	
+
 	return text
 }
-
 
 // createStatisticalSummary creates a summary based on statistics
 func (mc *MessageCompressor) createStatisticalSummary(messages []*session.Message) *session.Message {
 	userCount := 0
 	assistantCount := 0
 	toolCount := 0
-	
+
 	for _, msg := range messages {
 		switch msg.Role {
 		case "user":
@@ -360,20 +356,20 @@ func (mc *MessageCompressor) createStatisticalSummary(messages []*session.Messag
 			toolCount++
 		}
 	}
-	
+
 	summary := fmt.Sprintf("Previous conversation summary: %d messages (%d user, %d assistant, %d tool)",
 		len(messages), userCount, assistantCount, toolCount)
-	
+
 	return &session.Message{
 		Role:    "system",
 		Content: summary,
 		Metadata: map[string]any{
-			"type":           "statistical_summary",
-			"original_count": len(messages),
-			"user_count":     userCount,
+			"type":            "statistical_summary",
+			"original_count":  len(messages),
+			"user_count":      userCount,
 			"assistant_count": assistantCount,
-			"tool_count":     toolCount,
-			"created_at":     time.Now().Unix(),
+			"tool_count":      toolCount,
+			"created_at":      time.Now().Unix(),
 		},
 		Timestamp: time.Now(),
 	}
@@ -385,23 +381,23 @@ func (mc *MessageCompressor) estimateTokens(messages []*session.Message) int {
 	for _, msg := range messages {
 		// Use more accurate token estimation
 		contentTokens := mc.estimateContentTokens(msg.Content)
-		
+
 		// Add overhead for role, metadata, and structure
-		roleTokens := 5 // role field
+		roleTokens := 5                          // role field
 		metadataTokens := len(msg.Metadata) * 10 // rough metadata overhead
-		
+
 		// Add tokens for tool calls
 		toolCallTokens := 0
 		for _, tc := range msg.ToolCalls {
 			toolCallTokens += len(tc.Name)/3 + len(tc.ID)/3 + 15 // Tool call structure overhead
 		}
-		
+
 		messageTotal := contentTokens + roleTokens + metadataTokens + toolCallTokens
 		total += messageTotal
-		
+
 		// Debug individual message token count for large messages
 		if contentTokens > 1000 {
-			log.Printf("[DEBUG] Large message: %d content tokens, %d total tokens (role: %d, metadata: %d, tools: %d)", 
+			log.Printf("[DEBUG] Large message: %d content tokens, %d total tokens (role: %d, metadata: %d, tools: %d)",
 				contentTokens, messageTotal, roleTokens, metadataTokens, toolCallTokens)
 		}
 	}
@@ -413,34 +409,34 @@ func (mc *MessageCompressor) estimateContentTokens(content string) int {
 	if content == "" {
 		return 0
 	}
-	
+
 	// More sophisticated estimation based on content type
 	length := len(content)
-	
+
 	// Different ratios for different content types
 	var charsPerToken float64 = 4.0 // Default for regular text
-	
+
 	// Adjust for code-heavy content (more token-dense)
 	if strings.Contains(content, "```") || strings.Contains(content, "func ") || strings.Contains(content, "import ") {
 		charsPerToken = 2.5 // Code is more token-dense
 	}
-	
+
 	// Adjust for JSON/structured data
 	if strings.Contains(content, `"role"`) || strings.Contains(content, `{"`) {
 		charsPerToken = 3.0 // JSON is moderately token-dense
 	}
-	
+
 	// Adjust for very long content (usually less token-dense due to repetition)
 	if length > 10000 {
 		charsPerToken = 5.0
 	}
-	
+
 	estimated := int(float64(length) / charsPerToken)
-	
+
 	// Minimum of 1 token for non-empty content
 	if estimated == 0 && length > 0 {
 		estimated = 1
 	}
-	
+
 	return estimated
 }
