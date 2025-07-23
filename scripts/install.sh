@@ -123,6 +123,8 @@ get_latest_version() {
     local api_url="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
     local response
     
+    log_info "Checking releases at: $api_url"
+    
     if command_exists curl; then
         response=$(curl -s --connect-timeout 10 --max-time 30 "$api_url" 2>/dev/null)
         curl_exit_code=$?
@@ -132,7 +134,7 @@ get_latest_version() {
             exit 1
         fi
         # Check if response indicates no releases found
-        if echo "$response" | grep -q '"message".*"Not Found"'; then
+        if echo "$response" | grep -q '"message".*"Not Found"' 2>/dev/null; then
             log_error "No releases found for repository ${GITHUB_REPO}"
             log_info "This repository doesn't have pre-built releases available."
             log_info "To install Alex, please build from source:"
@@ -151,7 +153,7 @@ get_latest_version() {
             exit 1
         fi
         # Check if response indicates no releases found
-        if echo "$response" | grep -q '"message".*"Not Found"'; then
+        if echo "$response" | grep -q '"message".*"Not Found"' 2>/dev/null; then
             log_error "No releases found for repository ${GITHUB_REPO}"
             log_info "This repository doesn't have pre-built releases available."
             log_info "To install Alex, please build from source:"
@@ -167,7 +169,7 @@ get_latest_version() {
     fi
     
     # 更robust的JSON解析
-    latest_version=$(echo "$response" | grep '"tag_name"' | head -n1 | sed 's/.*"tag_name".*:.*"\([^"]*\)".*/\1/')
+    latest_version=$(echo "$response" | grep '"tag_name"' 2>/dev/null | head -n1 | sed 's/.*"tag_name".*:.*"\([^"]*\)".*/\1/' 2>/dev/null || echo "")
     
     if [ -z "$latest_version" ]; then
         log_error "Failed to parse latest version from GitHub API response"
