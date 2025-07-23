@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"alex/internal/config"
-	contextmgr "alex/internal/context"
 	"alex/internal/llm"
 	"alex/internal/prompts"
 	"alex/internal/session"
@@ -33,8 +32,6 @@ type GeneratedMemories struct {
 // ReactCoreInterface - ReAct核心接口
 type ReactCoreInterface interface {
 	SolveTask(ctx context.Context, task string, streamCallback StreamCallback) (*types.ReactTaskResult, error)
-	GetContextStats(sess *session.Session) *contextmgr.ContextStats
-	RestoreFullContext(sess *session.Session, backupID string) error
 }
 
 // ReactAgent - 简化的ReAct引擎

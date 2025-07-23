@@ -1,4 +1,4 @@
-package agent
+package message
 
 import (
 	"alex/internal/llm"

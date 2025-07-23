@@ -16,8 +16,7 @@ import (
 
 	"alex/internal/agent"
 	"alex/internal/config"
-	"alex/internal/startup"
-	"alex/internal/version"
+	"alex/internal/utils"
 )
 
 // isTTY checks if the current environment has a TTY available
@@ -124,7 +123,7 @@ through streaming responses and advanced tool calling capabilities.
   • 🛠️ Advanced Tools - File operations, shell, web search
   • 📁 Session Management - Persistent conversations
   • ⚙️ Smart Configuration - Multi-model support`,
-			bold("Deep Coding Agent "+version.Version),
+			bold("Deep Coding Agent "+utils.Version),
 			bold("Deep Coding Agent"),
 			bold("EXAMPLES:"),
 			bold("FEATURES:")),
@@ -343,7 +342,7 @@ NEW SIMPLIFIED WORKFLOW:
 // initializeConfigOnly sets up only the configuration manager
 func (cli *CLI) initializeConfigOnly() error {
 	// Check system dependencies first (but allow config commands to proceed even if missing)
-	if !startup.CheckDependenciesQuiet() {
+	if !utils.CheckDependenciesQuiet() {
 		fmt.Printf("%s Some tools may not work properly without ripgrep. Run 'alex' without arguments for installation instructions.\n", yellow("⚠️"))
 	}
 
@@ -361,7 +360,7 @@ func (cli *CLI) initializeConfigOnly() error {
 // initialize sets up the CLI
 func (cli *CLI) initialize(cmd *cobra.Command) error {
 	// Check system dependencies first - warn but don't block
-	if err := startup.CheckDependencies(); err != nil {
+	if err := utils.CheckDependencies(); err != nil {
 		if cli.debug {
 			fmt.Printf("%s %v\n", yellow("⚠️"), err)
 		}
@@ -937,7 +936,7 @@ func newVersionCommand() *cobra.Command {
 		Use:   "version",
 		Short: "Show version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("Version: %s\n", version.GetVersion())
+			fmt.Printf("Version: %s\n", utils.GetVersion())
 		},
 	}
 }

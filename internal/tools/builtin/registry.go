@@ -2,7 +2,7 @@ package builtin
 
 import (
 	"alex/internal/config"
-	"alex/internal/startup"
+	"alex/internal/utils"
 )
 
 // GetAllBuiltinTools returns a list of all builtin tools
@@ -52,7 +52,7 @@ func GetAllBuiltinToolsWithConfig(configManager *config.Manager) []Tool {
 	}
 
 	// Add grep and ripgrep tools only if ripgrep is available
-	if startup.CheckDependenciesQuiet() {
+	if utils.CheckDependenciesQuiet() {
 		tools = append(tools, CreateRipgrepTool())
 	}
 
@@ -85,7 +85,7 @@ func GetToolByNameWithConfig(name string, configManager *config.Manager) Tool {
 	case "grep":
 		return CreateGrepTool()
 	case "ripgrep":
-		if startup.CheckDependenciesQuiet() {
+		if utils.CheckDependenciesQuiet() {
 			return CreateRipgrepTool()
 		}
 		return nil
@@ -130,7 +130,7 @@ func GetToolsByCategoryWithConfig(configManager *config.Manager) map[string][]To
 	}
 
 	searchTools := []Tool{CreateFindTool(), CreateGrepTool()}
-	if startup.CheckDependenciesQuiet() {
+	if utils.CheckDependenciesQuiet() {
 		searchTools = append(searchTools, CreateRipgrepTool())
 	}
 

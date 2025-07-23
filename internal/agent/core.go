@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	contextmgr "alex/internal/context"
+	"alex/internal/context/message"
 	"alex/internal/llm"
 	"alex/internal/session"
 	"alex/pkg/types"
@@ -17,7 +17,7 @@ import (
 type ReactCore struct {
 	agent            *ReactAgent
 	streamCallback   StreamCallback
-	messageProcessor *MessageProcessor
+	messageProcessor *message.MessageProcessor
 	llmHandler       *LLMHandler
 	toolHandler      *ToolHandler
 	promptHandler    *PromptHandler
@@ -33,7 +33,7 @@ func NewReactCore(agent *ReactAgent) *ReactCore {
 
 	return &ReactCore{
 		agent:            agent,
-		messageProcessor: NewMessageProcessor(llmClient, agent.sessionManager),
+		messageProcessor: message.NewMessageProcessor(llmClient, agent.sessionManager),
 		llmHandler:       NewLLMHandler(nil), // Will be set per request
 		toolHandler:      NewToolHandler(agent.tools),
 		promptHandler:    NewPromptHandler(agent.promptBuilder),
@@ -55,7 +55,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	// 决定是否使用流式处理
 	isStreaming := streamCallback != nil
 	if isStreaming {
-		streamCallback(StreamChunk{Type: "status", Content: GetRandomProcessingMessage(), Metadata: map[string]any{"phase": "initialization"}})
+		streamCallback(StreamChunk{Type: "status", Content: message.GetRandomProcessingMessage(), Metadata: map[string]any{"phase": "initialization"}})
 	}
 
 	// 构建系统提示（只需构建一次）
@@ -85,10 +85,10 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 		// 第一次迭代更新消息列表，添加最新的会话内容
 		if iteration == 1 {
-			sess := rc.messageProcessor.GetCurrentSession(ctx, rc.agent)
+			sess := rc.agent.currentSession
 			// 使用新的上下文管理器优化消息
 			sessionMessages := sess.GetMessages()
-			
+
 			// 使用统一消息系统进行转换
 			unifiedMessages := rc.messageProcessor.ConvertSessionToUnified(sessionMessages)
 			llmMessages := rc.messageProcessor.ConvertUnifiedToLLM(unifiedMessages)
@@ -297,7 +297,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 				messages = append(messages, toolMessages...)
 
 				// 将工具消息添加到session供memory系统学习
-				rc.addToolMessagesToSession(ctx, toolMessages, toolResult)
+				rc.addToolMessagesToSession(toolMessages, toolResult)
 
 				step.Observation = rc.toolHandler.generateObservation(toolResult)
 			}
@@ -338,20 +338,10 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 	return buildFinalResult(taskCtx, "Maximum iterations reached without completion", 0.5, false), nil
 }
 
-// GetContextStats - 获取上下文统计信息
-func (rc *ReactCore) GetContextStats(sess *session.Session) *contextmgr.ContextStats {
-	return rc.messageProcessor.GetContextStats(sess)
-}
-
-// RestoreFullContext - 恢复完整上下文
-func (rc *ReactCore) RestoreFullContext(sess *session.Session, backupID string) error {
-	return rc.messageProcessor.RestoreFullContext(sess, backupID)
-}
-
 // addMessageToSession - 将LLM消息添加到session中供memory系统学习
-func (rc *ReactCore) addMessageToSession(ctx context.Context, llmMsg *llm.Message) {
+func (rc *ReactCore) addMessageToSession(llmMsg *llm.Message) {
 	// 获取当前会话
-	sess := rc.messageProcessor.GetCurrentSession(ctx, rc.agent)
+	sess := rc.agent.currentSession
 	if sess == nil {
 		return // 没有会话则跳过
 	}
@@ -392,9 +382,9 @@ func (rc *ReactCore) addMessageToSession(ctx context.Context, llmMsg *llm.Messag
 }
 
 // addToolMessagesToSession - 将工具消息添加到session中供memory系统学习
-func (rc *ReactCore) addToolMessagesToSession(ctx context.Context, toolMessages []llm.Message, toolResults []*types.ReactToolResult) {
+func (rc *ReactCore) addToolMessagesToSession(toolMessages []llm.Message, toolResults []*types.ReactToolResult) {
 	// 获取当前会话
-	sess := rc.messageProcessor.GetCurrentSession(ctx, rc.agent)
+	sess := rc.agent.currentSession
 	if sess == nil {
 		return // 没有会话则跳过
 	}
@@ -438,8 +428,3 @@ func (rc *ReactCore) addToolMessagesToSession(ctx context.Context, toolMessages 
 
 	// Memory creation removed
 }
-
-// ========== 统一消息系统支持 ==========
-
-
-

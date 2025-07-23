@@ -13,37 +13,6 @@ import (
 	"alex/internal/session"
 )
 
-// TokenEstimator provides unified token estimation across the system
-type TokenEstimator struct {
-	charsPerToken int
-	overhead      int
-}
-
-// NewTokenEstimator creates a new token estimator
-func NewTokenEstimator() *TokenEstimator {
-	return &TokenEstimator{
-		charsPerToken: 3,   // Conservative estimation: 3 chars per token
-		overhead:      100, // Per-message overhead
-	}
-}
-
-// EstimateMessages estimates token count for session messages
-func (te *TokenEstimator) EstimateMessages(messages []*session.Message) int {
-	totalChars := 0
-	for _, msg := range messages {
-		totalChars += len(msg.Content) + te.overhead
-		// Add tokens for tool calls
-		for _, tc := range msg.ToolCalls {
-			totalChars += len(tc.Name) + len(tc.ID) + 50
-		}
-	}
-	return totalChars / te.charsPerToken
-}
-
-// EstimateText estimates token count for plain text
-func (te *TokenEstimator) EstimateText(text string) int {
-	return (len(text) + te.overhead) / te.charsPerToken
-}
 
 // ContentAnalyzer provides unified content analysis
 type ContentAnalyzer struct{}

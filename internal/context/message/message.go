@@ -1,43 +1,37 @@
-package agent
+package message
 
 import (
-	"context"
-	"fmt"
-	"log"
 	"math/rand"
 	"time"
 
-	contextmgr "alex/internal/context"
-	messagepkg "alex/internal/context/message"
 	"alex/internal/llm"
 	"alex/internal/session"
 	"alex/pkg/types/message"
 )
+
+// ContextKey type for context values
+type ContextKey string
+
+const (
+	SessionIDKey ContextKey = "sessionID"
+)
+
 // MessageProcessor 统一的消息处理器，整合所有消息相关功能
 type MessageProcessor struct {
-	contextMgr     *contextmgr.ContextManager
 	sessionManager *session.Manager
 	tokenEstimator *TokenEstimator
-	adapter        *message.Adapter // 统一消息适配器
-	compressor     *messagepkg.MessageCompressor // AI压缩器
+	adapter        *message.Adapter              // 统一消息适配器
+	compressor     *MessageCompressor // AI压缩器
 }
 
 // NewMessageProcessor 创建统一的消息处理器
 func NewMessageProcessor(llmClient llm.Client, sessionManager *session.Manager) *MessageProcessor {
-	// 创建上下文管理器 - 配置与128K上下文窗口对齐
-	contextConfig := &contextmgr.ContextLengthConfig{
-		MaxTokens:              128000, // Kimi K2's 128K token context window
-		SummarizationThreshold: 115000, // 90% threshold for compression
-		CompressionRatio:       0.9,    // Keep 90% context efficiency
-		PreserveSystemMessages: true,
-	}
 
 	return &MessageProcessor{
-		contextMgr:     contextmgr.NewContextManager(llmClient, contextConfig),
 		sessionManager: sessionManager,
 		tokenEstimator: NewTokenEstimator(),
-		adapter:        message.NewAdapter(), // 统一消息适配器
-		compressor:     messagepkg.NewMessageCompressor(llmClient), // AI压缩器
+		adapter:        message.NewAdapter(),                       // 统一消息适配器
+		compressor:     NewMessageCompressor(llmClient), // AI压缩器
 	}
 }
 
@@ -157,50 +151,6 @@ func (mp *MessageProcessor) ConvertUnifiedToSession(unifiedMessages []*message.M
 	}
 	return messages
 }
-
-// ========== 会话管理 ==========
-
-// GetCurrentSession 获取当前会话
-func (mp *MessageProcessor) GetCurrentSession(ctx context.Context, agent *ReactAgent) *session.Session {
-	if agent.currentSession != nil {
-		return agent.currentSession
-	}
-
-	// 尝试从context中获取session ID
-	if sessionID, ok := ctx.Value(SessionIDKey).(string); ok && sessionID != "" {
-		sess, err := mp.sessionManager.RestoreSession(sessionID)
-		if err == nil {
-			agent.mu.Lock()
-			agent.currentSession = sess
-			agent.mu.Unlock()
-			return sess
-		}
-		log.Printf("[WARNING] Failed to restore session %s: %v", sessionID, err)
-	}
-
-	return nil
-}
-
-// GetContextStats 获取上下文统计信息
-func (mp *MessageProcessor) GetContextStats(sess *session.Session) *contextmgr.ContextStats {
-	if mp.contextMgr == nil || sess == nil {
-		return &contextmgr.ContextStats{
-			TotalMessages:   0,
-			EstimatedTokens: 0,
-		}
-	}
-	return mp.contextMgr.GetContextStats(sess)
-}
-
-// RestoreFullContext 恢复完整上下文
-func (mp *MessageProcessor) RestoreFullContext(sess *session.Session, backupID string) error {
-	if mp.contextMgr == nil {
-		return fmt.Errorf("context manager not available")
-	}
-	return mp.contextMgr.RestoreFullContext(sess, backupID)
-}
-
-// addTaskInstructions 添加任务指令
 
 // ========== 随机消息生成 ==========
 

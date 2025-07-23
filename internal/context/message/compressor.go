@@ -9,20 +9,19 @@ import (
 
 	"alex/internal/llm"
 	"alex/internal/session"
-	"alex/internal/utils"
 )
 
 // MessageCompressor handles message compression operations
 type MessageCompressor struct {
 	llmClient      llm.Client
-	tokenEstimator *utils.TokenEstimator
+	tokenEstimator *TokenEstimator
 }
 
 // NewMessageCompressor creates a new message compressor
 func NewMessageCompressor(llmClient llm.Client) *MessageCompressor {
 	return &MessageCompressor{
 		llmClient:      llmClient,
-		tokenEstimator: utils.NewTokenEstimator(),
+		tokenEstimator: NewTokenEstimator(),
 	}
 }
 
