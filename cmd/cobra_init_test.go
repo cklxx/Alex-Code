@@ -83,8 +83,8 @@ func TestBuildProjectAnalysisPrompt(t *testing.T) {
 		"project analyst",
 		"provided template",
 		"template",
-		"file_search",
-		"codebase_search",
+		"file_list",
+		"grep",
 		"variables",
 	}
 
@@ -157,7 +157,7 @@ func TestPromptLoaderIntegration(t *testing.T) {
 		"Step 1",
 		"Step 2",
 		"Step 3",
-		"Take Action Immediately",
+		"Start analysis and file generation immediately",
 	}
 
 	for _, structure := range expectedStructure {
