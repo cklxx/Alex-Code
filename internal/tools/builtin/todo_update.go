@@ -20,7 +20,17 @@ func (t *NewTodoUpdateTool) Name() string {
 }
 
 func (t *NewTodoUpdateTool) Description() string {
-	return "Update the entire session todo with free-form content. Content can include goals, tasks, notes in any markdown format."
+	return `Update the entire session todo with free-form content. Content can include goals, tasks, notes in any markdown format.
+
+Example:
+# Current Sprint Goals
+☐ Fix authentication bug in login module  
+☐ Implement user profile API
+☒ Update documentation
+
+## Notes
+- Bug appears only in production
+- API needs validation for email format`
 }
 
 func (t *NewTodoUpdateTool) Parameters() map[string]interface{} {
