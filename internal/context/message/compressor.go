@@ -191,58 +191,7 @@ func (mc *MessageCompressor) aiBasedCompress(messages []*session.Message, recent
 	return result
 }
 
-// comprehensiveCompress applies comprehensive compression - simplified and robust
-func (mc *MessageCompressor) comprehensiveCompress(messages []*session.Message, recentKeep int) []*session.Message {
-	if len(messages) <= recentKeep {
-		return messages
-	}
-
-	// Separate system messages (always keep)
-	var systemMessages []*session.Message
-	var nonSystemMessages []*session.Message
-	
-	for _, msg := range messages {
-		if msg.Role == "system" {
-			systemMessages = append(systemMessages, msg)
-		} else {
-			nonSystemMessages = append(nonSystemMessages, msg)
-		}
-	}
-	
-	// If not enough non-system messages, no compression needed
-	if len(nonSystemMessages) <= recentKeep {
-		return messages
-	}
-	
-	// Find proper split point while maintaining tool call pairs
-	recentMessages := mc.findRecentMessagesWithToolPairing(nonSystemMessages, recentKeep)
-	recentStart := len(nonSystemMessages) - len(recentMessages)
-	
-	// Messages to compress (older messages)
-	toCompress := nonSystemMessages[:recentStart]
-	
-	// Build result: system messages + summary + recent messages
-	var result []*session.Message
-	result = append(result, systemMessages...)
-	
-	// Create summary if there are messages to compress
-	if len(toCompress) > 0 {
-		summary := mc.createLLMSummary(toCompress)
-		if summary != nil {
-			result = append(result, summary)
-		}
-	}
-	
-	// Add recent messages (with tool call pairs intact)
-	result = append(result, recentMessages...)
-	
-	log.Printf("[INFO] Comprehensive compression: %d -> %d messages", len(messages), len(result))
-	return result
-}
-
-
-
-// Unused memory-related functions removed
+// Unused functions removed
 
 // createComprehensiveAISummary creates a comprehensive AI summary preserving important context
 func (mc *MessageCompressor) createComprehensiveAISummary(messages []*session.Message) *session.Message {
@@ -287,7 +236,7 @@ func (mc *MessageCompressor) createComprehensiveAISummary(messages []*session.Me
 	return &session.Message{
 		Role:    "system",
 		Content: fmt.Sprintf("Comprehensive conversation summary (%d messages): %s", len(messages), response.Choices[0].Message.Content),
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"type":           "comprehensive_ai_summary",
 			"original_count": len(messages),
 			"created_at":     time.Now().Unix(),
@@ -297,57 +246,6 @@ func (mc *MessageCompressor) createComprehensiveAISummary(messages []*session.Me
 	}
 }
 
-// createLLMSummary creates a summary using LLM
-func (mc *MessageCompressor) createLLMSummary(messages []*session.Message) *session.Message {
-	if mc.llmClient == nil || len(messages) == 0 {
-		return mc.createStatisticalSummary(messages)
-	}
-	
-	conversationText := mc.buildSummaryInput(messages)
-	prompt := mc.buildOptimizedSummaryPrompt(conversationText, len(messages))
-	
-	request := &llm.ChatRequest{
-		Messages: []llm.Message{
-			{
-				Role:    "system",
-				Content: mc.buildOptimizedSystemPrompt(),
-			},
-			{
-				Role:    "user",
-				Content: prompt,
-			},
-		},
-		ModelType: llm.BasicModel,
-		Config: &llm.Config{
-			Temperature: 0.3,
-			MaxTokens:   500,
-		},
-	}
-	
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	
-	response, err := mc.llmClient.Chat(ctx, request)
-	if err != nil {
-		log.Printf("[WARN] MessageCompressor: LLM summary failed: %v", err)
-		return mc.createStatisticalSummary(messages)
-	}
-	
-	if len(response.Choices) == 0 {
-		return mc.createStatisticalSummary(messages)
-	}
-	
-	return &session.Message{
-		Role:    "system",
-		Content: fmt.Sprintf("Previous conversation summary (%d messages): %s", len(messages), response.Choices[0].Message.Content),
-		Metadata: map[string]interface{}{
-			"type":         "llm_summary",
-			"original_count": len(messages),
-			"created_at":   time.Now().Unix(),
-		},
-		Timestamp: time.Now(),
-	}
-}
 
 // buildComprehensiveSystemPrompt builds the system prompt for comprehensive AI summarization
 func (mc *MessageCompressor) buildComprehensiveSystemPrompt() string {
@@ -374,23 +272,6 @@ COMPREHENSIVE COVERAGE:
 The summary should be detailed enough that someone reading it can understand the full context and continue the conversation naturally.`
 }
 
-// buildOptimizedSystemPrompt builds the system prompt for summarization
-func (mc *MessageCompressor) buildOptimizedSystemPrompt() string {
-	return `You are an expert at summarizing conversations. Create concise, informative summaries that preserve key information, decisions, and context while being much shorter than the original.
-
-Focus on:
-- Key decisions and outcomes
-- Important technical details
-- User intentions and goals
-- Problem-solving steps
-- Context that affects future interactions
-
-Avoid:
-- Repetitive information
-- Greeting/closing pleasantries
-- Verbose explanations
-- Unnecessary details`
-}
 
 // buildComprehensiveSummaryPrompt builds the prompt for comprehensive AI summarization
 func (mc *MessageCompressor) buildComprehensiveSummaryPrompt(conversationText string, messageCount int) string {
@@ -411,14 +292,6 @@ Create a detailed summary that covers:
 COMPREHENSIVE SUMMARY:`, messageCount, conversationText)
 }
 
-// buildOptimizedSummaryPrompt builds the prompt for summarization
-func (mc *MessageCompressor) buildOptimizedSummaryPrompt(conversationText string, messageCount int) string {
-	return fmt.Sprintf(`Summarize the following conversation (%d messages) in 2-3 sentences. Focus on key decisions, technical details, and important context:
-
-%s
-
-Summary:`, messageCount, conversationText)
-}
 
 // buildComprehensiveSummaryInput builds comprehensive input text for AI summarization
 func (mc *MessageCompressor) buildComprehensiveSummaryInput(messages []*session.Message) string {
@@ -459,25 +332,6 @@ func (mc *MessageCompressor) buildComprehensiveSummaryInput(messages []*session.
 	return text
 }
 
-// buildSummaryInput builds the input text for summarization
-func (mc *MessageCompressor) buildSummaryInput(messages []*session.Message) string {
-	var parts []string
-	
-	for _, msg := range messages {
-		if msg.Role != "system" && len(strings.TrimSpace(msg.Content)) > 0 {
-			parts = append(parts, fmt.Sprintf("[%s]: %s", msg.Role, msg.Content))
-		}
-	}
-	
-	text := strings.Join(parts, "\n")
-	
-	// Truncate if too long
-	if len(text) > 4000 {
-		text = text[:4000] + "..."
-	}
-	
-	return text
-}
 
 // createStatisticalSummary creates a summary based on statistics
 func (mc *MessageCompressor) createStatisticalSummary(messages []*session.Message) *session.Message {
@@ -502,7 +356,7 @@ func (mc *MessageCompressor) createStatisticalSummary(messages []*session.Messag
 	return &session.Message{
 		Role:    "system",
 		Content: summary,
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"type":           "statistical_summary",
 			"original_count": len(messages),
 			"user_count":     userCount,
