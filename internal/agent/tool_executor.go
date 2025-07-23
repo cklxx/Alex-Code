@@ -261,20 +261,18 @@ func (te *ToolExecutor) executeSerialToolsStream(ctx context.Context, toolCalls 
 				// 发送工具结果信号
 				var contentStr = result.Content
 
-				// Check for diff data and apply formatting for display
+				// Show diff for file modifications with clean formatting
 				if result.Data != nil {
 					if diffStr, hasDiff := result.Data["diff"].(string); hasDiff && diffStr != "" {
-						contentStr = result.Content + "\n" + formatDiffForDisplay(diffStr)
+						cleanDiff := formatDiffForDisplay(diffStr)
+						if cleanDiff != "" {
+							contentStr = result.Content + "\n" + cleanDiff
+						}
 					}
 				}
 
-				// For diff content, use higher limit to avoid cutting off useful diff info
+				// Standard display limit for tool output
 				var displayLimit = 200
-				if result.Data != nil {
-					if _, hasDiff := result.Data["diff"].(string); hasDiff {
-						displayLimit = 800 // Higher limit for diff content
-					}
-				}
 
 				// Use rune-based slicing to properly handle UTF-8 characters like Chinese text
 				runes := []rune(contentStr)
@@ -543,16 +541,12 @@ func simpleFallbackRepair(jsonStr string) string {
 	return jsonStr
 }
 
-// formatDiffForDisplay applies color formatting to diff for CLI display
+// formatDiffForDisplay applies clean formatting to diff for CLI display
 func formatDiffForDisplay(diffStr string) string {
 	if diffStr == "" {
 		return ""
 	}
 
-	// Check if this looks like a diff and format it
-	if utils.IsDiffOutput(diffStr) {
-		return utils.FormatDiffOutput(diffStr)
-	}
-
-	return diffStr
+	// Filter out unnecessary diff headers and show only meaningful changes
+	return utils.FilterAndFormatDiff(diffStr)
 }

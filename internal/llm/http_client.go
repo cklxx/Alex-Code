@@ -20,7 +20,7 @@ type HTTPLLMClient struct {
 
 // NewHTTPClient creates a new HTTP-based LLM client
 func NewHTTPClient() (*HTTPLLMClient, error) {
-	timeout := 20 * time.Second
+	timeout := 200 * time.Second
 
 	httpClient := &http.Client{
 		Timeout: timeout,
