@@ -34,21 +34,42 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# 日志函数
+# 日志函数 - 检测是否支持颜色
+supports_color() {
+    # 检查是否是交互式终端以及TERM变量
+    [ -t 1 ] && [ -n "$TERM" ] && [ "$TERM" != "dumb" ]
+}
+
 log_info() {
-    printf "${BLUE}[INFO]${NC} %s\n" "$1"
+    if supports_color; then
+        printf "${BLUE}[INFO]${NC} %s\n" "$1"
+    else
+        printf "[INFO] %s\n" "$1"
+    fi
 }
 
 log_success() {
-    printf "${GREEN}[SUCCESS]${NC} %s\n" "$1"
+    if supports_color; then
+        printf "${GREEN}[SUCCESS]${NC} %s\n" "$1"
+    else
+        printf "[SUCCESS] %s\n" "$1"
+    fi
 }
 
 log_warning() {
-    printf "${YELLOW}[WARNING]${NC} %s\n" "$1"
+    if supports_color; then
+        printf "${YELLOW}[WARNING]${NC} %s\n" "$1"
+    else
+        printf "[WARNING] %s\n" "$1"
+    fi
 }
 
 log_error() {
-    printf "${RED}[ERROR]${NC} %s\n" "$1"
+    if supports_color; then
+        printf "${RED}[ERROR]${NC} %s\n" "$1"
+    else
+        printf "[ERROR] %s\n" "$1"
+    fi
 }
 
 # 检查命令是否存在
