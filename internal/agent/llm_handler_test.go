@@ -2,11 +2,13 @@ package agent
 
 // Mock-based tests for LLM handler retry logic
 // All tests use MockClient - NO REAL NETWORK CALLS ARE MADE
-// Log messages about HTTP errors and connection refused are simulated for testing purposes
+// All error messages prefixed with "MOCK_ERROR:" are simulated for testing purposes
+// Any HTTP errors, connection refused, etc. are NOT real network issues
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,7 +30,7 @@ type MockResponse struct {
 
 func (m *MockClient) ChatStream(ctx context.Context, request *llm.ChatRequest) (<-chan llm.StreamDelta, error) {
 	if m.callCount >= len(m.responses) {
-		return nil, errors.New("unexpected call")
+		return nil, errors.New("MOCK_ERROR: MockClient unexpected call - no more responses configured")
 	}
 
 	resp := m.responses[m.callCount]
@@ -72,7 +74,7 @@ func (m *MockClient) ChatStream(ctx context.Context, request *llm.ChatRequest) (
 
 func (m *MockClient) Chat(ctx context.Context, request *llm.ChatRequest) (*llm.ChatResponse, error) {
 	if m.callCount >= len(m.responses) {
-		return nil, errors.New("MockClient: unexpected call - no more responses configured")
+		return nil, errors.New("MOCK_ERROR: MockClient unexpected call - no more responses configured")
 	}
 
 	resp := m.responses[m.callCount]
@@ -88,8 +90,9 @@ func (m *MockClient) Chat(ctx context.Context, request *llm.ChatRequest) (*llm.C
 	}
 
 	if resp.err != nil {
-		// Return original error to maintain test compatibility
-		return nil, resp.err
+		// Wrap error to clearly indicate it's from mock while maintaining test compatibility
+		wrappedErr := fmt.Errorf("MOCK_ERROR: %w", resp.err)
+		return nil, wrappedErr
 	}
 
 	return resp.response, nil
