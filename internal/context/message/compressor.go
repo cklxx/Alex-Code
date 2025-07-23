@@ -414,7 +414,7 @@ func (mc *MessageCompressor) estimateContentTokens(content string) int {
 	length := len(content)
 
 	// Different ratios for different content types
-	var charsPerToken float64 = 4.0 // Default for regular text
+	var charsPerToken = 4.0 // Default for regular text
 
 	// Adjust for code-heavy content (more token-dense)
 	if strings.Contains(content, "```") || strings.Contains(content, "func ") || strings.Contains(content, "import ") {
