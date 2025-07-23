@@ -87,18 +87,33 @@ function Get-LatestVersion {
     
     try {
         $apiUrl = "https://api.github.com/repos/$Repository/releases/latest"
-        $response = Invoke-RestMethod -Uri $apiUrl -Method Get
+        
+        # 设置更robust的web请求参数
+        $webClient = New-Object System.Net.WebClient
+        $webClient.Headers.Add("User-Agent", "Alex-Installer/1.0")
+        
+        # 使用Invoke-RestMethod with timeout and retry
+        $response = Invoke-RestMethod -Uri $apiUrl -Method Get -TimeoutSec 30 -ErrorAction Stop
         $latestVersion = $response.tag_name
         
         if (-not $latestVersion) {
-            Write-Error "Failed to fetch latest version"
+            Write-Error "Failed to parse latest version from GitHub API response"
+            Write-Info "You can specify a version manually with -Version parameter"
             exit 1
         }
         
         return $latestVersion
     }
+    catch [System.Net.WebException] {
+        Write-Error "Network error while fetching latest version: $($_.Exception.Message)"
+        Write-Info "Please check your internet connection and try again"
+        Write-Info "You can also specify a version manually with -Version parameter"
+        exit 1
+    }
     catch {
         Write-Error "Failed to fetch latest version: $($_.Exception.Message)"
+        Write-Info "This might be due to GitHub API rate limiting"
+        Write-Info "You can specify a version manually with -Version parameter"
         exit 1
     }
 }
@@ -236,11 +251,29 @@ function Install-Dependencies {
     if (-not (Get-Command "rg" -ErrorAction SilentlyContinue)) {
         Write-Info "Installing ripgrep..."
         
-        # 尝试使用Chocolatey
-        if (Get-Command "choco" -ErrorAction SilentlyContinue) {
+        # 尝试使用winget (优先，因为是Windows内置)
+        if (Get-Command "winget" -ErrorAction SilentlyContinue) {
             try {
-                & choco install ripgrep -y
-                Write-Success "ripgrep installed successfully via Chocolatey"
+                $wingetOutput = & winget install BurntSushi.ripgrep.GNU --accept-source-agreements --accept-package-agreements 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "ripgrep installed successfully via winget"
+                } else {
+                    Write-Warning "winget install failed with exit code $LASTEXITCODE"
+                }
+            }
+            catch {
+                Write-Warning "Failed to install ripgrep via winget: $($_.Exception.Message)"
+            }
+        }
+        # 尝试使用Chocolatey
+        elseif (Get-Command "choco" -ErrorAction SilentlyContinue) {
+            try {
+                $chocoOutput = & choco install ripgrep -y 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "ripgrep installed successfully via Chocolatey"
+                } else {
+                    Write-Warning "Chocolatey install failed with exit code $LASTEXITCODE"
+                }
             }
             catch {
                 Write-Warning "Failed to install ripgrep via Chocolatey: $($_.Exception.Message)"
@@ -249,21 +282,15 @@ function Install-Dependencies {
         # 尝试使用Scoop
         elseif (Get-Command "scoop" -ErrorAction SilentlyContinue) {
             try {
-                & scoop install ripgrep
-                Write-Success "ripgrep installed successfully via Scoop"
+                $scoopOutput = & scoop install ripgrep 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "ripgrep installed successfully via Scoop"
+                } else {
+                    Write-Warning "Scoop install failed with exit code $LASTEXITCODE"
+                }
             }
             catch {
                 Write-Warning "Failed to install ripgrep via Scoop: $($_.Exception.Message)"
-            }
-        }
-        # 尝试使用winget
-        elseif (Get-Command "winget" -ErrorAction SilentlyContinue) {
-            try {
-                & winget install BurntSushi.ripgrep.GNU
-                Write-Success "ripgrep installed successfully via winget"
-            }
-            catch {
-                Write-Warning "Failed to install ripgrep via winget: $($_.Exception.Message)"
             }
         }
         else {

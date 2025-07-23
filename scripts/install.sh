@@ -84,17 +84,35 @@ detect_platform() {
 get_latest_version() {
     log_info "Fetching latest version..."
     
+    local api_url="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
+    local response
+    
     if command_exists curl; then
-        latest_version=$(curl -s "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        response=$(curl -s --fail --connect-timeout 10 --max-time 30 "$api_url" 2>/dev/null)
+        if [ $? -ne 0 ]; then
+            log_error "Failed to connect to GitHub API. Please check your internet connection."
+            log_info "You can also specify a version manually with --version flag"
+            exit 1
+        fi
     elif command_exists wget; then
-        latest_version=$(wget -qO- "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        response=$(wget -qO- --timeout=30 --tries=2 "$api_url" 2>/dev/null)
+        if [ $? -ne 0 ]; then
+            log_error "Failed to connect to GitHub API. Please check your internet connection."
+            log_info "You can also specify a version manually with --version flag"
+            exit 1
+        fi
     else
         log_error "Neither curl nor wget is available. Please install one of them and try again."
         exit 1
     fi
     
+    # 更robust的JSON解析
+    latest_version=$(echo "$response" | grep '"tag_name"' | head -n1 | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+    
     if [ -z "$latest_version" ]; then
-        log_error "Failed to fetch latest version"
+        log_error "Failed to parse latest version from GitHub API response"
+        log_info "The API response might be rate-limited or malformed"
+        log_info "You can specify a version manually with --version flag"
         exit 1
     fi
     
@@ -109,13 +127,27 @@ download_file() {
     log_info "Downloading from: $url"
     
     if command_exists curl; then
-        curl -sSfL "$url" -o "$output"
+        if ! curl -sSfL --connect-timeout 10 --max-time 300 "$url" -o "$output"; then
+            log_error "Download failed with curl"
+            return 1
+        fi
     elif command_exists wget; then
-        wget -q "$url" -O "$output"
+        if ! wget -q --timeout=300 --tries=3 "$url" -O "$output"; then
+            log_error "Download failed with wget"
+            return 1
+        fi
     else
         log_error "Neither curl nor wget is available. Please install one of them and try again."
         exit 1
     fi
+    
+    # 验证文件是否下载成功
+    if [ ! -f "$output" ] || [ ! -s "$output" ]; then
+        log_error "Downloaded file is empty or missing: $output"
+        return 1
+    fi
+    
+    return 0
 }
 
 # 验证下载的文件
@@ -187,24 +219,56 @@ install_dependencies() {
         case "$(uname -s)" in
             Darwin*)
                 if command_exists brew; then
-                    brew install ripgrep
+                    if brew install ripgrep; then
+                        log_success "ripgrep installed via Homebrew"
+                    else
+                        log_warning "Failed to install ripgrep via Homebrew"
+                    fi
                 elif command_exists port; then
-                    port install ripgrep
+                    if sudo port install ripgrep; then
+                        log_success "ripgrep installed via MacPorts"
+                    else
+                        log_warning "Failed to install ripgrep via MacPorts"
+                    fi
                 else
                     log_warning "Neither brew nor port found. Please install ripgrep manually."
+                    log_info "Install Homebrew: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
                 fi
                 ;;
             Linux*)
                 if command_exists apt; then
-                    sudo apt update && sudo apt install -y ripgrep
+                    if sudo apt update && sudo apt install -y ripgrep; then
+                        log_success "ripgrep installed via apt"
+                    else
+                        log_warning "Failed to install ripgrep via apt"
+                    fi
                 elif command_exists dnf; then
-                    sudo dnf install -y ripgrep
+                    if sudo dnf install -y ripgrep; then
+                        log_success "ripgrep installed via dnf"
+                    else
+                        log_warning "Failed to install ripgrep via dnf"
+                    fi
                 elif command_exists yum; then
-                    sudo yum install -y ripgrep
+                    if sudo yum install -y ripgrep; then
+                        log_success "ripgrep installed via yum"
+                    else
+                        log_warning "Failed to install ripgrep via yum"
+                    fi
                 elif command_exists pacman; then
-                    sudo pacman -S ripgrep
+                    if sudo pacman -S --noconfirm ripgrep; then
+                        log_success "ripgrep installed via pacman"
+                    else
+                        log_warning "Failed to install ripgrep via pacman"
+                    fi
+                elif command_exists zypper; then
+                    if sudo zypper install -y ripgrep; then
+                        log_success "ripgrep installed via zypper"
+                    else
+                        log_warning "Failed to install ripgrep via zypper"
+                    fi
                 else
                     log_warning "Package manager not found. Please install ripgrep manually."
+                    log_info "Download from: https://github.com/BurntSushi/ripgrep/releases"
                 fi
                 ;;
             *)
@@ -255,7 +319,14 @@ main() {
     
     # 下载二进制文件
     binary_path="$TMP_DIR/$binary_name"
-    download_file "$download_url" "$binary_path"
+    if ! download_file "$download_url" "$binary_path"; then
+        log_error "Failed to download binary from: $download_url"
+        log_info "Please check:"
+        log_info "1. Your internet connection"
+        log_info "2. The release exists at: https://github.com/${GITHUB_REPO}/releases"
+        log_info "3. Try specifying a different version with --version flag"
+        exit 1
+    fi
     
     # 使二进制文件可执行
     chmod +x "$binary_path"
