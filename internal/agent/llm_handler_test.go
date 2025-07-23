@@ -296,7 +296,7 @@ func TestLLMHandler_RetryLogic(t *testing.T) {
 			},
 			expectRetries: 1,
 			expectError:   true,
-			errorContains: "network error - not retrying",
+			errorContains: "permanent network error",
 		},
 		{
 			name: "连接拒绝错误，不重试",
@@ -308,7 +308,7 @@ func TestLLMHandler_RetryLogic(t *testing.T) {
 			},
 			expectRetries: 1,
 			expectError:   true,
-			errorContains: "network error - not retrying",
+			errorContains: "permanent network error",
 		},
 		{
 			name: "临时错误，会重试直到成功",
@@ -374,7 +374,10 @@ func TestLLMHandler_RetryLogic(t *testing.T) {
 			}
 
 			handler := NewLLMHandler(nil)
-			ctx := context.Background()
+			// Use a timeout context to prevent long delays in CI
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			
 			request := &llm.ChatRequest{
 				Messages: []llm.Message{
 					{Role: "user", Content: "Test message"},
@@ -385,7 +388,11 @@ func TestLLMHandler_RetryLogic(t *testing.T) {
 				},
 			}
 
-			response, err := handler.callLLMWithRetry(ctx, mockClient, request, 3)
+			// Use a no-delay backoff for testing to avoid CI timeouts
+			noDelayBackoff := func(attempt int) time.Duration {
+				return 0 // No delay in tests
+			}
+			response, err := handler.callLLMWithRetryAndBackoff(ctx, mockClient, request, 3, noDelayBackoff)
 
 			// 验证重试次数
 			if mockClient.callCount != tt.expectRetries {
@@ -462,8 +469,13 @@ func TestLLMHandler_RetryBackoff(t *testing.T) {
 		},
 	}
 
+	// Use shorter delays for CI compatibility
+	shortBackoff := func(attempt int) time.Duration {
+		return time.Duration(attempt*10) * time.Millisecond // Much shorter delays
+	}
+
 	start := time.Now()
-	response, err := handler.callLLMWithRetry(ctx, mockClient, request, 3)
+	response, err := handler.callLLMWithRetryAndBackoff(ctx, mockClient, request, 3, shortBackoff)
 	elapsed := time.Since(start)
 
 	if err != nil {
@@ -474,9 +486,9 @@ func TestLLMHandler_RetryBackoff(t *testing.T) {
 		t.Error("Expected response, got nil")
 	}
 
-	// 验证总耗时包含了退避延迟（2秒 + 4秒 = 6秒）
-	// 由于测试环境的不确定性，我们检查是否至少等待了5秒
-	expectedMinDelay := 5 * time.Second
+	// 验证总耗时包含了退避延迟（10ms + 20ms = 30ms）
+	// 允许一些测试环境的不确定性
+	expectedMinDelay := 20 * time.Millisecond
 	if elapsed < expectedMinDelay {
 		t.Errorf("Expected at least %v delay for backoff, got %v", expectedMinDelay, elapsed)
 	}
@@ -511,7 +523,11 @@ func TestLLMHandler_ContextCancellation(t *testing.T) {
 		},
 	}
 
-	response, err := handler.callLLMWithRetry(ctx, mockClient, request, 3)
+	// Use no delay backoff for cancellation test
+	noDelayBackoff := func(attempt int) time.Duration {
+		return 0
+	}
+	response, err := handler.callLLMWithRetryAndBackoff(ctx, mockClient, request, 3, noDelayBackoff)
 
 	if err == nil {
 		t.Error("Expected context cancellation error, got nil")

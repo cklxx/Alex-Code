@@ -123,7 +123,19 @@ func (h *LLMHandler) isRetriableError(err error) bool {
 
 // callLLMWithRetry - 带重试机制的非流式LLM调用
 func (h *LLMHandler) callLLMWithRetry(ctx context.Context, client llm.Client, request *llm.ChatRequest, maxRetries int) (*llm.ChatResponse, error) {
+	return h.callLLMWithRetryAndBackoff(ctx, client, request, maxRetries, nil)
+}
+
+// callLLMWithRetryAndBackoff - 带重试机制和可配置退避策略的非流式LLM调用
+func (h *LLMHandler) callLLMWithRetryAndBackoff(ctx context.Context, client llm.Client, request *llm.ChatRequest, maxRetries int, backoffFunc func(int) time.Duration) (*llm.ChatResponse, error) {
 	var lastErr error
+
+	// 默认的指数退避策略
+	if backoffFunc == nil {
+		backoffFunc = func(attempt int) time.Duration {
+			return time.Duration(attempt*2) * time.Second
+		}
+	}
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		// 使用非流式调用
@@ -140,7 +152,7 @@ func (h *LLMHandler) callLLMWithRetry(ctx context.Context, client llm.Client, re
 
 			// 如果是可重试的错误（如超时、临时服务器错误），则重试
 			if attempt < maxRetries && (h.isRetriableError(err) || !h.isNetworkError(err)) {
-				backoffDuration := time.Duration(attempt*2) * time.Second
+				backoffDuration := backoffFunc(attempt)
 				log.Printf("[WARN] LLMHandler: Retrying in %v (retriable: %v, network: %v)", 
 					backoffDuration, h.isRetriableError(err), h.isNetworkError(err))
 				select {
@@ -170,7 +182,7 @@ func (h *LLMHandler) callLLMWithRetry(ctx context.Context, client llm.Client, re
 		log.Printf("[WARN] LLMHandler: Received nil response (attempt %d)", attempt)
 
 		if attempt < maxRetries {
-			backoffDuration := time.Duration(attempt*2) * time.Second
+			backoffDuration := backoffFunc(attempt)
 			log.Printf("[WARN] LLMHandler: Retrying in %v", backoffDuration)
 			select {
 			case <-ctx.Done():
