@@ -8,6 +8,7 @@ import (
 	"time"
 
 	contextmgr "alex/internal/context"
+	messagepkg "alex/internal/context/message"
 	"alex/internal/llm"
 	"alex/internal/session"
 	"alex/pkg/types/message"
@@ -18,6 +19,7 @@ type MessageProcessor struct {
 	sessionManager *session.Manager
 	tokenEstimator *TokenEstimator
 	adapter        *message.Adapter // 统一消息适配器
+	compressor     *messagepkg.MessageCompressor // AI压缩器
 }
 
 // NewMessageProcessor 创建统一的消息处理器
@@ -35,7 +37,15 @@ func NewMessageProcessor(llmClient llm.Client, sessionManager *session.Manager) 
 		sessionManager: sessionManager,
 		tokenEstimator: NewTokenEstimator(),
 		adapter:        message.NewAdapter(), // 统一消息适配器
+		compressor:     messagepkg.NewMessageCompressor(llmClient), // AI压缩器
 	}
+}
+
+// ========== 消息压缩 ==========
+
+// CompressMessages 使用AI压缩器压缩session消息
+func (mp *MessageProcessor) CompressMessages(messages []*session.Message) []*session.Message {
+	return mp.compressor.CompressMessages(messages)
 }
 
 // ========== 消息转换 ==========
