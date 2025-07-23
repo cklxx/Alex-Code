@@ -24,11 +24,11 @@ type MessageProcessor struct {
 
 // NewMessageProcessor 创建统一的消息处理器
 func NewMessageProcessor(llmClient llm.Client, sessionManager *session.Manager) *MessageProcessor {
-	// 创建上下文管理器
+	// 创建上下文管理器 - 配置与128K上下文窗口对齐
 	contextConfig := &contextmgr.ContextLengthConfig{
-		MaxTokens:              8000,
-		SummarizationThreshold: 6000,
-		CompressionRatio:       0.3,
+		MaxTokens:              128000, // Kimi K2's 128K token context window
+		SummarizationThreshold: 115000, // 90% threshold for compression
+		CompressionRatio:       0.9,    // Keep 90% context efficiency
 		PreserveSystemMessages: true,
 	}
 

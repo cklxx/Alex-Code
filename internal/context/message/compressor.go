@@ -32,17 +32,28 @@ func (mc *MessageCompressor) CompressMessages(messages []*session.Message) []*se
 	totalTokens := mc.estimateTokens(messages)
 	messageCount := len(messages)
 	
+	// Debug: Log token estimation details
+	log.Printf("[DEBUG] Token estimation: %d messages, %d estimated tokens", messageCount, totalTokens)
+	
 	// High thresholds aligned with Kimi K2's 128K token context window
 	const (
-		TokenThreshold = 100000 // 按Kimi K2的128K token上限设置，留20%余量
+		TokenThreshold = 115000 // 按Kimi K2的128K token上限设置90%触发压缩 (128K * 0.9 = 115K)
 		MessageThreshold = 50   // Lower threshold to trigger compression earlier
 		RecentKeep = 10         // Keep fewer recent messages to preserve more history via summaries
 	)
 	
 	// Only compress if we exceed BOTH thresholds significantly
 	if messageCount > MessageThreshold && totalTokens > TokenThreshold {
-		log.Printf("[INFO] AI-based compression triggered: %d messages, %d tokens", messageCount, totalTokens)
+		log.Printf("[INFO] AI-based compression triggered: %d messages, %d tokens (threshold: %d)", messageCount, totalTokens, TokenThreshold)
 		return mc.aiBasedCompress(messages, RecentKeep)
+	}
+	
+	// Log why compression was skipped
+	if messageCount <= MessageThreshold {
+		log.Printf("[DEBUG] Compression skipped: message count %d <= threshold %d", messageCount, MessageThreshold)
+	}
+	if totalTokens <= TokenThreshold {
+		log.Printf("[DEBUG] Compression skipped: token count %d <= threshold %d", totalTokens, TokenThreshold)
 	}
 	
 	// No compression needed
@@ -368,11 +379,68 @@ func (mc *MessageCompressor) createStatisticalSummary(messages []*session.Messag
 	}
 }
 
-// estimateTokens estimates the total tokens in messages
+// estimateTokens estimates the total tokens in messages with improved accuracy
 func (mc *MessageCompressor) estimateTokens(messages []*session.Message) int {
 	total := 0
 	for _, msg := range messages {
-		total += mc.tokenEstimator.EstimateText(msg.Content)
+		// Use more accurate token estimation
+		contentTokens := mc.estimateContentTokens(msg.Content)
+		
+		// Add overhead for role, metadata, and structure
+		roleTokens := 5 // role field
+		metadataTokens := len(msg.Metadata) * 10 // rough metadata overhead
+		
+		// Add tokens for tool calls
+		toolCallTokens := 0
+		for _, tc := range msg.ToolCalls {
+			toolCallTokens += len(tc.Name)/3 + len(tc.ID)/3 + 15 // Tool call structure overhead
+		}
+		
+		messageTotal := contentTokens + roleTokens + metadataTokens + toolCallTokens
+		total += messageTotal
+		
+		// Debug individual message token count for large messages
+		if contentTokens > 1000 {
+			log.Printf("[DEBUG] Large message: %d content tokens, %d total tokens (role: %d, metadata: %d, tools: %d)", 
+				contentTokens, messageTotal, roleTokens, metadataTokens, toolCallTokens)
+		}
 	}
 	return total
+}
+
+// estimateContentTokens provides more accurate token estimation for message content
+func (mc *MessageCompressor) estimateContentTokens(content string) int {
+	if content == "" {
+		return 0
+	}
+	
+	// More sophisticated estimation based on content type
+	length := len(content)
+	
+	// Different ratios for different content types
+	var charsPerToken float64 = 4.0 // Default for regular text
+	
+	// Adjust for code-heavy content (more token-dense)
+	if strings.Contains(content, "```") || strings.Contains(content, "func ") || strings.Contains(content, "import ") {
+		charsPerToken = 2.5 // Code is more token-dense
+	}
+	
+	// Adjust for JSON/structured data
+	if strings.Contains(content, `"role"`) || strings.Contains(content, `{"`) {
+		charsPerToken = 3.0 // JSON is moderately token-dense
+	}
+	
+	// Adjust for very long content (usually less token-dense due to repetition)
+	if length > 10000 {
+		charsPerToken = 5.0
+	}
+	
+	estimated := int(float64(length) / charsPerToken)
+	
+	// Minimum of 1 token for non-empty content
+	if estimated == 0 && length > 0 {
+		estimated = 1
+	}
+	
+	return estimated
 }
