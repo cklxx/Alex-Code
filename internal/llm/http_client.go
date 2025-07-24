@@ -62,25 +62,11 @@ func (c *HTTPLLMClient) getModelConfig(req *ChatRequest) (string, string, string
 	// Try to get specific model config first
 	if config.Models != nil {
 		if modelConfig, exists := config.Models[modelType]; exists {
-			apiKeyPreview := modelConfig.APIKey
-			// Use rune-based slicing to properly handle UTF-8 characters in API key
-			keyRunes := []rune(apiKeyPreview)
-			if len(keyRunes) > 15 {
-				apiKeyPreview = string(keyRunes[:15]) + "..."
-			}
-			log.Printf("DEBUG: Using model config - BaseURL: %s, APIKey: %s, Model: %s", modelConfig.BaseURL, apiKeyPreview, modelConfig.Model)
 			return modelConfig.BaseURL, modelConfig.APIKey, modelConfig.Model
 		}
 	}
 
 	// Fallback to single model config
-	apiKeyPreview := config.APIKey
-	// Use rune-based slicing to properly handle UTF-8 characters in API key
-	keyRunes := []rune(apiKeyPreview)
-	if len(keyRunes) > 15 {
-		apiKeyPreview = string(keyRunes[:15]) + "..."
-	}
-	log.Printf("DEBUG: Using fallback config - BaseURL: %s, APIKey: %s, Model: %s", config.BaseURL, apiKeyPreview, config.Model)
 	return config.BaseURL, config.APIKey, config.Model
 }
 
@@ -108,10 +94,8 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 	var cacheHeaders map[string]string
 	if IsKimiAPI(baseURL) && sessionID != "" && len(req.Messages) > 0 {
 		// 尝试为当前的 messages 和 tools 创建或重用缓存
-		if cache, err := c.kimiCacheManager.CreateCacheIfNeeded(sessionID, req.Messages, req.Tools, apiKey); err != nil {
+		if _, err := c.kimiCacheManager.CreateCacheIfNeeded(sessionID, req.Messages, req.Tools, apiKey); err != nil {
 			log.Printf("WARNING: Failed to create/reuse Kimi cache: %v", err)
-		} else {
-			log.Printf("DEBUG: Created/reused Kimi cache for session %s: %s", sessionID, cache.CacheID)
 		}
 		
 		// Prepare headers for cache usage (verifies message/tool consistency)
@@ -136,7 +120,6 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
-	log.Printf("DEBUG: Request: %s", string(jsonData))
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -161,12 +144,10 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 		return nil, fmt.Errorf("HTTP error %d: %s", resp.StatusCode, string(body))
 	}
 
-	// 先读取原始响应体用于调试
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
-	log.Printf("DEBUG: Response: %+v", string(body))
 
 	var chatResp ChatResponse
 	if err := json.Unmarshal(body, &chatResp); err != nil {
@@ -316,7 +297,6 @@ func (c *HTTPLLMClient) Close() error {
 	if c.kimiCacheManager != nil {
 		config, err := globalConfigProvider()
 		if err == nil && IsKimiAPI(config.BaseURL) {
-			log.Printf("DEBUG: Cleaning up all Kimi caches on client shutdown")
 			c.kimiCacheManager.CleanupExpiredCaches(0, config.APIKey) // Force cleanup all
 		}
 	}
@@ -330,7 +310,6 @@ func (c *HTTPLLMClient) CleanupCachesOnExit() error {
 	if c.kimiCacheManager != nil {
 		config, err := globalConfigProvider()
 		if err == nil && IsKimiAPI(config.BaseURL) {
-			log.Printf("DEBUG: Performing final Kimi cache cleanup on CLI exit")
 			c.kimiCacheManager.CleanupExpiredCaches(0, config.APIKey)
 		}
 	}
@@ -354,16 +333,12 @@ func (c *HTTPLLMClient) setHeaders(req *http.Request, apiKey string, cacheHeader
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	
 	// Add Kimi cache headers if available
-	for key, value := range cacheHeaders {
-		req.Header.Set(key, value)
-		log.Printf("DEBUG: Set cache header %s: %s", key, value)
+	if len(cacheHeaders) > 0 {
+		log.Printf("[KIMI_CACHE] 📤 Sending request with cache headers:")
+		for key, value := range cacheHeaders {
+			req.Header.Set(key, value)
+			log.Printf("[KIMI_CACHE]   %s: %s", key, value)
+		}
 	}
 	
-	apiKeyPreview := apiKey
-	// Use rune-based slicing to properly handle UTF-8 characters in API key
-	keyRunes := []rune(apiKeyPreview)
-	if len(keyRunes) > 15 {
-		apiKeyPreview = string(keyRunes[:15]) + "..."
-	}
-	log.Printf("DEBUG: Set Authorization header with key: %s", apiKeyPreview)
 }

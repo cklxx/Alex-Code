@@ -66,7 +66,6 @@ func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Me
 	// 提取可缓存的前缀消息（稳定部分）
 	cacheableMessages := kcm.extractCacheablePrefix(messages)
 	if len(cacheableMessages) == 0 {
-		log.Printf("DEBUG: No cacheable prefix found for session %s", sessionID)
 		return nil, nil // 没有可缓存的内容
 	}
 
@@ -74,13 +73,12 @@ func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Me
 	if existingCache, exists := kcm.caches[sessionID]; exists && existingCache.Status == "active" {
 		// 只需要验证可缓存前缀是否匹配
 		if kcm.messagesMatch(cacheableMessages, existingCache.CachedMessages) && kcm.toolsMatch(tools, existingCache.CachedTools) {
-			log.Printf("DEBUG: Using existing Kimi cache for session %s: %s", sessionID, existingCache.CacheID)
+			log.Printf("[KIMI_CACHE] ✅ Using existing cache: %s", existingCache.CacheID)
 			return existingCache, nil
 		} else {
-			log.Printf("DEBUG: Cacheable prefix changed, invalidating existing cache for session %s", sessionID)
 			// Delete old cache and create new one
 			if err := kcm.sendCacheDeletionRequest(existingCache.CacheID, apiKey); err != nil {
-				log.Printf("WARNING: Failed to delete old cache: %v", err)
+				log.Printf("[KIMI_CACHE] ⚠️  Failed to delete old cache: %v", err)
 			}
 			delete(kcm.caches, sessionID)
 		}
@@ -89,6 +87,7 @@ func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Me
 	// Create cache using Kimi API for cacheable prefix only
 	cacheID, err := kcm.createCacheWithAPI(cacheableMessages, tools, apiKey)
 	if err != nil {
+		log.Printf("[KIMI_CACHE] ❌ Failed to create cache: %v", err)
 		return nil, fmt.Errorf("failed to create cache with Kimi API: %w", err)
 	}
 
@@ -104,7 +103,7 @@ func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Me
 	}
 
 	kcm.caches[sessionID] = cache
-	log.Printf("DEBUG: Created new Kimi cache for session %s with cache ID: %s (prefix: %d msgs)", sessionID, cacheID, len(cacheableMessages))
+	log.Printf("[KIMI_CACHE] ✅ Created new cache: %s (%d msgs)", cacheID, len(cacheableMessages))
 	return cache, nil
 }
 
@@ -219,7 +218,6 @@ func (kcm *KimiCacheManager) DeleteCache(sessionID string, apiKey string) error 
 	cache.Status = "deleted"
 	delete(kcm.caches, sessionID)
 
-	log.Printf("DEBUG: Deleted Kimi cache for session %s", sessionID)
 	return nil
 }
 
@@ -245,7 +243,6 @@ func (kcm *KimiCacheManager) CleanupExpiredCaches(maxAge time.Duration, apiKey s
 			}
 		}
 		delete(kcm.caches, sessionID)
-		log.Printf("DEBUG: Cleaned up expired Kimi cache for session %s", sessionID)
 	}
 }
 
@@ -381,10 +378,8 @@ func (kcm *KimiCacheManager) createCacheWithAPI(messages []Message, tools []Tool
 	if cacheID == "" {
 		// Generate fallback cache ID if not provided by API
 		cacheID = fmt.Sprintf("kimi_cache_%d", time.Now().UnixNano())
-		log.Printf("DEBUG: Generated fallback cache ID: %s", cacheID)
 	}
 
-	log.Printf("DEBUG: Successfully created Kimi cache with ID: %s", cacheID)
 	return cacheID, nil
 }
 
@@ -395,7 +390,6 @@ func (kcm *KimiCacheManager) extractCacheIDFromResponse(response map[string]inte
 		return id
 	}
 	
-	log.Printf("DEBUG: Cache ID not found in response, response: %+v", response)
 	return ""
 }
 
@@ -424,7 +418,6 @@ func (kcm *KimiCacheManager) sendCacheDeletionRequest(cacheID string, apiKey str
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		log.Printf("DEBUG: Cache %s not found for deletion (already deleted or expired)", cacheID)
 		return nil // Cache doesn't exist, which is fine
 	}
 
@@ -433,7 +426,6 @@ func (kcm *KimiCacheManager) sendCacheDeletionRequest(cacheID string, apiKey str
 		return fmt.Errorf("cache deletion failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	log.Printf("DEBUG: Successfully deleted Kimi cache: %s", cacheID)
 	return nil
 }
 
@@ -486,13 +478,11 @@ func (kcm *KimiCacheManager) PrepareRequestWithCache(sessionID string, req *Chat
 	
 	// 验证可缓存前缀是否与缓存匹配
 	if !kcm.messagesMatch(currentCacheablePrefix, cache.CachedMessages) {
-		log.Printf("WARNING: Request cacheable prefix doesn't match cached prefix for session %s, cannot use cache", sessionID)
 		return nil
 	}
 	
 	// 验证工具是否匹配
 	if !kcm.toolsMatch(req.Tools, cache.CachedTools) {
-		log.Printf("WARNING: Request tools don't match cached tools for session %s, cannot use cache", sessionID)
 		return nil
 	}
 
@@ -505,7 +495,5 @@ func (kcm *KimiCacheManager) PrepareRequestWithCache(sessionID string, req *Chat
 		"X-Msh-Context-Cache-Reset-TTL": "3600", // 重置缓存过期时间为1小时
 	}
 	
-	log.Printf("DEBUG: Using cache %s for session %s (prefix: %d msgs, total: %d msgs)", 
-		cache.CacheID, sessionID, len(cache.CachedMessages), len(req.Messages))
 	return headers
 }
