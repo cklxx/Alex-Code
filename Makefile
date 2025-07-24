@@ -12,9 +12,9 @@ BUILD_TIME = $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 
 # Build flags for version injection
 LDFLAGS = -s -w \
-	-X 'alex/internal/version.Version=$(VERSION)' \
-	-X 'alex/internal/version.GitCommit=$(GIT_COMMIT)' \
-	-X 'alex/internal/version.BuildTime=$(BUILD_TIME)'
+	-X 'alex/internal/utils.Version=$(VERSION)' \
+	-X 'alex/internal/utils.GitCommit=$(GIT_COMMIT)' \
+	-X 'alex/internal/utils.BuildTime=$(BUILD_TIME)'
 
 # Default target
 .PHONY: all
