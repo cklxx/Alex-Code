@@ -25,116 +25,152 @@ func NewMessageCompressor(llmClient llm.Client) *MessageCompressor {
 	}
 }
 
-// CompressMessages compresses a batch of messages using AI summarization instead of truncation
+// CompressMessages compresses messages using cache-friendly strategy
+// Keeps stable prefix for context caching, compresses middle, preserves recent active
 func (mc *MessageCompressor) CompressMessages(messages []*session.Message) []*session.Message {
-	// Only compress when truly necessary (high thresholds)
 	totalTokens := mc.estimateTokens(messages)
 	messageCount := len(messages)
 
-	// Debug: Log token estimation details
 	log.Printf("[DEBUG] Token estimation: %d messages, %d estimated tokens", messageCount, totalTokens)
 
-	// High thresholds aligned with Kimi K2's 128K token context window
+	// Cache-friendly compression thresholds
 	const (
-		TokenThreshold   = 115000 // 按Kimi K2的128K token上限设置90%触发压缩 (128K * 0.9 = 115K)
-		MessageThreshold = 50     // Lower threshold to trigger compression earlier
-		RecentKeep       = 3      // Keep fewer recent messages to preserve more history via summaries
+		TokenThreshold      = 115000 // Kimi K2的128K token上限的90%
+		MessageThreshold    = 20     // 降低消息数量阈值，更早触发压缩
+		CacheablePrefixKeep = 4      // 保留用于缓存的稳定前缀消息数
 	)
 
-	// Only compress if we exceed BOTH thresholds significantly
+	// Only compress if we exceed thresholds significantly
 	if messageCount > MessageThreshold && totalTokens > TokenThreshold {
-		log.Printf("[INFO] AI-based compression triggered: %d messages, %d tokens (threshold: %d)", messageCount, totalTokens, TokenThreshold)
-		return mc.aiBasedCompress(messages, RecentKeep)
+		log.Printf("[INFO] Cache-friendly compression triggered: %d messages, %d tokens", messageCount, totalTokens)
+		return mc.cacheFriendlyCompress(messages, CacheablePrefixKeep)
 	}
 
-	// Log why compression was skipped
-	if messageCount <= MessageThreshold {
-		log.Printf("[DEBUG] Compression skipped: message count %d <= threshold %d", messageCount, MessageThreshold)
-	}
-	if totalTokens <= TokenThreshold {
-		log.Printf("[DEBUG] Compression skipped: token count %d <= threshold %d", totalTokens, TokenThreshold)
-	}
+	log.Printf("[DEBUG] Compression skipped: %d messages (%d threshold), %d tokens (%d threshold)",
+		messageCount, MessageThreshold, totalTokens, TokenThreshold)
 
-	// No compression needed
 	return messages
 }
 
-// findRecentMessagesWithToolPairing finds recent messages while maintaining tool call pairs
-func (mc *MessageCompressor) findRecentMessagesWithToolPairing(messages []*session.Message, recentKeep int) []*session.Message {
-	if len(messages) <= recentKeep {
+// cacheFriendlyCompress implements cache-friendly compression strategy
+// Keeps stable prefix for context caching, compresses the rest
+func (mc *MessageCompressor) cacheFriendlyCompress(messages []*session.Message, cacheablePrefixKeep int) []*session.Message {
+	if len(messages) <= cacheablePrefixKeep {
+		return messages // 消息不够多，不需要压缩
+	}
+
+	// Step 1: 分离系统消息和非系统消息
+	var systemMessages []*session.Message
+	var nonSystemMessages []*session.Message
+
+	for _, msg := range messages {
+		if msg.Role == "system" {
+			systemMessages = append(systemMessages, msg)
+		} else {
+			nonSystemMessages = append(nonSystemMessages, msg)
+		}
+	}
+
+	if len(nonSystemMessages) <= cacheablePrefixKeep {
+		return messages // 非系统消息不够多，不需要压缩
+	}
+
+	// Step 2: 提取稳定的缓存前缀（考虑工具调用成对）
+	cacheablePrefix := mc.findCacheablePrefixWithToolPairing(nonSystemMessages, cacheablePrefixKeep)
+
+	// Step 3: 后续消息全部压缩
+	cacheablePrefixEnd := len(cacheablePrefix)
+	remainingMessages := nonSystemMessages[cacheablePrefixEnd:]
+
+	log.Printf("[DEBUG] Cache-friendly compression: prefix=%d, remaining=%d",
+		len(cacheablePrefix), len(remainingMessages))
+
+	// Step 4: 压缩剩余消息
+	compressedRemaining := mc.compressRemainingMessages(remainingMessages)
+
+	// Step 5: 重新组合消息
+	result := make([]*session.Message, 0, len(systemMessages)+len(cacheablePrefix)+1)
+
+	// 添加系统消息
+	result = append(result, systemMessages...)
+	// 添加缓存前缀（稳定，用于 context caching）
+	result = append(result, cacheablePrefix...)
+	// 添加压缩的剩余部分
+	if compressedRemaining != nil {
+		result = append(result, compressedRemaining)
+	}
+
+	log.Printf("[INFO] Cache-friendly compression completed: %d -> %d messages", len(messages), len(result))
+	return result
+}
+
+// findCacheablePrefixWithToolPairing finds cacheable prefix while maintaining tool call pairs
+func (mc *MessageCompressor) findCacheablePrefixWithToolPairing(messages []*session.Message, targetKeep int) []*session.Message {
+	if len(messages) <= targetKeep {
 		return messages
 	}
 
-	// Start from the most recent messages and work backwards
-	// But ensure we keep complete tool call sequences
+	// 构建工具调用配对映射（用于后续的工具调用成对验证）
+	_ = mc.buildToolCallPairMap(messages)
 
-	// First, identify all tool call pairs
-	toolCallPairs := mc.buildToolCallPairMap(messages)
-
-	// Start from the end, keep adding messages while maintaining pairs
-	kept := make([]*session.Message, 0, recentKeep*2) // Allow for expansion due to tool pairs
-	messageIndices := make(map[*session.Message]int)
-
-	// Build index map
-	for i, msg := range messages {
-		messageIndices[msg] = i
-	}
-
-	// Track which messages we must include to maintain pairing
+	// 从前向后查找，确保工具调用成对
+	kept := make([]*session.Message, 0, targetKeep*2)
 	mustInclude := make(map[int]bool)
 
-	// Add recent messages from the end
-	for i := len(messages) - 1; i >= 0 && len(kept) < recentKeep*2; i-- {
+	// 标记必须包含的工具调用对
+	for i := 0; i < min(targetKeep*2, len(messages)); i++ {
 		msg := messages[i]
 
-		// If this message is part of a tool call pair, include the whole pair
-		if msg.Role == "tool" {
-			if toolCallId, ok := msg.Metadata["tool_call_id"].(string); ok {
-				if assistantIndex, exists := toolCallPairs[toolCallId]; exists {
-					mustInclude[assistantIndex] = true
-					mustInclude[i] = true
-				}
-			}
-		} else if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
-			mustInclude[i] = true
-			// Find all corresponding tool responses
-			for _, tc := range msg.ToolCalls {
-				for j := i + 1; j < len(messages); j++ {
-					if messages[j].Role == "tool" {
-						if callId, ok := messages[j].Metadata["tool_call_id"].(string); ok && callId == tc.ID {
-							mustInclude[j] = true
+		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
+			// 查找对应的工具结果
+			for j := i + 1; j < len(messages); j++ {
+				if messages[j].Role == "tool" {
+					if toolCallId, ok := messages[j].Metadata["tool_call_id"].(string); ok {
+						// 检查是否匹配当前assistant的某个tool_call
+						for _, tc := range msg.ToolCalls {
+							if tc.ID == toolCallId {
+								mustInclude[i] = true
+								mustInclude[j] = true
+								break
+							}
 						}
 					}
 				}
 			}
-		} else {
-			mustInclude[i] = true
-		}
-
-		// Stop if we have enough messages (but allow pairs to complete)
-		if len(mustInclude) >= recentKeep {
-			break
 		}
 	}
 
-	// Find the earliest index we need to include
-	minIndex := len(messages)
-	for index := range mustInclude {
-		if index < minIndex {
-			minIndex = index
+	// 收集前缀消息，确保工具调用成对
+	for i := 0; i < len(messages) && len(kept) < targetKeep*2; i++ {
+		if i < targetKeep || mustInclude[i] {
+			kept = append(kept, messages[i])
 		}
 	}
 
-	// Return messages from minIndex to end
-	if minIndex < len(messages) {
-		return messages[minIndex:]
+	return kept
+}
+
+// compressRemainingMessages compresses remaining messages using AI summarization
+func (mc *MessageCompressor) compressRemainingMessages(messages []*session.Message) *session.Message {
+	if len(messages) == 0 {
+		return nil
 	}
 
-	// Fallback: just return the last recentKeep messages
-	if len(messages) > recentKeep {
-		return messages[len(messages)-recentKeep:]
+	// 使用现有的 AI 摘要方法
+	summaryMsg := mc.createComprehensiveAISummary(messages)
+	if summaryMsg == nil {
+		return nil
 	}
-	return messages
+
+	// 标记为缓存友好的压缩
+	if summaryMsg.Metadata == nil {
+		summaryMsg.Metadata = make(map[string]interface{})
+	}
+	summaryMsg.Metadata["cache_friendly_compression"] = true
+	summaryMsg.Metadata["original_message_count"] = len(messages)
+
+	log.Printf("[DEBUG] Compressed %d remaining messages into summary", len(messages))
+	return summaryMsg
 }
 
 // buildToolCallPairMap builds a map of tool_call_id -> assistant message index
@@ -151,57 +187,6 @@ func (mc *MessageCompressor) buildToolCallPairMap(messages []*session.Message) m
 
 	return pairs
 }
-
-// aiBasedCompress applies AI-based compression using intelligent summarization instead of truncation
-func (mc *MessageCompressor) aiBasedCompress(messages []*session.Message, recentKeep int) []*session.Message {
-	if len(messages) <= recentKeep {
-		return messages
-	}
-
-	// Separate system messages (always keep)
-	var systemMessages []*session.Message
-	var nonSystemMessages []*session.Message
-
-	for _, msg := range messages {
-		if msg.Role == "system" {
-			systemMessages = append(systemMessages, msg)
-		} else {
-			nonSystemMessages = append(nonSystemMessages, msg)
-		}
-	}
-
-	// If not enough non-system messages, no compression needed
-	if len(nonSystemMessages) <= recentKeep {
-		return messages
-	}
-
-	// Find proper split point while maintaining tool call pairs
-	recentMessages := mc.findRecentMessagesWithToolPairing(nonSystemMessages, recentKeep)
-	recentStart := len(nonSystemMessages) - len(recentMessages)
-
-	// Messages to compress (older messages)
-	toCompress := nonSystemMessages[:recentStart]
-
-	// Build result: system messages + comprehensive summary + recent messages
-	var result []*session.Message
-	result = append(result, systemMessages...)
-
-	// Create comprehensive AI summary of all older messages
-	if len(toCompress) > 0 {
-		summary := mc.createComprehensiveAISummary(toCompress)
-		if summary != nil {
-			result = append(result, summary)
-		}
-	}
-
-	// Add recent messages (with tool call pairs intact)
-	result = append(result, recentMessages...)
-
-	log.Printf("[INFO] AI-based compression: %d -> %d messages", len(messages), len(result))
-	return result
-}
-
-// Unused functions removed
 
 // createComprehensiveAISummary creates a comprehensive AI summary preserving important context
 func (mc *MessageCompressor) createComprehensiveAISummary(messages []*session.Message) *session.Message {

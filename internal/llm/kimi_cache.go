@@ -58,19 +58,26 @@ func IsKimiAPI(baseURL string) bool {
 	return strings.Contains(baseURL, "api.moonshot.cn")
 }
 
-// CreateCacheIfNeeded creates a new cache for the session's messages and tools if not exists
+// CreateCacheIfNeeded creates a new cache for the session's cacheable prefix if not exists
 func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Message, tools []Tool, apiKey string) (*KimiCache, error) {
 	kcm.mutex.Lock()
 	defer kcm.mutex.Unlock()
 
+	// 提取可缓存的前缀消息（稳定部分）
+	cacheableMessages := kcm.extractCacheablePrefix(messages)
+	if len(cacheableMessages) == 0 {
+		log.Printf("DEBUG: No cacheable prefix found for session %s", sessionID)
+		return nil, nil // 没有可缓存的内容
+	}
+
 	// Check if cache already exists and verify consistency
 	if existingCache, exists := kcm.caches[sessionID]; exists && existingCache.Status == "active" {
-		// Verify that the request matches the cached content
-		if kcm.messagesMatch(messages, existingCache.CachedMessages) && kcm.toolsMatch(tools, existingCache.CachedTools) {
+		// 只需要验证可缓存前缀是否匹配
+		if kcm.messagesMatch(cacheableMessages, existingCache.CachedMessages) && kcm.toolsMatch(tools, existingCache.CachedTools) {
 			log.Printf("DEBUG: Using existing Kimi cache for session %s: %s", sessionID, existingCache.CacheID)
 			return existingCache, nil
 		} else {
-			log.Printf("DEBUG: Messages/tools changed, invalidating existing cache for session %s", sessionID)
+			log.Printf("DEBUG: Cacheable prefix changed, invalidating existing cache for session %s", sessionID)
 			// Delete old cache and create new one
 			if err := kcm.sendCacheDeletionRequest(existingCache.CacheID, apiKey); err != nil {
 				log.Printf("WARNING: Failed to delete old cache: %v", err)
@@ -79,8 +86,8 @@ func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Me
 		}
 	}
 
-	// Create cache using Kimi API
-	cacheID, err := kcm.createCacheWithAPI(messages, tools, apiKey)
+	// Create cache using Kimi API for cacheable prefix only
+	cacheID, err := kcm.createCacheWithAPI(cacheableMessages, tools, apiKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cache with Kimi API: %w", err)
 	}
@@ -88,7 +95,7 @@ func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Me
 	cache := &KimiCache{
 		SessionID:      sessionID,
 		CacheID:        cacheID,
-		CachedMessages: messages,
+		CachedMessages: cacheableMessages, // 只缓存稳定前缀
 		CachedTools:    tools,
 		CreatedAt:      time.Now(),
 		LastUsedAt:     time.Now(),
@@ -97,8 +104,70 @@ func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Me
 	}
 
 	kcm.caches[sessionID] = cache
-	log.Printf("DEBUG: Created new Kimi cache for session %s with cache ID: %s", sessionID, cacheID)
+	log.Printf("DEBUG: Created new Kimi cache for session %s with cache ID: %s (prefix: %d msgs)", sessionID, cacheID, len(cacheableMessages))
 	return cache, nil
+}
+
+// extractCacheablePrefix extracts cacheable prefix from messages
+// This should match the compression strategy's cacheable prefix
+func (kcm *KimiCacheManager) extractCacheablePrefix(messages []Message) []Message {
+	const maxCacheablePrefix = 8 // 与压缩策略保持一致
+
+	// 过滤系统消息，找到用户对话的开始
+	var nonSystemMessages []Message
+	for _, msg := range messages {
+		if msg.Role != "system" {
+			nonSystemMessages = append(nonSystemMessages, msg)
+		}
+	}
+
+	if len(nonSystemMessages) == 0 {
+		return nil
+	}
+
+	// 只取前面稳定的消息作为缓存前缀
+	prefixEnd := min(maxCacheablePrefix, len(nonSystemMessages))
+	
+	// 确保工具调用成对
+	prefixEnd = kcm.adjustForToolCallPairing(nonSystemMessages, prefixEnd)
+	
+	return nonSystemMessages[:prefixEnd]
+}
+
+// adjustForToolCallPairing adjusts the prefix end to maintain tool call pairs
+func (kcm *KimiCacheManager) adjustForToolCallPairing(messages []Message, prefixEnd int) int {
+	if prefixEnd >= len(messages) {
+		return len(messages)
+	}
+
+	// 向前调整，确保不会在工具调用对中间截断
+	for i := prefixEnd - 1; i >= 0; i-- {
+		msg := messages[i]
+		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
+			// 检查对应的工具结果是否在前缀范围内
+			hasToolResultInPrefix := false
+			for j := i + 1; j < prefixEnd; j++ {
+				if messages[j].Role == "tool" {
+					hasToolResultInPrefix = true
+					break
+				}
+			}
+			if !hasToolResultInPrefix {
+				// 工具调用没有对应结果在前缀中，调整边界
+				return i
+			}
+		}
+	}
+
+	return prefixEnd
+}
+
+// min helper function for extractCacheablePrefix
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // GetCache retrieves the cache for a session
@@ -405,16 +474,19 @@ func (kcm *KimiCacheManager) toolsMatch(requestTools, cachedTools []Tool) bool {
 }
 
 // PrepareRequestWithCache prepares the request to use Kimi cache via Headers
-// According to Kimi API docs, we must keep all cached messages in the request
+// Only validates the cacheable prefix, allowing the rest to vary
 func (kcm *KimiCacheManager) PrepareRequestWithCache(sessionID string, req *ChatRequest) map[string]string {
 	cache, exists := kcm.GetCache(sessionID)
 	if !exists {
 		return nil // No cache available
 	}
 
-	// 验证请求消息是否与缓存匹配
-	if !kcm.messagesMatch(req.Messages, cache.CachedMessages) {
-		log.Printf("WARNING: Request messages don't match cached messages for session %s, cannot use cache", sessionID)
+	// 提取当前请求的可缓存前缀
+	currentCacheablePrefix := kcm.extractCacheablePrefix(req.Messages)
+	
+	// 验证可缓存前缀是否与缓存匹配
+	if !kcm.messagesMatch(currentCacheablePrefix, cache.CachedMessages) {
+		log.Printf("WARNING: Request cacheable prefix doesn't match cached prefix for session %s, cannot use cache", sessionID)
 		return nil
 	}
 	
@@ -433,6 +505,7 @@ func (kcm *KimiCacheManager) PrepareRequestWithCache(sessionID string, req *Chat
 		"X-Msh-Context-Cache-Reset-TTL": "3600", // 重置缓存过期时间为1小时
 	}
 	
-	log.Printf("DEBUG: Prepared request for session %s to use cache %s via Headers", sessionID, cache.CacheID)
+	log.Printf("DEBUG: Using cache %s for session %s (prefix: %d msgs, total: %d msgs)", 
+		cache.CacheID, sessionID, len(cache.CachedMessages), len(req.Messages))
 	return headers
 }
