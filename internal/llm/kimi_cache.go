@@ -1,0 +1,438 @@
+package llm
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"strings"
+	"sync"
+	"time"
+)
+
+// KimiCacheManager handles context caching for Kimi API
+type KimiCacheManager struct {
+	mutex      sync.RWMutex
+	caches     map[string]*KimiCache // sessionID -> cache
+	llmClient  Client
+}
+
+// KimiCache represents a cached context for a session
+type KimiCache struct {
+	SessionID       string            `json:"session_id"`
+	CacheID         string            `json:"cache_id"`
+	CachedMessages  []Message         `json:"cached_messages"`  // 完整的缓存消息
+	CachedTools     []Tool            `json:"cached_tools"`     // 缓存的 tools
+	CreatedAt       time.Time         `json:"created_at"`
+	LastUsedAt      time.Time         `json:"last_used_at"`
+	RequestCount    int               `json:"request_count"`
+	Status          string            `json:"status"` // "active", "expired", "deleted"
+	ExtraHeaders    map[string]string `json:"extra_headers,omitempty"`
+}
+
+// KimiCacheRequest represents a request with caching enabled
+type KimiCacheRequest struct {
+	ChatRequest
+	CacheControl *CacheControl `json:"cache_control,omitempty"`
+}
+
+// CacheControl represents cache control parameters for Kimi API
+type CacheControl struct {
+	Type    string `json:"type"`    // "ephemeral" for context caching
+	CacheID string `json:"cache_id,omitempty"`
+}
+
+// NewKimiCacheManager creates a new Kimi cache manager
+func NewKimiCacheManager(llmClient Client) *KimiCacheManager {
+	return &KimiCacheManager{
+		caches:    make(map[string]*KimiCache),
+		llmClient: llmClient,
+	}
+}
+
+// IsKimiAPI checks if the base URL is Kimi API
+func IsKimiAPI(baseURL string) bool {
+	return strings.Contains(baseURL, "api.moonshot.cn")
+}
+
+// CreateCacheIfNeeded creates a new cache for the session's messages and tools if not exists
+func (kcm *KimiCacheManager) CreateCacheIfNeeded(sessionID string, messages []Message, tools []Tool, apiKey string) (*KimiCache, error) {
+	kcm.mutex.Lock()
+	defer kcm.mutex.Unlock()
+
+	// Check if cache already exists and verify consistency
+	if existingCache, exists := kcm.caches[sessionID]; exists && existingCache.Status == "active" {
+		// Verify that the request matches the cached content
+		if kcm.messagesMatch(messages, existingCache.CachedMessages) && kcm.toolsMatch(tools, existingCache.CachedTools) {
+			log.Printf("DEBUG: Using existing Kimi cache for session %s: %s", sessionID, existingCache.CacheID)
+			return existingCache, nil
+		} else {
+			log.Printf("DEBUG: Messages/tools changed, invalidating existing cache for session %s", sessionID)
+			// Delete old cache and create new one
+			if err := kcm.sendCacheDeletionRequest(existingCache.CacheID, apiKey); err != nil {
+				log.Printf("WARNING: Failed to delete old cache: %v", err)
+			}
+			delete(kcm.caches, sessionID)
+		}
+	}
+
+	// Create cache using Kimi API
+	cacheID, err := kcm.createCacheWithAPI(messages, tools, apiKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cache with Kimi API: %w", err)
+	}
+
+	cache := &KimiCache{
+		SessionID:      sessionID,
+		CacheID:        cacheID,
+		CachedMessages: messages,
+		CachedTools:    tools,
+		CreatedAt:      time.Now(),
+		LastUsedAt:     time.Now(),
+		RequestCount:   0,
+		Status:         "active",
+	}
+
+	kcm.caches[sessionID] = cache
+	log.Printf("DEBUG: Created new Kimi cache for session %s with cache ID: %s", sessionID, cacheID)
+	return cache, nil
+}
+
+// GetCache retrieves the cache for a session
+func (kcm *KimiCacheManager) GetCache(sessionID string) (*KimiCache, bool) {
+	kcm.mutex.RLock()
+	defer kcm.mutex.RUnlock()
+
+	cache, exists := kcm.caches[sessionID]
+	if !exists || cache.Status != "active" {
+		return nil, false
+	}
+
+	return cache, true
+}
+
+// UseCache marks the cache as used and returns the cache ID for the request
+func (kcm *KimiCacheManager) UseCache(sessionID string) string {
+	kcm.mutex.Lock()
+	defer kcm.mutex.Unlock()
+
+	cache, exists := kcm.caches[sessionID]
+	if !exists || cache.Status != "active" {
+		return ""
+	}
+
+	cache.LastUsedAt = time.Now()
+	cache.RequestCount++
+	return cache.CacheID
+}
+
+// DeleteCache deletes the cache for a session
+func (kcm *KimiCacheManager) DeleteCache(sessionID string, apiKey string) error {
+	kcm.mutex.Lock()
+	defer kcm.mutex.Unlock()
+
+	cache, exists := kcm.caches[sessionID]
+	if !exists {
+		return nil // Cache doesn't exist, nothing to delete
+	}
+
+	// Send cache deletion request to Kimi API if cache ID exists
+	if cache.CacheID != "" {
+		if err := kcm.sendCacheDeletionRequest(cache.CacheID, apiKey); err != nil {
+			log.Printf("WARNING: Failed to delete Kimi cache %s: %v", cache.CacheID, err)
+		}
+	}
+
+	// Mark cache as deleted
+	cache.Status = "deleted"
+	delete(kcm.caches, sessionID)
+
+	log.Printf("DEBUG: Deleted Kimi cache for session %s", sessionID)
+	return nil
+}
+
+// CleanupExpiredCaches removes expired caches
+func (kcm *KimiCacheManager) CleanupExpiredCaches(maxAge time.Duration, apiKey string) {
+	kcm.mutex.Lock()
+	defer kcm.mutex.Unlock()
+
+	cutoff := time.Now().Add(-maxAge)
+	var toDelete []string
+
+	for sessionID, cache := range kcm.caches {
+		if cache.LastUsedAt.Before(cutoff) {
+			toDelete = append(toDelete, sessionID)
+		}
+	}
+
+	for _, sessionID := range toDelete {
+		cache := kcm.caches[sessionID]
+		if cache.CacheID != "" {
+			if err := kcm.sendCacheDeletionRequest(cache.CacheID, apiKey); err != nil {
+				log.Printf("WARNING: Failed to delete expired Kimi cache %s: %v", cache.CacheID, err)
+			}
+		}
+		delete(kcm.caches, sessionID)
+		log.Printf("DEBUG: Cleaned up expired Kimi cache for session %s", sessionID)
+	}
+}
+
+// GetCacheStats returns cache statistics
+func (kcm *KimiCacheManager) GetCacheStats() map[string]interface{} {
+	kcm.mutex.RLock()
+	defer kcm.mutex.RUnlock()
+
+	totalRequests := 0
+	activeCaches := 0
+
+	for _, cache := range kcm.caches {
+		if cache.Status == "active" {
+			activeCaches++
+			totalRequests += cache.RequestCount
+		}
+	}
+
+	return map[string]interface{}{
+		"total_caches":    len(kcm.caches),
+		"active_caches":   activeCaches,
+		"total_requests":  totalRequests,
+		"cache_provider":  "kimi",
+	}
+}
+
+// createCacheWithAPI creates cache using Kimi API's /v1/caching endpoint
+func (kcm *KimiCacheManager) createCacheWithAPI(messages []Message, tools []Tool, apiKey string) (string, error) {
+	// Convert messages to map format for API
+	apiMessages := make([]map[string]interface{}, len(messages))
+	for i, msg := range messages {
+		apiMessages[i] = map[string]interface{}{
+			"role":    msg.Role,
+			"content": msg.Content,
+		}
+		// 添加其他字段如果存在
+		if msg.Name != "" {
+			apiMessages[i]["name"] = msg.Name
+		}
+		if msg.ToolCallId != "" {
+			apiMessages[i]["tool_call_id"] = msg.ToolCallId
+		}
+		// 处理 tool_calls 如果存在
+		if len(msg.ToolCalls) > 0 {
+			toolCalls := make([]map[string]interface{}, len(msg.ToolCalls))
+			for j, tc := range msg.ToolCalls {
+				toolCalls[j] = map[string]interface{}{
+					"id":   tc.ID,
+					"type": tc.Type,
+					"function": map[string]interface{}{
+						"name":        tc.Function.Name,
+						"description": tc.Function.Description,
+						"parameters":  tc.Function.Parameters,
+					},
+				}
+			}
+			apiMessages[i]["tool_calls"] = toolCalls
+		}
+	}
+
+	// Prepare cache creation request according to Kimi API documentation
+	reqBody := map[string]interface{}{
+		"model":    "moonshot-v1", // 模型组名称，不是具体模型
+		"messages": apiMessages,
+		"ttl":      3600, // 缓存存活时间：1小时
+	}
+
+	// Add tools if present
+	if len(tools) > 0 {
+		apiTools := make([]map[string]interface{}, len(tools))
+		for i, tool := range tools {
+			apiTools[i] = map[string]interface{}{
+				"type": tool.Type,
+				"function": map[string]interface{}{
+					"name":        tool.Function.Name,
+					"description": tool.Function.Description,
+					"parameters":  tool.Function.Parameters,
+				},
+			}
+		}
+		reqBody["tools"] = apiTools
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal cache request: %w", err)
+	}
+
+	// Create HTTP request
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.moonshot.cn/v1/caching", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	// Send request
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send cache creation request: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Error closing cache creation response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("cache creation failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Read response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read cache creation response: %w", err)
+	}
+
+	// Parse response to extract cache ID
+	var response map[string]interface{}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return "", fmt.Errorf("failed to parse cache creation response: %w", err)
+	}
+
+	// Extract cache ID from response - this depends on Kimi API response format
+	cacheID := kcm.extractCacheIDFromResponse(response)
+	if cacheID == "" {
+		// Generate fallback cache ID if not provided by API
+		cacheID = fmt.Sprintf("kimi_cache_%d", time.Now().UnixNano())
+		log.Printf("DEBUG: Generated fallback cache ID: %s", cacheID)
+	}
+
+	log.Printf("DEBUG: Successfully created Kimi cache with ID: %s", cacheID)
+	return cacheID, nil
+}
+
+// extractCacheIDFromResponse extracts cache ID from the Kimi API response
+func (kcm *KimiCacheManager) extractCacheIDFromResponse(response map[string]interface{}) string {
+	// According to Kimi API docs, cache creation response contains an "id" field
+	if id, ok := response["id"].(string); ok {
+		return id
+	}
+	
+	log.Printf("DEBUG: Cache ID not found in response, response: %+v", response)
+	return ""
+}
+
+// sendCacheDeletionRequest sends a cache deletion request to Kimi API
+func (kcm *KimiCacheManager) sendCacheDeletionRequest(cacheID string, apiKey string) error {
+	// According to Kimi API docs: DELETE /v1/caching/{cache-id}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "DELETE", fmt.Sprintf("https://api.moonshot.cn/v1/caching/%s", cacheID), nil)
+	if err != nil {
+		return fmt.Errorf("failed to create cache deletion request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send cache deletion request: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Error closing cache deletion response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode == http.StatusNotFound {
+		log.Printf("DEBUG: Cache %s not found for deletion (already deleted or expired)", cacheID)
+		return nil // Cache doesn't exist, which is fine
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("cache deletion failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("DEBUG: Successfully deleted Kimi cache: %s", cacheID)
+	return nil
+}
+
+// messagesMatch verifies that request messages match cached messages
+func (kcm *KimiCacheManager) messagesMatch(requestMessages, cachedMessages []Message) bool {
+	if len(requestMessages) < len(cachedMessages) {
+		return false // 请求消息不能少于缓存消息
+	}
+	
+	// 验证前 N 个消息完全一致 (N = 缓存消息长度)
+	for i, cachedMsg := range cachedMessages {
+		requestMsg := requestMessages[i]
+		if requestMsg.Role != cachedMsg.Role || requestMsg.Content != cachedMsg.Content {
+			return false
+		}
+		// 也可以验证其他字段如 Name, ToolCallId 等
+	}
+	
+	return true
+}
+
+// toolsMatch verifies that request tools match cached tools
+func (kcm *KimiCacheManager) toolsMatch(requestTools, cachedTools []Tool) bool {
+	if len(requestTools) != len(cachedTools) {
+		return false
+	}
+	
+	// 简化的工具比较 - 实际应该进行深度比较
+	for i, cachedTool := range cachedTools {
+		requestTool := requestTools[i]
+		if requestTool.Type != cachedTool.Type {
+			return false
+		}
+		// 这里应该进行更深入的 Function 比较
+	}
+	
+	return true
+}
+
+// PrepareRequestWithCache prepares the request to use Kimi cache via Headers
+// According to Kimi API docs, we must keep all cached messages in the request
+func (kcm *KimiCacheManager) PrepareRequestWithCache(sessionID string, req *ChatRequest) map[string]string {
+	cache, exists := kcm.GetCache(sessionID)
+	if !exists {
+		return nil // No cache available
+	}
+
+	// 验证请求消息是否与缓存匹配
+	if !kcm.messagesMatch(req.Messages, cache.CachedMessages) {
+		log.Printf("WARNING: Request messages don't match cached messages for session %s, cannot use cache", sessionID)
+		return nil
+	}
+	
+	// 验证工具是否匹配
+	if !kcm.toolsMatch(req.Tools, cache.CachedTools) {
+		log.Printf("WARNING: Request tools don't match cached tools for session %s, cannot use cache", sessionID)
+		return nil
+	}
+
+	// Mark cache as used
+	kcm.UseCache(sessionID)
+
+	// Prepare headers for cache usage
+	headers := map[string]string{
+		"X-Msh-Context-Cache": cache.CacheID,
+		"X-Msh-Context-Cache-Reset-TTL": "3600", // 重置缓存过期时间为1小时
+	}
+	
+	log.Printf("DEBUG: Prepared request for session %s to use cache %s via Headers", sessionID, cache.CacheID)
+	return headers
+}

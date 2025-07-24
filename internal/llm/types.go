@@ -31,6 +31,8 @@ type ChatRequest struct {
 	// Tool calling support
 	Tools      []Tool `json:"tools,omitempty"`
 	ToolChoice string `json:"tool_choice,omitempty"`
+	// Kimi API context caching support
+	CacheControl interface{} `json:"cache_control,omitempty"`
 	// Model type selection for multi-model configurations - not serialized to JSON
 	ModelType ModelType `json:"-"`
 
