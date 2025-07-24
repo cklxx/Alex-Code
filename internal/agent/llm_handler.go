@@ -128,12 +128,19 @@ func (h *LLMHandler) callLLMWithRetry(ctx context.Context, client llm.Client, re
 
 // callLLMWithRetryAndBackoff - 带重试机制和可配置退避策略的非流式LLM调用
 func (h *LLMHandler) callLLMWithRetryAndBackoff(ctx context.Context, client llm.Client, request *llm.ChatRequest, maxRetries int, backoffFunc func(int) time.Duration) (*llm.ChatResponse, error) {
+	// Debug context transmission
+	if sessionID := ctx.Value("sessionID"); sessionID != nil {
+		log.Printf("[DEBUG] 🔧 LLM handler received context with session ID: %s", sessionID)
+	} else {
+		log.Printf("[DEBUG] ❌ LLM handler received context WITHOUT session ID")
+	}
+	
 	var lastErr error
 
-	// 默认的指数退避策略
+	// 默认的快速重试策略（100ms 间隔）
 	if backoffFunc == nil {
 		backoffFunc = func(attempt int) time.Duration {
-			return time.Duration(attempt*2) * time.Second
+			return 100 * time.Millisecond
 		}
 	}
 

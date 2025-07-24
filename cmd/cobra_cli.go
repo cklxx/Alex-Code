@@ -172,7 +172,7 @@ through streaming responses and advanced tool calling capabilities.
 	rootCmd.AddCommand(newInitCommand(cli))
 
 	// Configure viper
-	viper.SetConfigName("deep-coding-config")
+	viper.SetConfigName("alex-config")
 	viper.SetConfigType("json")
 	viper.AddConfigPath("$HOME")
 	viper.AddConfigPath(".")
@@ -367,13 +367,22 @@ func (cli *CLI) initialize(cmd *cobra.Command) error {
 		// Don't return error - just show the detailed messages that CheckDependencies already showed
 	}
 
-	// Redirect logs to file to prevent interference with UI
-	if !cli.debug {
-		logFile, err := os.OpenFile("alex-debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err == nil {
-			log.SetOutput(logFile)
+	// Configure log output: always write to file, also write to console in debug mode
+	logFile, err := os.OpenFile("alex-debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err == nil {
+		if cli.debug {
+			// Debug mode: write to both file and console
+			log.SetOutput(io.MultiWriter(logFile, os.Stdout))
 		} else {
-			// If can't create log file, disable logging
+			// Normal mode: write to file only
+			log.SetOutput(logFile)
+		}
+	} else {
+		if cli.debug {
+			// If can't create log file in debug mode, output to console only
+			log.SetOutput(os.Stdout)
+		} else {
+			// If can't create log file in normal mode, disable logging
 			log.SetOutput(io.Discard)
 		}
 	}
@@ -687,7 +696,7 @@ func (cli *CLI) showConfig() {
 	// Display multi-model configurations if available
 	if len(cfg.Models) > 0 {
 		config += fmt.Sprintf("\n%s Multi-Model Configurations:\n", bold("🤖"))
-		config += fmt.Sprintf("  %s: %s\n", bold("Default Model Type"), blue(string(cfg.DefaultModelType)))
+		config += fmt.Sprintf("  %s: %s\n", bold("Default Model Type"), blue(cfg.DefaultModelType))
 
 		for modelType, modelConfig := range cfg.Models {
 			config += fmt.Sprintf("\n  %s %s:\n", bold("📋"), bold(string(modelType)))

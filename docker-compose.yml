@@ -12,12 +12,12 @@ services:
     # Mount current directory for analysis
     volumes:
       - .:/workspace:ro
-      - deep-coding-config:/home/appuser/.config
+      - alex-config:/home/appuser/.config
     
     # Environment variables
     environment:
-      - DEEP_CODING_CONFIG_PATH=/home/appuser/.config/deep-coding-config.json
-      - DEEP_CODING_LOG_LEVEL=info
+      - ALEX_CONFIG_PATH=/home/appuser/.config/alex-config.json
+      - ALEX_LOG_LEVEL=info
     
     # Default command - can be overridden
     command: ["analyze", "/workspace", "--format=json"]
@@ -98,7 +98,7 @@ services:
           cpus: '2.0'
 
 volumes:
-  deep-coding-config:
+  alex-config:
     driver: local
   go-modules:
     driver: local

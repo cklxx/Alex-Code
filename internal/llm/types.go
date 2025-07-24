@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+// ContextKeyType is a custom type for context keys to avoid collisions
+type ContextKeyType string
+
 // Message represents a chat message
 type Message struct {
 	Role       string     `json:"role"`

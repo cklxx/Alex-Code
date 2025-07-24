@@ -1,0 +1,49 @@
+# GitHub Pages Configuration for Alex Documentation
+
+# Site settings
+title: "Alex - AI Software Engineering Assistant"
+description: "高性能普惠的软件工程助手 - High-Performance AI Software Engineering Assistant"
+baseurl: "" # the subpath of your site, e.g. /blog
+url: "" # the base hostname & protocol for your site
+
+# GitHub Pages settings
+plugins:
+  - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-readme-index
+  - jekyll-default-layout
+  - jekyll-titles-from-headings
+
+# Markdown settings
+markdown: kramdown
+kramdown:
+  input: GFM
+  hard_wrap: false
+  syntax_highlighter: rouge
+
+# File handling
+include:
+  - README.md
+  - guides/
+  - assets/
+
+exclude:
+  - web/
+  - node_modules/
+  - vendor/
+
+# Navigation
+navigation:
+  - title: Home
+    url: /
+  - title: Quick Start
+    url: /guides/quickstart
+  - title: Tool Development
+    url: /guides/tool-development
+
+# Theme (you can change this to any supported GitHub Pages theme)
+theme: minima
+
+# GitHub repository (update with your actual repository)
+github:
+  repository_url: https://github.com/your-org/alex

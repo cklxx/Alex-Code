@@ -172,8 +172,16 @@ func (r *ReactAgent) ProcessMessage(ctx context.Context, userMessage string, con
 	currentSession := r.currentSession
 	r.mu.RUnlock()
 
+	// If no active session, create one automatically
 	if currentSession == nil {
-		return nil, fmt.Errorf("no active session")
+		log.Printf("[DEBUG] No active session found, creating new session automatically")
+		sessionID := fmt.Sprintf("auto_%d", time.Now().UnixNano())
+		newSession, err := r.StartSession(sessionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create session automatically: %w", err)
+		}
+		currentSession = newSession
+		log.Printf("[DEBUG] Auto-created session: %s", currentSession.ID)
 	}
 
 	// 添加用户消息到会话
@@ -187,8 +195,9 @@ func (r *ReactAgent) ProcessMessage(ctx context.Context, userMessage string, con
 	}
 	currentSession.AddMessage(userMsg)
 
-	// 将会话ID注入context
+	// 将会话ID注入context - 使用类型安全的key
 	ctxWithSession := context.WithValue(ctx, SessionIDKey, currentSession.ID)
+	log.Printf("[DEBUG] 🔧 Context set with session ID: %s", currentSession.ID)
 
 	// 执行ReAct循环
 	result, err := r.reactCore.SolveTask(ctxWithSession, userMessage, nil)
@@ -233,12 +242,28 @@ func (r *ReactAgent) ProcessMessage(ctx context.Context, userMessage string, con
 
 // ProcessMessageStream - 流式处理消息（简化版）
 func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage string, config *config.Config, callback StreamCallback) error {
+	log.Printf("[DEBUG] ====== ProcessMessageStream called with message: %s", userMessage)
+	
 	r.mu.RLock()
 	currentSession := r.currentSession
 	r.mu.RUnlock()
 
+	// If no active session, create one automatically
 	if currentSession == nil {
-		return fmt.Errorf("no active session")
+		log.Printf("[DEBUG] No active session found, creating new session automatically")
+		sessionID := fmt.Sprintf("auto_%d", time.Now().UnixNano())
+		newSession, err := r.StartSession(sessionID)
+		if err != nil {
+			return fmt.Errorf("failed to create session automatically: %w", err)
+		}
+		currentSession = newSession
+		log.Printf("[DEBUG] Auto-created session: %s", currentSession.ID)
+	} else {
+		if currentSession.ID == "" {
+			log.Printf("[DEBUG] ⚠️ Session exists but has empty ID!")
+		} else {
+			log.Printf("[DEBUG] Using existing session: %s", currentSession.ID)
+		}
 	}
 
 	// 添加用户消息
@@ -253,8 +278,9 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 	}
 	currentSession.AddMessage(userMsg)
 
-	// 设置上下文
+	// 设置上下文 - 使用类型安全的key
 	ctxWithSession := context.WithValue(ctx, SessionIDKey, currentSession.ID)
+	log.Printf("[DEBUG] 🔧 Context set with session ID: %s", currentSession.ID)
 
 	// 执行流式ReAct循环
 	result, err := r.reactCore.SolveTask(ctxWithSession, userMessage, callback)

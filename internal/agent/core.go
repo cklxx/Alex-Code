@@ -42,6 +42,22 @@ func NewReactCore(agent *ReactAgent) *ReactCore {
 
 // SolveTask - 使用工具调用流程的简化任务解决方法
 func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback StreamCallback) (*types.ReactTaskResult, error) {
+	// Debug context transmission with multiple key types
+	stringSessionID := ctx.Value("sessionID")
+	typedSessionID := ctx.Value(SessionIDKey)
+	
+	log.Printf("[DEBUG] 🔍 SolveTask context debug:")
+	log.Printf("[DEBUG]   String key 'sessionID': %+v", stringSessionID)
+	log.Printf("[DEBUG]   Typed key SessionIDKey: %+v", typedSessionID)
+	
+	if stringSessionID != nil {
+		log.Printf("[DEBUG] ✅ SolveTask received context with session ID (string): %s", stringSessionID)
+	} else if typedSessionID != nil {
+		log.Printf("[DEBUG] ✅ SolveTask received context with session ID (typed): %s", typedSessionID)
+	} else {
+		log.Printf("[DEBUG] ❌ SolveTask received context WITHOUT session ID")
+	}
+	
 	// 设置流回调
 	rc.streamCallback = streamCallback
 	rc.llmHandler.streamCallback = streamCallback
@@ -97,7 +113,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			// 使用AI综合压缩系统进行压缩
 			unifiedMessages := rc.messageProcessor.ConvertLLMToUnified(messages)
 			sessionMessages := rc.messageProcessor.ConvertUnifiedToSession(unifiedMessages)
-			compressedSessionMessages := rc.messageProcessor.CompressMessages(sessionMessages)
+			compressedSessionMessages := rc.messageProcessor.CompressMessages(ctx, sessionMessages)
 			compressedUnified := rc.messageProcessor.ConvertSessionToUnified(compressedSessionMessages)
 			messages = rc.messageProcessor.ConvertUnifiedToLLM(compressedUnified)
 		}

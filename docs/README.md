@@ -1,91 +1,86 @@
-# Deep Coding Agent Documentation
+# Alex Documentation
 
-Welcome to the Deep Coding Agent documentation. This directory contains comprehensive documentation for the high-performance conversational AI coding assistant.
+Welcome to the Alex documentation. This directory contains essential documentation for the high-performance AI software engineering assistant.
 
-## 📋 Documentation Structure
+## 📋 Available Documentation
 
-### 🏗️ Architecture Documentation
-- **[architecture/01-architecture-overview.md](architecture/01-architecture-overview.md)** - Comprehensive architecture analysis and implementation plan
-- **[architecture/02-react-agent-design.md](architecture/02-react-agent-design.md)** - Detailed ReactAgent design and implementation
-- **[architecture/03-prompt-system.md](architecture/03-prompt-system.md)** - Prompt template system architecture
-- **[architecture/04-prompt-design.md](architecture/04-prompt-design.md)** - System prompts design patterns
+### 🚀 Getting Started
+- **[Quick Start Guide](guides/quickstart.md)** - Get up and running with Alex
+- **[Tool Development Guide](guides/tool-development.md)** - Learn to develop custom tools
 
-### 🛠️ Implementation Guides
-- **[guides/quickstart.md](guides/quickstart.md)** - Quick start guide for users
-- **[guides/tool-development.md](guides/tool-development.md)** - Tool development guide
-- **[implementation/chromem-local-embeddings-config.md](implementation/chromem-local-embeddings-config.md)** - Local embeddings configuration
-- **[implementation/cli-input-bottom-design.md](implementation/cli-input-bottom-design.md)** - CLI input design patterns
+## 🔧 Configuration
 
-### 🔬 Research & Experiments
-- **[research/industry-benchmarks.md](research/industry-benchmarks.md)** - Industry research and benchmarking
-- **[research/execution-flow-analysis.md](research/execution-flow-analysis.md)** - ReAct execution flow analysis
-- **[research/react-architecture-summary.md](research/react-architecture-summary.md)** - ReAct architecture summary
-- **[research/react-patterns.md](research/react-patterns.md)** - ReAct implementation patterns
-- **[research/react-implementation.md](research/react-implementation.md)** - ReAct implementation details
-- **[research/codeact-research-report.md](research/codeact-research-report.md)** - CodeAct research and analysis
+Alex uses `alex-config.json` for configuration. The configuration file should be placed in your home directory (`~/.alex-config.json`) or in the current working directory.
 
-### 📊 Analysis & Reports
-- **[analysis/CONTEXT_ENGINEERING_AND_COMPRESSION_RESEARCH.md](analysis/CONTEXT_ENGINEERING_AND_COMPRESSION_RESEARCH.md)** - Context engineering research
-
-### 🧩 CodeAct Integration
-- **[codeact/integration-guide.md](codeact/integration-guide.md)** - Complete CodeAct integration guide
-- **[codeact/api-reference.md](codeact/api-reference.md)** - CodeAct API reference
-- **[codeact/implementation-roadmap.md](codeact/implementation-roadmap.md)** - Implementation roadmap
-
-### 📚 API Reference
-- **[reference/api-reference.md](reference/api-reference.md)** - General API reference
-
-## 🚀 Quick Start
-
-1. **Begin with Architecture**: Start with [architecture/01-architecture-overview.md](architecture/01-architecture-overview.md) for a complete understanding of the system
-2. **Implementation Details**: Read [architecture/02-react-agent-design.md](architecture/02-react-agent-design.md) for detailed design patterns
-3. **Getting Started**: Follow [guides/quickstart.md](guides/quickstart.md) for immediate usage
-4. **CodeAct Features**: Explore [codeact/integration-guide.md](codeact/integration-guide.md) for advanced capabilities
-
-## 📖 Key Features Documented
-
-- **Dual-Architecture ReAct Agent**: Think-Act-Observe cycle with streaming support
-- **Multi-Model LLM Integration**: Dynamic model selection with factory pattern
-- **Advanced Tool System**: 8+ built-in tools with extensible registry
-- **Session Management**: Persistent conversation storage and restoration
-- **CodeAct Integration**: Executable Python code as action language
-- **Security Framework**: Multi-layered security with sandbox execution
-- **Performance Optimization**: Go-based implementation with 40-100x improvements
-
-## 🏗️ Architecture Overview
-
-The Deep Coding Agent features a sophisticated dual-architecture design:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Deep Coding Agent                       │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────────┐ │
-│  │   Think     │  │     Act      │  │       Observe       │ │
-│  │  (Reason)   │→ │  (Execute)   │→ │      (Analyze)      │ │
-│  └─────────────┘  └──────────────┘  └─────────────────────┘ │
-├─────────────────────────────────────────────────────────────┤
-│ Multi-Model LLM • Tool Registry • Session Management       │
-└─────────────────────────────────────────────────────────────┘
+### Basic Configuration Example
+```json
+{
+  "baseURL": "https://api.openai.com/v1",
+  "apiKey": "your-api-key-here",
+  "model": "gpt-4",
+  "maxTokens": 4000,
+  "temperature": 0.7
+}
 ```
 
-## 📝 Contributing
+## 🛠️ Development
+
+For development information, refer to:
+- **Main Project Documentation**: See `CLAUDE.md` in the project root
+- **API Reference**: Available in the code documentation
+- **Examples**: Check the `examples/` directory in the project root
+
+## 🌐 GitHub Pages
+
+This documentation is automatically deployed to GitHub Pages. The site structure:
+
+- **Documentation**: Markdown files are automatically converted to web pages
+- **Assets**: Static files like images and icons are served from the `assets/` directory
+- **Web Resources**: Additional web resources are stored in the `web/` directory
+
+## 📁 Directory Structure
+
+```
+docs/
+├── index.html          # Main landing page
+├── README.md           # This file
+├── _config.yml         # Jekyll configuration
+├── assets/             # Static assets (images, icons, etc.)
+│   └── favicon.svg
+├── guides/             # Documentation guides
+│   ├── quickstart.md
+│   └── tool-development.md
+└── web/                # Additional web resources
+    ├── index.html      # Alternative landing page
+    ├── manifest.json   # Web app manifest
+    ├── robots.txt      # Search engine instructions
+    └── sitemap.xml     # Site map
+```
+
+## 🚀 Local Development
+
+To run the documentation site locally:
+
+1. Install Jekyll and dependencies:
+   ```bash
+   cd docs
+   bundle install
+   ```
+
+2. Serve the site locally:
+   ```bash
+   bundle exec jekyll serve
+   ```
+
+3. Open http://localhost:4000 in your browser
+
+## 📖 Contributing
 
 When contributing to documentation:
 
-1. Follow the established naming convention (numbered prefixes for core docs)
-2. Update this index when adding new documentation
-3. Place research and experimental docs in the `research/` directory
-4. Use clear, descriptive filenames with hyphens for spacing
+1. Keep it concise and practical
+2. Include code examples where helpful
+3. Test any commands or configurations
+4. Follow the existing structure and style
 
-## 🔍 Document Categories
-
-- **Architecture**: Core system architecture and design documentation (🏗️)
-- **Implementation**: Implementation guides and configuration details (🛠️)
-- **Research**: Experimental features and research papers (🔬)
-- **Analysis**: Data analysis, reports, and engineering studies (📊)
-- **CodeAct**: CodeAct-specific integration documentation (🧩)
-- **Reference**: API and technical reference materials (📚)
-- **Guides**: User and developer guides for getting started
-
-For support and questions, refer to the main project README or contact the development team.
+For major changes, discuss first by opening an issue.

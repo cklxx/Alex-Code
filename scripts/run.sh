@@ -77,7 +77,7 @@ run_docker() {
     print_status "Running with Docker"
     docker run --rm -it \
         -v "$(pwd):/workspace:ro" \
-        -v "deep-coding-config:/home/appuser/.config" \
+        -v "alex-config:/home/appuser/.config" \
         deep-coding-agent:latest "$@"
 }
 

@@ -14,13 +14,13 @@ import (
 
 // MCPConfig represents MCP configuration (imported from mcp package)
 type MCPConfig struct {
-	Enabled         bool                    `json:"enabled"`
+	Enabled         bool                     `json:"enabled"`
 	Servers         map[string]*ServerConfig `json:"servers"`
-	GlobalTimeout   time.Duration           `json:"global_timeout"`
-	AutoRefresh     bool                    `json:"auto_refresh"`
-	RefreshInterval time.Duration           `json:"refresh_interval"`
-	Security        *SecurityConfig         `json:"security,omitempty"`
-	Logging         *LoggingConfig          `json:"logging,omitempty"`
+	GlobalTimeout   time.Duration            `json:"global_timeout"`
+	AutoRefresh     bool                     `json:"auto_refresh"`
+	RefreshInterval time.Duration            `json:"refresh_interval"`
+	Security        *SecurityConfig          `json:"security,omitempty"`
+	Logging         *LoggingConfig           `json:"logging,omitempty"`
 }
 
 // ServerConfig represents MCP server configuration
@@ -40,24 +40,24 @@ type ServerConfig struct {
 
 // SecurityConfig represents MCP security configuration
 type SecurityConfig struct {
-	AllowedCommands      []string          `json:"allowed_commands"`
-	BlockedCommands      []string          `json:"blocked_commands"`
-	AllowedPackages      []string          `json:"allowed_packages"`
-	BlockedPackages      []string          `json:"blocked_packages"`
-	RequireConfirmation  bool              `json:"require_confirmation"`
-	SandboxMode          bool              `json:"sandbox_mode"`
-	MaxProcesses         int               `json:"max_processes"`
-	MaxMemoryMB          int               `json:"max_memory_mb"`
-	AllowedEnvironment   map[string]string `json:"allowed_environment"`
-	RestrictedPaths      []string          `json:"restricted_paths"`
+	AllowedCommands     []string          `json:"allowed_commands"`
+	BlockedCommands     []string          `json:"blocked_commands"`
+	AllowedPackages     []string          `json:"allowed_packages"`
+	BlockedPackages     []string          `json:"blocked_packages"`
+	RequireConfirmation bool              `json:"require_confirmation"`
+	SandboxMode         bool              `json:"sandbox_mode"`
+	MaxProcesses        int               `json:"max_processes"`
+	MaxMemoryMB         int               `json:"max_memory_mb"`
+	AllowedEnvironment  map[string]string `json:"allowed_environment"`
+	RestrictedPaths     []string          `json:"restricted_paths"`
 }
 
 // LoggingConfig represents MCP logging configuration
 type LoggingConfig struct {
-	Level       string `json:"level"`
-	LogRequests bool   `json:"log_requests"`
+	Level        string `json:"level"`
+	LogRequests  bool   `json:"log_requests"`
 	LogResponses bool   `json:"log_responses"`
-	LogFile     string `json:"log_file,omitempty"`
+	LogFile      string `json:"log_file,omitempty"`
 }
 
 // Config holds application configuration with multi-model support
@@ -435,7 +435,7 @@ func (c *MCPConfig) ListServerConfigs() []*ServerConfig {
 	if c.Servers == nil {
 		return nil
 	}
-	
+
 	configs := make([]*ServerConfig, 0, len(c.Servers))
 	for _, config := range c.Servers {
 		configs = append(configs, config)
@@ -461,11 +461,11 @@ func (m *Manager) UpdateMCPServerConfig(serverConfig *ServerConfig) error {
 	if m.config.MCP == nil {
 		m.config.MCP = getDefaultMCPConfig()
 	}
-	
+
 	if m.config.MCP.Servers == nil {
 		m.config.MCP.Servers = make(map[string]*ServerConfig)
 	}
-	
+
 	m.config.MCP.Servers[serverConfig.ID] = serverConfig
 	return m.save()
 }
@@ -475,7 +475,7 @@ func (m *Manager) RemoveMCPServerConfig(serverID string) error {
 	if m.config.MCP == nil || m.config.MCP.Servers == nil {
 		return nil
 	}
-	
+
 	delete(m.config.MCP.Servers, serverID)
 	return m.save()
 }
@@ -485,7 +485,7 @@ func (m *Manager) GetMCPServerConfig(serverID string) (*ServerConfig, bool) {
 	if m.config.MCP == nil || m.config.MCP.Servers == nil {
 		return nil, false
 	}
-	
+
 	config, exists := m.config.MCP.Servers[serverID]
 	return config, exists
 }
@@ -495,7 +495,7 @@ func (m *Manager) ListMCPServerConfigs() []*ServerConfig {
 	if m.config.MCP == nil || m.config.MCP.Servers == nil {
 		return nil
 	}
-	
+
 	configs := make([]*ServerConfig, 0, len(m.config.MCP.Servers))
 	for _, config := range m.config.MCP.Servers {
 		configs = append(configs, config)
@@ -688,7 +688,7 @@ func (m *Manager) SetCurrentProvider(providerName string, modelName string) erro
 	if m.config.Models == nil {
 		m.config.Models = make(map[llm.ModelType]*llm.ModelConfig)
 	}
-	
+
 	// Store provider info as metadata (we'll use base URL to track current provider)
 	m.config.BaseURL = preset.BaseURL
 	m.config.Model = selectedModel.Model
@@ -743,7 +743,7 @@ func (m *Manager) SetAPIKeyForCurrentProvider(apiKey string) error {
 func (m *Manager) GetCurrentProvider() string {
 	presets := GetProviderPresets()
 	currentBaseURL := m.config.BaseURL
-	
+
 	for name, preset := range presets {
 		if preset.BaseURL == currentBaseURL {
 			return name
@@ -758,7 +758,7 @@ func (m *Manager) SetProviderConfig(providerName string, modelName string, apiKe
 	if err := m.SetCurrentProvider(providerName, modelName); err != nil {
 		return err
 	}
-	
+
 	// Then set the API key
 	return m.SetAPIKeyForCurrentProvider(apiKey)
 }

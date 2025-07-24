@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+
 // TestCacheManager_GetOrCreateCache tests cache creation and retrieval
 func TestCacheManager_GetOrCreateCache(t *testing.T) {
 	cm := NewCacheManager()
@@ -304,7 +305,7 @@ func TestHTTPLLMClient_ExtractSessionID(t *testing.T) {
 	}
 
 	// Test extraction from context
-	ctx := context.WithValue(context.Background(), SessionIDKey, "ctx_session_123")
+	ctx := context.WithValue(context.Background(), ContextKeyType("sessionID"), "ctx_session_123")
 	req := &ChatRequest{Messages: []Message{}}
 	sessionID := client.extractSessionID(ctx, req)
 	if sessionID != "ctx_session_123" {

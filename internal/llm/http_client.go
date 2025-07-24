@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+
 // HTTPLLMClient implements the HTTPClient interface for HTTP-based LLM communication
 type HTTPLLMClient struct {
 	httpClient       *http.Client
@@ -31,7 +32,7 @@ func NewHTTPClient() (*HTTPLLMClient, error) {
 		httpClient:   httpClient,
 		cacheManager: GetGlobalCacheManager(),
 	}
-	
+
 	// Initialize Kimi cache manager
 	client.kimiCacheManager = NewKimiCacheManager(client)
 
@@ -89,6 +90,16 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 	baseURL, apiKey, model := c.getModelConfig(req)
 	// Ensure streaming is disabled for HTTP mode
 	req.Stream = false
+	log.Printf("[DEBUG] API Provider: %s", baseURL)
+
+	// Debug Kimi cache conditions
+	if IsKimiAPI(baseURL) {
+		log.Printf("[DEBUG] Kimi API detected: baseURL=%s", baseURL)
+		log.Printf("[DEBUG] Session ID: '%s', Messages: %d", sessionID, len(req.Messages))
+		if sessionID == "" {
+			log.Printf("[DEBUG] ❌ Session ID is empty, cache will not be used")
+		}
+	}
 
 	// Handle Kimi API context caching
 	var cacheHeaders map[string]string
@@ -97,9 +108,10 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 		if _, err := c.kimiCacheManager.CreateCacheIfNeeded(sessionID, req.Messages, req.Tools, apiKey); err != nil {
 			log.Printf("WARNING: Failed to create/reuse Kimi cache: %v", err)
 		}
-		
 		// Prepare headers for cache usage (verifies message/tool consistency)
 		cacheHeaders = c.kimiCacheManager.PrepareRequestWithCache(sessionID, req)
+		log.Printf("[DEBUG] Cache created: %s", cacheHeaders)
+
 	}
 
 	// Set defaults
@@ -117,6 +129,9 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 	}
 
 	jsonData, err := json.Marshal(req)
+
+	log.Printf("[DEBUG] Request: %s", string(jsonData))
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
@@ -148,6 +163,12 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
+
+	// Log response for cache debugging
+	if IsKimiAPI(baseURL) {
+		log.Printf("[DEBUG] 📥 Received response: %d bytes", len(body))
+	}
+	log.Printf("[DEBUG] Response: %s", string(body))
 
 	var chatResp ChatResponse
 	if err := json.Unmarshal(body, &chatResp); err != nil {
@@ -203,10 +224,8 @@ func (c *HTTPLLMClient) GetHTTPClient() *http.Client {
 	return c.httpClient
 }
 
-// ContextKey type for session ID to avoid conflicts
-type ContextKey string
-
-const SessionIDKey ContextKey = "session_id"
+// Import the agent's ContextKey to avoid type conflicts
+// Note: We use string keys directly to avoid circular imports
 
 // ExtractSessionID extracts session ID from context or request (public method)
 func (c *HTTPLLMClient) ExtractSessionID(ctx context.Context, req *ChatRequest) string {
@@ -215,19 +234,31 @@ func (c *HTTPLLMClient) ExtractSessionID(ctx context.Context, req *ChatRequest) 
 
 // extractSessionID extracts session ID from context or request
 func (c *HTTPLLMClient) extractSessionID(ctx context.Context, req *ChatRequest) string {
-	// Try to get session ID from context using typed key
-	if sessionID := ctx.Value(SessionIDKey); sessionID != nil {
+	// Try with typed key first (compatible with agent.SessionIDKey)
+	if sessionID := ctx.Value(ContextKeyType("sessionID")); sessionID != nil {
 		if id, ok := sessionID.(string); ok {
+			log.Printf("[DEBUG] ✅ Found session ID from context (typed key): %s", id)
+			return id
+		}
+	}
+	
+	// Use string keys for backward compatibility
+	if sessionID := ctx.Value("sessionID"); sessionID != nil {
+		if id, ok := sessionID.(string); ok {
+			log.Printf("[DEBUG] ✅ Found session ID from context (string key): %s", id)
 			return id
 		}
 	}
 
-	// Also try with string key for backward compatibility
+	// Also try with legacy key for backward compatibility
 	if sessionID := ctx.Value("session_id"); sessionID != nil {
 		if id, ok := sessionID.(string); ok {
+			log.Printf("[DEBUG] ✅ Found session ID from context (legacy key): %s", id)
 			return id
 		}
 	}
+	
+	log.Printf("[DEBUG] ❌ No session ID found in context")
 
 	// Try to get from request metadata
 	for _, msg := range req.Messages {
@@ -257,7 +288,7 @@ func (c *HTTPLLMClient) GetCacheStats() map[string]interface{} {
 // ClearSessionCache clears cache for a specific session
 func (c *HTTPLLMClient) ClearSessionCache(sessionID string) {
 	c.cacheManager.ClearCache(sessionID)
-	
+
 	// Also clear Kimi cache if available
 	if c.kimiCacheManager != nil {
 		// Get current config to determine if cleanup is needed
@@ -300,7 +331,7 @@ func (c *HTTPLLMClient) Close() error {
 			c.kimiCacheManager.CleanupExpiredCaches(0, config.APIKey) // Force cleanup all
 		}
 	}
-	
+
 	// HTTP client doesn't need explicit cleanup
 	return nil
 }
@@ -331,7 +362,7 @@ func (c *HTTPLLMClient) setRequestDefaults(req *ChatRequest) {
 func (c *HTTPLLMClient) setHeaders(req *http.Request, apiKey string, cacheHeaders map[string]string) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
-	
+
 	// Add Kimi cache headers if available
 	if len(cacheHeaders) > 0 {
 		log.Printf("[KIMI_CACHE] 📤 Sending request with cache headers:")
@@ -340,5 +371,5 @@ func (c *HTTPLLMClient) setHeaders(req *http.Request, apiKey string, cacheHeader
 			log.Printf("[KIMI_CACHE]   %s: %s", key, value)
 		}
 	}
-	
+
 }

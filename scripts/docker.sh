@@ -71,7 +71,7 @@ run() {
         prod|production)
             docker run --rm -it \
                 -v "$(pwd):/workspace:ro" \
-                -v "deep-coding-config:/home/appuser/.config" \
+                -v "alex-config:/home/appuser/.config" \
                 deep-coding-agent:latest "$@"
             ;;
         dev|development)

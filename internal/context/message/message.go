@@ -1,6 +1,7 @@
 package message
 
 import (
+	"context"
 	"math/rand"
 	"time"
 
@@ -38,8 +39,8 @@ func NewMessageProcessor(llmClient llm.Client, sessionManager *session.Manager) 
 // ========== 消息压缩 ==========
 
 // CompressMessages 使用AI压缩器压缩session消息
-func (mp *MessageProcessor) CompressMessages(messages []*session.Message) []*session.Message {
-	return mp.compressor.CompressMessages(messages)
+func (mp *MessageProcessor) CompressMessages(ctx context.Context, messages []*session.Message) []*session.Message {
+	return mp.compressor.CompressMessages(ctx, messages)
 }
 
 // ========== 消息转换 ==========

@@ -27,7 +27,7 @@ func NewMessageCompressor(llmClient llm.Client) *MessageCompressor {
 
 // CompressMessages compresses messages using cache-friendly strategy
 // Keeps stable prefix for context caching, compresses middle, preserves recent active
-func (mc *MessageCompressor) CompressMessages(messages []*session.Message) []*session.Message {
+func (mc *MessageCompressor) CompressMessages(ctx context.Context, messages []*session.Message) []*session.Message {
 	totalTokens := mc.estimateTokens(messages)
 	messageCount := len(messages)
 
@@ -43,7 +43,7 @@ func (mc *MessageCompressor) CompressMessages(messages []*session.Message) []*se
 	// Only compress if we exceed thresholds significantly
 	if messageCount > MessageThreshold && totalTokens > TokenThreshold {
 		log.Printf("[INFO] Cache-friendly compression triggered: %d messages, %d tokens", messageCount, totalTokens)
-		return mc.cacheFriendlyCompress(messages, CacheablePrefixKeep)
+		return mc.cacheFriendlyCompress(ctx, messages, CacheablePrefixKeep)
 	}
 
 	log.Printf("[DEBUG] Compression skipped: %d messages (%d threshold), %d tokens (%d threshold)",
@@ -54,7 +54,7 @@ func (mc *MessageCompressor) CompressMessages(messages []*session.Message) []*se
 
 // cacheFriendlyCompress implements cache-friendly compression strategy
 // Keeps stable prefix for context caching, compresses the rest
-func (mc *MessageCompressor) cacheFriendlyCompress(messages []*session.Message, cacheablePrefixKeep int) []*session.Message {
+func (mc *MessageCompressor) cacheFriendlyCompress(ctx context.Context, messages []*session.Message, cacheablePrefixKeep int) []*session.Message {
 	if len(messages) <= cacheablePrefixKeep {
 		return messages // 消息不够多，不需要压缩
 	}
@@ -86,7 +86,7 @@ func (mc *MessageCompressor) cacheFriendlyCompress(messages []*session.Message, 
 		len(cacheablePrefix), len(remainingMessages))
 
 	// Step 4: 压缩剩余消息
-	compressedRemaining := mc.compressRemainingMessages(remainingMessages)
+	compressedRemaining := mc.compressRemainingMessages(ctx, remainingMessages)
 
 	// Step 5: 重新组合消息
 	result := make([]*session.Message, 0, len(systemMessages)+len(cacheablePrefix)+1)
@@ -151,13 +151,13 @@ func (mc *MessageCompressor) findCacheablePrefixWithToolPairing(messages []*sess
 }
 
 // compressRemainingMessages compresses remaining messages using AI summarization
-func (mc *MessageCompressor) compressRemainingMessages(messages []*session.Message) *session.Message {
+func (mc *MessageCompressor) compressRemainingMessages(ctx context.Context, messages []*session.Message) *session.Message {
 	if len(messages) == 0 {
 		return nil
 	}
 
 	// 使用现有的 AI 摘要方法
-	summaryMsg := mc.createComprehensiveAISummary(messages)
+	summaryMsg := mc.createComprehensiveAISummary(ctx, messages)
 	if summaryMsg == nil {
 		return nil
 	}
@@ -189,7 +189,7 @@ func (mc *MessageCompressor) buildToolCallPairMap(messages []*session.Message) m
 }
 
 // createComprehensiveAISummary creates a comprehensive AI summary preserving important context
-func (mc *MessageCompressor) createComprehensiveAISummary(messages []*session.Message) *session.Message {
+func (mc *MessageCompressor) createComprehensiveAISummary(ctx context.Context, messages []*session.Message) *session.Message {
 	if mc.llmClient == nil || len(messages) == 0 {
 		return mc.createStatisticalSummary(messages)
 	}
@@ -215,10 +215,11 @@ func (mc *MessageCompressor) createComprehensiveAISummary(messages []*session.Me
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	// Use the provided context with timeout to preserve session ID and other values
+	timeoutCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 
-	response, err := mc.llmClient.Chat(ctx, request)
+	response, err := mc.llmClient.Chat(timeoutCtx, request)
 	if err != nil {
 		log.Printf("[WARN] MessageCompressor: Comprehensive AI summary failed: %v", err)
 		return mc.createStatisticalSummary(messages)
