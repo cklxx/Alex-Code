@@ -44,6 +44,7 @@ navigation:
 # Theme (you can change this to any supported GitHub Pages theme)
 theme: minima
 
-# GitHub repository (update with your actual repository)
+# GitHub repository
+repository: cklxx/Alex-Code
 github:
-  repository_url: https://github.com/your-org/alex
+  repository_url: https://github.com/cklxx/Alex-Code
