@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"alex/internal/config"
+	"alex/internal/session"
 	"alex/internal/utils"
 )
 
@@ -12,6 +13,11 @@ func GetAllBuiltinTools() []Tool {
 
 // GetAllBuiltinToolsWithConfig returns a list of all builtin tools with configuration
 func GetAllBuiltinToolsWithConfig(configManager *config.Manager) []Tool {
+	return GetAllBuiltinToolsWithAgent(configManager, nil)
+}
+
+// GetAllBuiltinToolsWithAgent returns a list of all builtin tools with configuration and agent access
+func GetAllBuiltinToolsWithAgent(configManager *config.Manager, sessionManager *session.Manager) []Tool {
 
 	// Create web search tool and configure it if config is available
 	webSearchTool := CreateWebSearchTool()
@@ -27,9 +33,9 @@ func GetAllBuiltinToolsWithConfig(configManager *config.Manager) []Tool {
 		// Thinking and reasoning tools
 		NewThinkTool(),
 
-		// Task management tools
-		CreateTodoReadTool(),
-		CreateNewTodoUpdateTool(),
+		// Task management tools - now with direct session manager access
+		CreateTodoReadToolWithSessionManager(sessionManager),
+		CreateTodoUpdateToolWithSessionManager(sessionManager),
 
 		// Search tools
 		CreateGrepTool(),

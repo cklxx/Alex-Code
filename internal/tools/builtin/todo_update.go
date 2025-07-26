@@ -6,13 +6,24 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	
+	"alex/internal/session"
 )
 
 // NewTodoUpdateTool implements todo update functionality (full replacement)
-type NewTodoUpdateTool struct{}
+type NewTodoUpdateTool struct{
+	sessionManager *session.Manager  // 直接引用 session manager
+}
 
 func CreateNewTodoUpdateTool() *NewTodoUpdateTool {
 	return &NewTodoUpdateTool{}
+}
+
+// CreateTodoUpdateToolWithSessionManager creates todo update tool with session manager
+func CreateTodoUpdateToolWithSessionManager(sessionManager *session.Manager) *NewTodoUpdateTool {
+	return &NewTodoUpdateTool{
+		sessionManager: sessionManager,
+	}
 }
 
 func (t *NewTodoUpdateTool) Name() string {
@@ -57,24 +68,25 @@ func (t *NewTodoUpdateTool) Execute(ctx context.Context, args map[string]interfa
 	// Extract content parameter
 	content := args["content"].(string)
 
-	// Get sessions directory and ensure it exists
-	sessionsDir, err := getSessionsDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sessions directory: %w", err)
+	// For tools created without session manager, fall back to error
+	if t.sessionManager == nil {
+		return nil, fmt.Errorf("todo operations require session manager - tool not properly initialized")
 	}
 
-	// Get session ID or use default
-	var todoFile string
-	if id, ok := ctx.Value(SessionIDKey).(string); ok && id != "" {
-		// Use session-specific todo file
-		todoFile = filepath.Join(sessionsDir, id+"_todo.md")
-	} else {
-		// Use default session todo file
-		todoFile = filepath.Join(sessionsDir, "default_todo.md")
+	// Get sessions directory and ensure it exists  
+	sessionsDir := t.sessionManager.GetSessionsDir()
+
+	// Get session ID directly from manager
+	sessionID, hasSession := t.sessionManager.GetSessionID()
+	if !hasSession {
+		return nil, fmt.Errorf("session ID not available - todo operations require a valid session")
 	}
+	
+	// Use session-specific todo file
+	todoFile := filepath.Join(sessionsDir, sessionID+"_todo.md")
 
 	// Write content directly to todo.md file
-	err = os.WriteFile(todoFile, []byte(content), 0644)
+	err := os.WriteFile(todoFile, []byte(content), 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write todo file: %w", err)
 	}

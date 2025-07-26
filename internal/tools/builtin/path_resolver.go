@@ -2,18 +2,11 @@ package builtin
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-)
 
-// ContextKey 用于在context中存储信息
-type ContextKey string
-
-const (
-	WorkingDirKey ContextKey = "working_dir"
-	SessionIDKey  ContextKey = "sessionID"
+	"alex/internal/utils"
 )
 
 // 常见的项目目录名称
@@ -103,7 +96,7 @@ func GetPathResolverFromContext(ctx context.Context) *PathResolver {
 		return NewPathResolver("")
 	}
 
-	if workingDir, ok := ctx.Value(WorkingDirKey).(string); ok {
+	if workingDir, ok := ctx.Value(utils.WorkingDirKey).(string); ok {
 		return NewPathResolver(workingDir)
 	}
 
@@ -112,20 +105,5 @@ func GetPathResolverFromContext(ctx context.Context) *PathResolver {
 
 // WithWorkingDir 在context中设置工作目录
 func WithWorkingDir(ctx context.Context, workingDir string) context.Context {
-	return context.WithValue(ctx, WorkingDirKey, workingDir)
-}
-
-// getSessionsDir returns the sessions directory path
-func getSessionsDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get home directory: %w", err)
-	}
-
-	sessionsDir := filepath.Join(homeDir, ".deep-coding-sessions")
-	if err := os.MkdirAll(sessionsDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create sessions directory: %w", err)
-	}
-
-	return sessionsDir, nil
+	return context.WithValue(ctx, utils.WorkingDirKey, workingDir)
 }

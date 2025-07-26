@@ -8,10 +8,8 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 )
-
 
 // HTTPLLMClient implements the HTTPClient interface for HTTP-based LLM communication
 type HTTPLLMClient struct {
@@ -72,13 +70,10 @@ func (c *HTTPLLMClient) getModelConfig(req *ChatRequest) (string, string, string
 }
 
 // Chat sends a chat request and returns the response
-func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
+func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest, sessionID string) (*ChatResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request cannot be nil")
 	}
-
-	// Extract session ID from context or request metadata
-	sessionID := c.extractSessionID(ctx, req)
 
 	// Optimize messages using cache
 	originalMessages := req.Messages
@@ -208,7 +203,7 @@ func (c *HTTPLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 }
 
 // ChatStream is not supported in HTTP mode
-func (c *HTTPLLMClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan StreamDelta, error) {
+func (c *HTTPLLMClient) ChatStream(ctx context.Context, req *ChatRequest, sessionID string) (<-chan StreamDelta, error) {
 	return nil, fmt.Errorf("streaming not supported in HTTP mode, use streaming client instead")
 }
 
@@ -222,62 +217,6 @@ func (c *HTTPLLMClient) SetHTTPClient(client *http.Client) {
 // GetHTTPClient returns the current HTTP client
 func (c *HTTPLLMClient) GetHTTPClient() *http.Client {
 	return c.httpClient
-}
-
-// Import the agent's ContextKey to avoid type conflicts
-// Note: We use string keys directly to avoid circular imports
-
-// ExtractSessionID extracts session ID from context or request (public method)
-func (c *HTTPLLMClient) ExtractSessionID(ctx context.Context, req *ChatRequest) string {
-	return c.extractSessionID(ctx, req)
-}
-
-// extractSessionID extracts session ID from context or request
-func (c *HTTPLLMClient) extractSessionID(ctx context.Context, req *ChatRequest) string {
-	// Try with typed key first (compatible with agent.SessionIDKey)
-	if sessionID := ctx.Value(ContextKeyType("sessionID")); sessionID != nil {
-		if id, ok := sessionID.(string); ok {
-			log.Printf("[DEBUG] ✅ Found session ID from context (typed key): %s", id)
-			return id
-		}
-	}
-	
-	// Use string keys for backward compatibility
-	if sessionID := ctx.Value("sessionID"); sessionID != nil {
-		if id, ok := sessionID.(string); ok {
-			log.Printf("[DEBUG] ✅ Found session ID from context (string key): %s", id)
-			return id
-		}
-	}
-
-	// Also try with legacy key for backward compatibility
-	if sessionID := ctx.Value("session_id"); sessionID != nil {
-		if id, ok := sessionID.(string); ok {
-			log.Printf("[DEBUG] ✅ Found session ID from context (legacy key): %s", id)
-			return id
-		}
-	}
-	
-	log.Printf("[DEBUG] ❌ No session ID found in context")
-
-	// Try to get from request metadata
-	for _, msg := range req.Messages {
-		if msg.Role == "system" && len(msg.Content) > 0 {
-			// Look for session ID in system message
-			if strings.Contains(msg.Content, "session_id:") {
-				parts := strings.Split(msg.Content, "session_id:")
-				if len(parts) > 1 {
-					sessionPart := strings.TrimSpace(parts[1])
-					if idx := strings.Index(sessionPart, " "); idx != -1 {
-						return sessionPart[:idx]
-					}
-					return sessionPart
-				}
-			}
-		}
-	}
-
-	return ""
 }
 
 // GetCacheStats returns cache statistics

@@ -90,7 +90,7 @@ func TestStreamingClient_Chat(t *testing.T) {
 		Config:    config,
 	}
 
-	resp, err := client.Chat(context.Background(), req)
+	resp, err := client.Chat(context.Background(), req, "test-session-id")
 	if err != nil {
 		t.Fatalf("chat request failed: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestStreamingClient_ChatStream(t *testing.T) {
 		Config:    config,
 	}
 
-	deltaChannel, err := client.ChatStream(context.Background(), req)
+	deltaChannel, err := client.ChatStream(context.Background(), req, "test-session-id")
 	if err != nil {
 		t.Fatalf("stream request failed: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestStreamingClient_SetStreamingEnabled(t *testing.T) {
 	// Disable streaming
 	client.SetStreamingEnabled(false)
 
-	_, err = client.ChatStream(context.Background(), req)
+	_, err = client.ChatStream(context.Background(), req, "test-session-id")
 	if err == nil {
 		t.Error("expected error when streaming is disabled")
 	}
@@ -258,7 +258,7 @@ func TestStreamingClient_SetStreamingEnabled(t *testing.T) {
 	client.SetStreamingEnabled(true)
 
 	// This should not error (though it will fail due to no server)
-	_, err = client.ChatStream(context.Background(), req)
+	_, err = client.ChatStream(context.Background(), req, "test-session-id")
 	if err == nil {
 		t.Error("expected error due to no server, but this confirms streaming is enabled")
 	}

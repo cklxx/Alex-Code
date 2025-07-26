@@ -13,13 +13,15 @@ import (
 
 // MessageCompressor handles message compression operations
 type MessageCompressor struct {
+	sessionManager *session.Manager
 	llmClient      llm.Client
 	tokenEstimator *TokenEstimator
 }
 
 // NewMessageCompressor creates a new message compressor
-func NewMessageCompressor(llmClient llm.Client) *MessageCompressor {
+func NewMessageCompressor(sessionManager *session.Manager, llmClient llm.Client) *MessageCompressor {
 	return &MessageCompressor{
+		sessionManager: sessionManager,
 		llmClient:      llmClient,
 		tokenEstimator: NewTokenEstimator(),
 	}
@@ -218,8 +220,8 @@ func (mc *MessageCompressor) createComprehensiveAISummary(ctx context.Context, m
 	// Use the provided context with timeout to preserve session ID and other values
 	timeoutCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
-
-	response, err := mc.llmClient.Chat(timeoutCtx, request)
+	sessionID, _ := mc.sessionManager.GetSessionID()
+	response, err := mc.llmClient.Chat(timeoutCtx, request, sessionID)
 	if err != nil {
 		log.Printf("[WARN] MessageCompressor: Comprehensive AI summary failed: %v", err)
 		return mc.createStatisticalSummary(messages)

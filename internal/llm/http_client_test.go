@@ -68,7 +68,7 @@ func TestHTTPClient_Chat(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	response, err := client.Chat(ctx, req)
+	response, err := client.Chat(ctx, req, "test-session-id")
 	if err != nil {
 		t.Fatalf("Chat() failed: %v", err)
 	}

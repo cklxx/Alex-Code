@@ -16,19 +16,6 @@ import (
 	"alex/pkg/types"
 )
 
-// ContextKey 用于在context中存储值，避免类型冲突
-type ContextKey string
-
-const (
-	SessionIDKey ContextKey = "sessionID"
-)
-
-// GeneratedMemories - 空记忆结构体 (Memory module removed)
-type GeneratedMemories struct {
-	SessionID string    `json:"session_id"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
 // ReactCoreInterface - ReAct核心接口
 type ReactCoreInterface interface {
 	SolveTask(ctx context.Context, task string, streamCallback StreamCallback) (*types.ReactTaskResult, error)
@@ -106,7 +93,7 @@ func NewReactAgent(configManager *config.Manager) (*ReactAgent, error) {
 
 	// 初始化工具
 	tools := make(map[string]builtin.Tool)
-	builtinTools := builtin.GetAllBuiltinToolsWithConfig(configManager)
+	builtinTools := builtin.GetAllBuiltinToolsWithAgent(configManager, sessionManager)
 
 	// 集成MCP工具
 	allTools := integrateWithMCPTools(configManager, builtinTools)
@@ -166,84 +153,10 @@ func (r *ReactAgent) RestoreSession(sessionID string) (*session.Session, error) 
 	return session, nil
 }
 
-// ProcessMessage - 处理消息（简化版）
-func (r *ReactAgent) ProcessMessage(ctx context.Context, userMessage string, config *config.Config) (*Response, error) {
-	r.mu.RLock()
-	currentSession := r.currentSession
-	r.mu.RUnlock()
-
-	// If no active session, create one automatically
-	if currentSession == nil {
-		log.Printf("[DEBUG] No active session found, creating new session automatically")
-		sessionID := fmt.Sprintf("auto_%d", time.Now().UnixNano())
-		newSession, err := r.StartSession(sessionID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create session automatically: %w", err)
-		}
-		currentSession = newSession
-		log.Printf("[DEBUG] Auto-created session: %s", currentSession.ID)
-	}
-
-	// 添加用户消息到会话
-	userMsg := &session.Message{
-		Role:    "user",
-		Content: userMessage,
-		Metadata: map[string]interface{}{
-			"timestamp": time.Now().Unix(),
-		},
-		Timestamp: time.Now(),
-	}
-	currentSession.AddMessage(userMsg)
-
-	// 将会话ID注入context - 使用类型安全的key
-	ctxWithSession := context.WithValue(ctx, SessionIDKey, currentSession.ID)
-	log.Printf("[DEBUG] 🔧 Context set with session ID: %s", currentSession.ID)
-
-	// 执行ReAct循环
-	result, err := r.reactCore.SolveTask(ctxWithSession, userMessage, nil)
-	if err != nil {
-		return nil, fmt.Errorf("task solving failed: %w", err)
-	}
-
-	// 创建assistant消息
-	assistantMsg := &session.Message{
-		Role:    "assistant",
-		Content: result.Answer,
-		Metadata: map[string]interface{}{
-			"timestamp":   time.Now().Unix(),
-			"confidence":  result.Confidence,
-			"tokens_used": result.TokensUsed,
-		},
-		Timestamp: time.Now(),
-	}
-	currentSession.AddMessage(assistantMsg)
-
-	// Memory generation removed
-
-	// 转换结果
-	toolResults := make([]types.ReactToolResult, 0)
-	for _, step := range result.Steps {
-		if step.Result != nil {
-			for _, tr := range step.Result {
-				if tr != nil {
-					toolResults = append(toolResults, *tr)
-				}
-			}
-		}
-	}
-
-	return &Response{
-		Message:     assistantMsg,
-		ToolResults: toolResults,
-		SessionID:   currentSession.ID,
-		Complete:    true,
-	}, nil
-}
-
-// ProcessMessageStream - 流式处理消息（简化版）
+// ProcessMessageStream - 流式处理消息
 func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage string, config *config.Config, callback StreamCallback) error {
 	log.Printf("[DEBUG] ====== ProcessMessageStream called with message: %s", userMessage)
-	
+
 	r.mu.RLock()
 	currentSession := r.currentSession
 	r.mu.RUnlock()
@@ -266,24 +179,12 @@ func (r *ReactAgent) ProcessMessageStream(ctx context.Context, userMessage strin
 		}
 	}
 
-	// 添加用户消息
-	userMsg := &session.Message{
-		Role:    "user",
-		Content: userMessage,
-		Metadata: map[string]interface{}{
-			"timestamp": time.Now().Unix(),
-			"streaming": true,
-		},
-		Timestamp: time.Now(),
-	}
-	currentSession.AddMessage(userMsg)
-
-	// 设置上下文 - 使用类型安全的key
-	ctxWithSession := context.WithValue(ctx, SessionIDKey, currentSession.ID)
+	// 将session ID通过其他方式传递给core，不使用context
+	// 这里可以通过直接调用方法传递
 	log.Printf("[DEBUG] 🔧 Context set with session ID: %s", currentSession.ID)
 
 	// 执行流式ReAct循环
-	result, err := r.reactCore.SolveTask(ctxWithSession, userMessage, callback)
+	result, err := r.reactCore.SolveTask(ctx, userMessage, callback)
 	if err != nil {
 		return fmt.Errorf("streaming task solving failed: %w", err)
 	}
@@ -349,11 +250,6 @@ func (r *ReactAgent) GetReactCore() ReactCoreInterface {
 // GetSessionManager - 获取SessionManager实例
 func (r *ReactAgent) GetSessionManager() *session.Manager {
 	return r.sessionManager
-}
-
-// GenerateMemories - 手动生成记忆 (Memory module removed)
-func (r *ReactAgent) GenerateMemories(ctx context.Context, sessionID string) (*GeneratedMemories, error) {
-	return &GeneratedMemories{}, nil
 }
 
 // ========== 代理方法 ==========

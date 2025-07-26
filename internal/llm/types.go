@@ -179,10 +179,10 @@ type Config struct {
 // Client interface defines LLM client operations
 type Client interface {
 	// Chat sends a chat request and returns the response
-	Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error)
+	Chat(ctx context.Context, req *ChatRequest, sessionID string) (*ChatResponse, error)
 
 	// ChatStream sends a chat request and returns a streaming response
-	ChatStream(ctx context.Context, req *ChatRequest) (<-chan StreamDelta, error)
+	ChatStream(ctx context.Context, req *ChatRequest, sessionID string) (<-chan StreamDelta, error)
 
 	// Close closes the client and cleans up resources
 	Close() error

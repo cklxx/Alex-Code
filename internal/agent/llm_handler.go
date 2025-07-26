@@ -9,17 +9,20 @@ import (
 	"time"
 
 	"alex/internal/llm"
+	"alex/internal/session"
 )
 
 // LLMHandler handles all LLM-related operations
 type LLMHandler struct {
 	streamCallback StreamCallback
+	sessionManager *session.Manager
 }
 
 // NewLLMHandler creates a new LLM handler
-func NewLLMHandler(streamCallback StreamCallback) *LLMHandler {
+func NewLLMHandler(sessionManager *session.Manager, streamCallback StreamCallback) *LLMHandler {
 	return &LLMHandler{
 		streamCallback: streamCallback,
+		sessionManager: sessionManager,
 	}
 }
 
@@ -53,7 +56,7 @@ func (h *LLMHandler) isNetworkError(err error) bool {
 	networkErrorPatterns := []string{
 		"connection refused",
 		"connection reset",
-		"connection timeout", 
+		"connection timeout",
 		"dial timeout",
 		"read timeout",
 		"write timeout",
@@ -79,12 +82,12 @@ func (h *LLMHandler) isNetworkError(err error) bool {
 // isRetriableError checks if an error should be retried (opposite of network error)
 func (h *LLMHandler) isRetriableError(err error) bool {
 	errStr := err.Error()
-	
+
 	// Timeout errors from HTTP client should be retried
 	if strings.Contains(errStr, "timeout") || strings.Contains(errStr, "deadline exceeded") {
 		return true
 	}
-	
+
 	// Extract HTTP status code if present
 	if strings.Contains(errStr, "HTTP error ") {
 		parts := strings.Split(errStr, "HTTP error ")
@@ -101,23 +104,23 @@ func (h *LLMHandler) isRetriableError(err error) bool {
 			}
 		}
 	}
-	
+
 	// Temporary network issues that should be retried
 	retriablePatterns := []string{
 		"temporary failure",
-		"server temporarily unavailable", 
+		"server temporarily unavailable",
 		"connection reset by peer",
 		"broken pipe",
 		"EOF",
 	}
-	
+
 	lowerErr := strings.ToLower(errStr)
 	for _, pattern := range retriablePatterns {
 		if strings.Contains(lowerErr, pattern) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -128,15 +131,8 @@ func (h *LLMHandler) callLLMWithRetry(ctx context.Context, client llm.Client, re
 
 // callLLMWithRetryAndBackoff - 带重试机制和可配置退避策略的非流式LLM调用
 func (h *LLMHandler) callLLMWithRetryAndBackoff(ctx context.Context, client llm.Client, request *llm.ChatRequest, maxRetries int, backoffFunc func(int) time.Duration) (*llm.ChatResponse, error) {
-	// Debug context transmission
-	if sessionID := ctx.Value("sessionID"); sessionID != nil {
-		log.Printf("[DEBUG] 🔧 LLM handler received context with session ID: %s", sessionID)
-	} else {
-		log.Printf("[DEBUG] ❌ LLM handler received context WITHOUT session ID")
-	}
-	
 	var lastErr error
-
+	sessionID, _ := h.sessionManager.GetSessionID()
 	// 默认的快速重试策略（100ms 间隔）
 	if backoffFunc == nil {
 		backoffFunc = func(attempt int) time.Duration {
@@ -146,7 +142,7 @@ func (h *LLMHandler) callLLMWithRetryAndBackoff(ctx context.Context, client llm.
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		// 使用非流式调用
-		response, err := client.Chat(ctx, request)
+		response, err := client.Chat(ctx, request, sessionID)
 		if err != nil {
 			lastErr = err
 			log.Printf("[WARN] LLMHandler: Chat call failed (attempt %d): %v", attempt, err)
@@ -160,7 +156,7 @@ func (h *LLMHandler) callLLMWithRetryAndBackoff(ctx context.Context, client llm.
 			// 如果是可重试的错误（如超时、临时服务器错误），则重试
 			if attempt < maxRetries && (h.isRetriableError(err) || !h.isNetworkError(err)) {
 				backoffDuration := backoffFunc(attempt)
-				log.Printf("[WARN] LLMHandler: Retrying in %v (retriable: %v, network: %v)", 
+				log.Printf("[WARN] LLMHandler: Retrying in %v (retriable: %v, network: %v)",
 					backoffDuration, h.isRetriableError(err), h.isNetworkError(err))
 				select {
 				case <-ctx.Done():

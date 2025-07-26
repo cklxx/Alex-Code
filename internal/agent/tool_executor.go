@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
 	"alex/internal/llm"
-	"alex/internal/tools/builtin"
 	"alex/internal/utils"
 	"alex/pkg/types"
+
 	"github.com/kaptinlin/jsonrepair"
 )
 
@@ -431,11 +430,11 @@ func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args m
 		return nil, fmt.Errorf("tool validation failed: %w", err)
 	}
 
-	// 注入工作目录上下文给文件相关工具
-	contextWithWorkingDir := te.injectWorkingDirContext(ctx)
-
+	// Session ID injection removed - tools now get session ID directly from manager
+	
+	// 直接执行工具
 	start := time.Now()
-	result, err := tool.Execute(contextWithWorkingDir, args)
+	result, err := tool.Execute(ctx, args)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -466,37 +465,7 @@ func (te *ToolExecutor) executeTool(ctx context.Context, toolName string, args m
 	return resultObj, nil
 }
 
-// injectWorkingDirContext - 注入工作目录上下文和会话ID
-func (te *ToolExecutor) injectWorkingDirContext(ctx context.Context) context.Context {
-	// 尝试从当前会话获取工作目录
-	te.agent.mu.RLock()
-	currentSession := te.agent.currentSession
-	te.agent.mu.RUnlock()
-
-	var workingDir string
-
-	// 如果有当前会话，从会话的WorkingDir字段获取工作目录
-	if currentSession != nil && currentSession.WorkingDir != "" {
-		workingDir = currentSession.WorkingDir
-	}
-
-	// 如果没有找到工作目录，使用当前工作目录
-	if workingDir == "" {
-		if wd, err := os.Getwd(); err == nil {
-			workingDir = wd
-		}
-	}
-
-	// 将工作目录注入到context中
-	ctx = builtin.WithWorkingDir(ctx, workingDir)
-
-	// 将会话ID注入到context中，供session-aware tools使用
-	if currentSession != nil {
-		ctx = context.WithValue(ctx, SessionIDKey, currentSession.ID)
-	}
-
-	return ctx
-}
+// Session-related helper functions removed - tools now access session manager directly
 
 // simpleFallbackRepair - 简单的备用JSON修复方法
 // 当jsonrepair库失败时使用这个更保守的方法

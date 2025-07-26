@@ -5,13 +5,24 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"alex/internal/session"
 )
 
 // TodoReadTool implements todo reading functionality
-type TodoReadTool struct{}
+type TodoReadTool struct {
+	sessionManager *session.Manager // 直接引用 session manager
+}
 
 func CreateTodoReadTool() *TodoReadTool {
 	return &TodoReadTool{}
+}
+
+// CreateTodoReadToolWithSessionManager creates todo read tool with session manager
+func CreateTodoReadToolWithSessionManager(sessionManager *session.Manager) *TodoReadTool {
+	return &TodoReadTool{
+		sessionManager: sessionManager,
+	}
 }
 
 func (t *TodoReadTool) Name() string {
@@ -35,21 +46,34 @@ func (t *TodoReadTool) Validate(args map[string]interface{}) error {
 }
 
 func (t *TodoReadTool) Execute(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	// Get sessions directory and ensure it exists
-	sessionsDir, err := getSessionsDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sessions directory: %w", err)
+	// For tools created without session manager, fall back to trying context or return error
+	if t.sessionManager == nil {
+		return nil, fmt.Errorf("todo operations require session manager - tool not properly initialized")
 	}
 
-	// Get session ID or use default
-	var todoFile string
-	if id, ok := ctx.Value(SessionIDKey).(string); ok && id != "" {
-		// Use session-specific todo file
-		todoFile = filepath.Join(sessionsDir, id+"_todo.md")
-	} else {
-		// Use default session todo file
-		todoFile = filepath.Join(sessionsDir, "default_todo.md")
+	// Get sessions directory and ensure it exists
+	sessionsDir := t.sessionManager.GetSessionsDir()
+
+	// For direct session manager approach, we need to find a way to get current session
+	// This is a limitation - we need the session ID somehow
+	// For now, let's check if there's a session ID in args or context
+	var sessionID string
+	if id, exists := t.sessionManager.GetSessionID(); exists {
+		sessionID = id
 	}
+
+	if sessionID == "" {
+		return nil, fmt.Errorf("session ID not provided - todo operations require a valid session")
+	}
+
+	// Use session-specific todo file
+	todoFile := filepath.Join(sessionsDir, sessionID+"_todo.md")
+
+	return t.executeWithSessionID(todoFile)
+}
+
+// executeWithSessionID - 直接使用session ID执行，避免context依赖
+func (t *TodoReadTool) executeWithSessionID(todoFile string) (*ToolResult, error) {
 
 	// Check if todo file exists
 	if _, err := os.Stat(todoFile); os.IsNotExist(err) {

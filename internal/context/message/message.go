@@ -10,18 +10,11 @@ import (
 	"alex/pkg/types/message"
 )
 
-// ContextKey type for context values
-type ContextKey string
-
-const (
-	SessionIDKey ContextKey = "sessionID"
-)
-
 // MessageProcessor 统一的消息处理器，整合所有消息相关功能
 type MessageProcessor struct {
 	sessionManager *session.Manager
 	tokenEstimator *TokenEstimator
-	adapter        *message.Adapter              // 统一消息适配器
+	adapter        *message.Adapter   // 统一消息适配器
 	compressor     *MessageCompressor // AI压缩器
 }
 
@@ -31,8 +24,8 @@ func NewMessageProcessor(llmClient llm.Client, sessionManager *session.Manager) 
 	return &MessageProcessor{
 		sessionManager: sessionManager,
 		tokenEstimator: NewTokenEstimator(),
-		adapter:        message.NewAdapter(),                       // 统一消息适配器
-		compressor:     NewMessageCompressor(llmClient), // AI压缩器
+		adapter:        message.NewAdapter(),                            // 统一消息适配器
+		compressor:     NewMessageCompressor(sessionManager, llmClient), // AI压缩器
 	}
 }
 

@@ -1,12 +1,10 @@
 package llm
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
 )
-
 
 // TestCacheManager_GetOrCreateCache tests cache creation and retrieval
 func TestCacheManager_GetOrCreateCache(t *testing.T) {
@@ -294,47 +292,6 @@ func TestCacheManager_GenerateCacheKey(t *testing.T) {
 	// Keys should be non-empty hex strings
 	if len(key1) != 32 { // MD5 hex string length
 		t.Errorf("Expected cache key length 32, got %d", len(key1))
-	}
-}
-
-// TestHTTPLLMClient_ExtractSessionID tests session ID extraction
-func TestHTTPLLMClient_ExtractSessionID(t *testing.T) {
-	client, err := NewHTTPClient()
-	if err != nil {
-		t.Fatalf("Failed to create HTTP client: %v", err)
-	}
-
-	// Test extraction from context
-	ctx := context.WithValue(context.Background(), ContextKeyType("sessionID"), "ctx_session_123")
-	req := &ChatRequest{Messages: []Message{}}
-	sessionID := client.extractSessionID(ctx, req)
-	if sessionID != "ctx_session_123" {
-		t.Errorf("Expected session ID from context 'ctx_session_123', got '%s'", sessionID)
-	}
-
-	// Test extraction from system message
-	ctx = context.Background()
-	req = &ChatRequest{
-		Messages: []Message{
-			{Role: "system", Content: "System prompt with session_id: msg_session_456 and other text"},
-			{Role: "user", Content: "Hello"},
-		},
-	}
-	sessionID = client.extractSessionID(ctx, req)
-	if sessionID != "msg_session_456" {
-		t.Errorf("Expected session ID from message 'msg_session_456', got '%s'", sessionID)
-	}
-
-	// Test no session ID found
-	ctx = context.Background()
-	req = &ChatRequest{
-		Messages: []Message{
-			{Role: "user", Content: "Hello"},
-		},
-	}
-	sessionID = client.extractSessionID(ctx, req)
-	if sessionID != "" {
-		t.Errorf("Expected empty session ID, got '%s'", sessionID)
 	}
 }
 

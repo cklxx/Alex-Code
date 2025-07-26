@@ -80,7 +80,7 @@ func (c *StreamingLLMClient) getModelConfig(req *ChatRequest) (string, string, s
 }
 
 // Chat sends a chat request and returns the response (non-streaming mode)
-func (c *StreamingLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
+func (c *StreamingLLMClient) Chat(ctx context.Context, req *ChatRequest, sessionID string) (*ChatResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request cannot be nil")
 	}
@@ -135,7 +135,7 @@ func (c *StreamingLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatR
 }
 
 // ChatStream sends a chat request and returns a streaming response
-func (c *StreamingLLMClient) ChatStream(ctx context.Context, req *ChatRequest) (<-chan StreamDelta, error) {
+func (c *StreamingLLMClient) ChatStream(ctx context.Context, req *ChatRequest, sessionID string) (<-chan StreamDelta, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request cannot be nil")
 	}

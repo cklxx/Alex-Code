@@ -46,9 +46,10 @@ type ToolCall struct {
 
 // Manager handles session persistence and restoration
 type Manager struct {
-	sessionsDir string
-	sessions    map[string]*Session
-	mutex       sync.RWMutex
+	sessionsDir      string
+	sessions         map[string]*Session
+	mutex            sync.RWMutex
+	currentSessionID string
 }
 
 // NewManager creates a new session manager
@@ -74,6 +75,12 @@ func (m *Manager) GetSessionsDir() string {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.sessionsDir
+}
+
+func (m *Manager) GetSessionID() (string, bool) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	return m.currentSessionID, m.currentSessionID != ""
 }
 
 // StartSession creates a new session
@@ -102,6 +109,9 @@ func (m *Manager) StartSession(sessionID string) (*Session, error) {
 		Config:     make(map[string]interface{}),
 	}
 
+	// Clean up any existing todo file for this session to ensure fresh start
+	m.cleanupSessionTodoFile(sessionID)
+	m.currentSessionID = sessionID
 	m.sessions[sessionID] = session
 	return session, nil
 }
@@ -177,11 +187,14 @@ func (m *Manager) DeleteSession(sessionID string) error {
 	// Remove from memory
 	delete(m.sessions, sessionID)
 
-	// Remove from disk
+	// Remove session file from disk
 	sessionFile := filepath.Join(m.sessionsDir, sessionID+".json")
 	if err := os.Remove(sessionFile); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete session file: %w", err)
 	}
+
+	// Also clean up the session's todo file
+	m.cleanupSessionTodoFile(sessionID)
 
 	return nil
 }
@@ -399,6 +412,15 @@ func (s *Session) ClearKimiCacheID() {
 
 	s.KimiCacheID = ""
 	s.Updated = time.Now()
+}
+
+// cleanupSessionTodoFile removes any existing todo file for the session
+func (m *Manager) cleanupSessionTodoFile(sessionID string) {
+	todoFile := filepath.Join(m.sessionsDir, sessionID+"_todo.md")
+	if err := os.Remove(todoFile); err != nil && !os.IsNotExist(err) {
+		// Log but don't fail - this is a cleanup operation
+		fmt.Printf("Warning: failed to cleanup todo file for session %s: %v\n", sessionID, err)
+	}
 }
 
 // Helper function to generate a unique session ID

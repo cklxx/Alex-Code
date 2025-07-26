@@ -10,6 +10,7 @@ import (
 	"alex/internal/context/message"
 	"alex/internal/llm"
 	"alex/internal/session"
+	"alex/internal/utils"
 	"alex/pkg/types"
 )
 
@@ -34,7 +35,7 @@ func NewReactCore(agent *ReactAgent) *ReactCore {
 	return &ReactCore{
 		agent:            agent,
 		messageProcessor: message.NewMessageProcessor(llmClient, agent.sessionManager),
-		llmHandler:       NewLLMHandler(nil), // Will be set per request
+		llmHandler:       NewLLMHandler(agent.sessionManager, nil), // Will be set per request
 		toolHandler:      NewToolHandler(agent.tools),
 		promptHandler:    NewPromptHandler(agent.promptBuilder),
 	}
@@ -42,22 +43,7 @@ func NewReactCore(agent *ReactAgent) *ReactCore {
 
 // SolveTask - 使用工具调用流程的简化任务解决方法
 func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback StreamCallback) (*types.ReactTaskResult, error) {
-	// Debug context transmission with multiple key types
-	stringSessionID := ctx.Value("sessionID")
-	typedSessionID := ctx.Value(SessionIDKey)
-	
-	log.Printf("[DEBUG] 🔍 SolveTask context debug:")
-	log.Printf("[DEBUG]   String key 'sessionID': %+v", stringSessionID)
-	log.Printf("[DEBUG]   Typed key SessionIDKey: %+v", typedSessionID)
-	
-	if stringSessionID != nil {
-		log.Printf("[DEBUG] ✅ SolveTask received context with session ID (string): %s", stringSessionID)
-	} else if typedSessionID != nil {
-		log.Printf("[DEBUG] ✅ SolveTask received context with session ID (typed): %s", typedSessionID)
-	} else {
-		log.Printf("[DEBUG] ❌ SolveTask received context WITHOUT session ID")
-	}
-	
+	// Get session ID from context - unified approach
 	// 设置流回调
 	rc.streamCallback = streamCallback
 	rc.llmHandler.streamCallback = streamCallback
@@ -67,7 +53,7 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 
 	// 初始化任务上下文
 	taskCtx := types.NewReactTaskContext(taskID, task)
-
+	ctx = context.WithValue(ctx, utils.WorkingDirKey, taskCtx.WorkingDir)
 	// 决定是否使用流式处理
 	isStreaming := streamCallback != nil
 	if isStreaming {
@@ -82,6 +68,18 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 			Content: systemPrompt,
 		},
 	}
+
+	// 添加用户消息
+	userMsg := &session.Message{
+		Role:    "user",
+		Content: task,
+		Metadata: map[string]interface{}{
+			"timestamp": time.Now().Unix(),
+			"streaming": true,
+		},
+		Timestamp: time.Now(),
+	}
+	rc.agent.currentSession.AddMessage(userMsg)
 
 	// 执行工具驱动的ReAct循环
 	maxIterations := 100 // 减少迭代次数，依赖智能工具调用
@@ -315,6 +313,19 @@ func (rc *ReactCore) SolveTask(ctx context.Context, task string, streamCallback 
 				// 将工具消息添加到session供memory系统学习
 				rc.addToolMessagesToSession(toolMessages, toolResult)
 
+				// 读取并注入当前TODO作为用户消息（在工具执行完成后）
+				if todoContent := rc.readCurrentTodos(ctx); todoContent != "" {
+					todoUserMessage := llm.Message{
+						Role:    "user",
+						Content: fmt.Sprintf("Current TODOs:\n%s", todoContent),
+					}
+					messages = append(messages, todoUserMessage)
+					log.Printf("[DEBUG] ReactCore: Injected TODO message after tool execution")
+
+					// 添加到session
+					rc.addUserMessageToSession(fmt.Sprintf("Current TODOs:\n%s", todoContent))
+				}
+
 				step.Observation = rc.toolHandler.generateObservation(toolResult)
 			}
 		} else {
@@ -443,4 +454,58 @@ func (rc *ReactCore) addToolMessagesToSession(toolMessages []llm.Message, toolRe
 	}
 
 	// Memory creation removed
+}
+
+// readCurrentTodos - 读取当前会话的TODO列表
+func (rc *ReactCore) readCurrentTodos(ctx context.Context) string {
+	// 直接从agent获取session ID，避免context传递的复杂性
+	if rc.agent.currentSession == nil {
+		log.Printf("[DEBUG] ReactCore: No current session, cannot read todos")
+		return ""
+	}
+
+	sessionID := rc.agent.currentSession.ID
+	if sessionID == "" {
+		log.Printf("[DEBUG] ReactCore: Current session has empty ID, cannot read todos")
+		return ""
+	}
+
+	// 直接调用todo工具，传递session ID作为参数
+	if todoTool, exists := rc.agent.tools["todo_read"]; exists {
+		args := map[string]interface{}{
+			"session_id": sessionID,
+		}
+		result, err := todoTool.Execute(ctx, args)
+		if err != nil {
+			log.Printf("[DEBUG] ReactCore: Failed to read todos: %v", err)
+			return ""
+		}
+		if result != nil && result.Content != "" {
+			return result.Content
+		}
+	}
+	return ""
+}
+
+// addUserMessageToSession - 将用户消息添加到session中
+func (rc *ReactCore) addUserMessageToSession(content string) {
+	// 获取当前会话
+	sess := rc.agent.currentSession
+	if sess == nil {
+		return // 没有会话则跳过
+	}
+
+	// 创建用户消息
+	sessionMsg := &session.Message{
+		Role:      "user",
+		Content:   content,
+		Timestamp: time.Now(),
+		Metadata: map[string]interface{}{
+			"source":    "todo_injection",
+			"timestamp": time.Now().Unix(),
+		},
+	}
+
+	// 添加到session
+	sess.AddMessage(sessionMsg)
 }
